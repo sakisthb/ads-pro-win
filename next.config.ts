@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   reactStrictMode: true,
+  // Specify the source directory
+  distDir: '.next',
+  // Ensure the app directory is properly configured
+  appDir: true,
 };
 
 export default nextConfig;
