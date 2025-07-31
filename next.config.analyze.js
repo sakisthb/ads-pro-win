@@ -1,7 +1,8 @@
-import type { NextConfig } from "next";
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
 
-const nextConfig: NextConfig = {
-  /* config options here */
+const nextConfig = {
   experimental: {
     optimizePackageImports: ['@radix-ui/react-slot', 'clsx', 'tailwind-merge'],
   },
@@ -12,6 +13,7 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   reactStrictMode: true,
+  swcMinify: true,
 };
 
-export default nextConfig;
+module.exports = withBundleAnalyzer(nextConfig); 

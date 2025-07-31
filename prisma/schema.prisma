@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  plan        String   @default("free")
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  campaigns   Campaign[]
+  users       User[]
+  aiAgents    AIAgent[]
+  workflows   Workflow[]
+  analyses    Analysis[]
+  predictions Prediction[]
+  optimizations Optimization[]
+  apiIntegrations APIIntegration[]
+  notifications Notification[]
+
+  @@map("organizations")
+  @@index([createdAt])
+  @@index([plan])
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  fullName       String?
+  avatar         String?
+  role           String   @default("user") // user, admin, manager
+  isActive       Boolean  @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaigns      Campaign[]
+
+  @@map("users")
+  @@index([organizationId])
+  @@index([email])
+  @@index([isActive])
+  @@index([lastLoginAt])
+}
+
+model Campaign {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  status          String   @default("draft") // draft, active, paused, completed
+  platform        String   // facebook, google, tiktok, instagram, linkedin
+  budget          Float    @default(0)
+  budgetSpent     Float    @default(0)
+  startDate       DateTime?
+  endDate         DateTime?
+  targetAudience  Json     @default("{}")
+  adCreatives     Json     @default("[]")
+  performance     Json     @default("{}")
+  settings        Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiAgents        AIAgent[]
+  workflows       Workflow[]
+  analyses        Analysis[]
+  predictions     Prediction[]
+  optimizations   Optimization[]
+
+  @@map("campaigns")
+  @@index([organizationId])
+  @@index([status])
+  @@index([platform])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([createdAt])
+  @@index([budget])
+}
+
+model AIAgent {
+  id              String   @id @default(cuid())
+  name            String
+  type            String   // campaign_optimizer, audience_analyzer, creative_generator, performance_predictor
+  status          String   @default("active") // active, inactive, training
+  configuration   Json     @default("{}")
+  performance     Json     @default("{}")
+  lastRunAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@map("ai_agents")
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@index([lastRunAt])
+}
+
+model Workflow {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  type            String   // automation, analysis, optimization
+  status          String   @default("active") // active, inactive, error
+  configuration   Json     @default("{}")
+  schedule        Json     @default("{}")
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@map("workflows")
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@index([nextRunAt])
+  @@index([lastRunAt])
+}
+
+model Analysis {
+  id              String   @id @default(cuid())
+  type            String   // performance, audience, competitive, trend
+  title           String
+  description     String?
+  data            Json     @default("{}")
+  insights        Json     @default("[]")
+  recommendations Json     @default("[]")
+  status          String   @default("completed") // running, completed, failed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@map("analyses")
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Prediction {
+  id              String   @id @default(cuid())
+  type            String   // performance, audience, trend, budget
+  title           String
+  description     String?
+  data            Json     @default("{}")
+  confidence      Float    @default(0)
+  accuracy        Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@map("predictions")
+  @@index([organizationId])
+  @@index([type])
+  @@index([confidence])
+  @@index([createdAt])
+}
+
+model Optimization {
+  id              String   @id @default(cuid())
+  type            String   // budget, audience, creative, bidding
+  title           String
+  description     String?
+  recommendations Json     @default("[]")
+  implementation  Json     @default("{}")
+  status          String   @default("pending") // pending, implemented, rejected
+  impact          Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@map("optimizations")
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model APIIntegration {
+  id              String   @id @default(cuid())
+  platform        String   // facebook, google, tiktok, instagram, linkedin
+  name            String
+  status          String   @default("active") // active, inactive, error
+  credentials     Json     @default("{}")
+  settings        Json     @default("{}")
+  lastSyncAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("api_integrations")
+  @@index([organizationId])
+  @@index([platform])
+  @@index([status])
+  @@index([lastSyncAt])
+}
+
+model Notification {
+  id              String   @id @default(cuid())
+  type            String   // alert, warning, info, success
+  title           String
+  message         String
+  isRead          Boolean  @default(false)
+  data            Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+  @@index([organizationId])
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+}
