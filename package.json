@@ -7,7 +7,7 @@
     "dev:ws": "concurrently \"npm run dev\" \"npm run ws:dev\"",
     "ws:dev": "nodemon scripts/start-websocket-server.js",
     "ws:start": "node scripts/start-websocket-server.js",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "start:full": "concurrently \"npm run start\" \"npm run ws:start\"",
     "lint": "next lint",
