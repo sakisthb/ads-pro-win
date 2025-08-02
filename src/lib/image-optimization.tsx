@@ -21,7 +21,7 @@ interface ImageOptimizationOptions {
   grayscale?: boolean;
 }
 
-interface LazyImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'loading'> {
+interface LazyImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'loading' | 'onError'> {
   src: string;
   alt: string;
   placeholder?: string;

@@ -230,7 +230,7 @@ class ServiceWorkerManager {
   private async enableBackgroundSync(registration: ServiceWorkerRegistration): Promise<void> {
     try {
       if ('sync' in registration) {
-        await registration.sync.register('background-sync');
+        await (registration as any).sync.register('background-sync');
         console.log('Background sync enabled');
         this.emit('backgroundSyncEnabled');
       }

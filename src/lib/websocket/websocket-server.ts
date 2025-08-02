@@ -4,7 +4,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { parse } from 'url';
-import { verify } from 'jsonwebtoken';
+// import { verify } from 'jsonwebtoken'; // TEMPORARILY DISABLED FOR BUILD FIX
 
 export interface WSMessage {
   type: 'ai_progress' | 'ai_complete' | 'ai_error' | 'campaign_update' | 'analytics_update';

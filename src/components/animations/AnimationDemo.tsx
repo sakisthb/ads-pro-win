@@ -16,7 +16,7 @@ import { useRenderProfiler } from '@/lib/react-optimization';
 // Spring animation demo
 const SpringDemo: React.FC = () => {
   const [target, setTarget] = useState(0);
-  const { value, isAnimating } = useSpringAnimation(value, target, {
+  const { value, isAnimating } = useSpringAnimation(0, target, {
     tension: 170,
     friction: 26,
   });

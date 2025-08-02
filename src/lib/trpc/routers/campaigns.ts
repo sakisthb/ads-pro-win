@@ -50,6 +50,10 @@ export const campaignsRouter = createTRPCRouter({
         const campaign = await ctx.prisma.campaign.create({
           data: {
             ...input,
+            // Stringify JSON fields for Prisma
+            targetAudience: typeof input.targetAudience === 'string' ? input.targetAudience : JSON.stringify(input.targetAudience),
+            settings: typeof input.settings === 'string' ? input.settings : JSON.stringify(input.settings),
+            adCreatives: typeof input.adCreatives === 'string' ? input.adCreatives : JSON.stringify(input.adCreatives || []),
             organizationId: ctx.organizationId,
             userId: ctx.session.user.id,
             status: 'draft',
@@ -76,7 +80,32 @@ export const campaignsRouter = createTRPCRouter({
     .input(updateCampaignSchema)
     .mutation(async ({ ctx, input }) => {
       try {
-        const { id, ...updateData } = input;
+        const { id, ...rawUpdateData } = input;
+        
+        // Stringify JSON fields for Prisma
+        const updateData = {
+          ...rawUpdateData,
+          ...(rawUpdateData.targetAudience && {
+            targetAudience: typeof rawUpdateData.targetAudience === 'string' 
+              ? rawUpdateData.targetAudience 
+              : JSON.stringify(rawUpdateData.targetAudience)
+          }),
+          ...(rawUpdateData.settings && {
+            settings: typeof rawUpdateData.settings === 'string' 
+              ? rawUpdateData.settings 
+              : JSON.stringify(rawUpdateData.settings)
+          }),
+          ...(rawUpdateData.adCreatives && {
+            adCreatives: typeof rawUpdateData.adCreatives === 'string' 
+              ? rawUpdateData.adCreatives 
+              : JSON.stringify(rawUpdateData.adCreatives)
+          }),
+          ...(rawUpdateData.performance && {
+            performance: typeof rawUpdateData.performance === 'string' 
+              ? rawUpdateData.performance 
+              : JSON.stringify(rawUpdateData.performance)
+          }),
+        };
 
         // Verify campaign belongs to organization
         const existingCampaign = await ctx.prisma.campaign.findUnique({
@@ -92,7 +121,7 @@ export const campaignsRouter = createTRPCRouter({
 
         const campaign = await ctx.prisma.campaign.update({
           where: { id },
-          data: updateData,
+          data: updateData as any,
         });
 
         return {
@@ -444,9 +473,9 @@ export const campaignsRouter = createTRPCRouter({
             name: input.name,
             status: 'draft',
             budgetSpent: 0,
-            performance: {},
+            performance: JSON.stringify({}),
             userId: ctx.session.user.id,
-          },
+          } as any,
         });
 
         return {

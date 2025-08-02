@@ -87,9 +87,8 @@ export class IntegratedAIAgents {
     if (process.env.GOOGLE_API_KEY) {
       this.models.set(AI_PROVIDERS.GOOGLE, new ChatGoogleGenerativeAI({
         apiKey: process.env.GOOGLE_API_KEY,
-        modelName: "gemini-pro",
+        model: "gemini-pro",
         temperature: 0.3,
-        maxTokens: 2000,
       }));
     }
   }
@@ -544,7 +543,7 @@ export class IntegratedAIAgents {
         // Update existing agent
         const agent = agents[0];
         const updatedPerformance = {
-          ...agent.performance as Record<string, any>,
+          ...(agent.performance as unknown as Record<string, any>),
           ...performance,
         };
         

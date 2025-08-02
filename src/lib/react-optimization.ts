@@ -82,8 +82,8 @@ export function useAdvancedCallback<T extends (...args: unknown[]) => unknown>(
   options: { deepCompare?: boolean } = {}
 ): T {
   const { deepCompare = false } = options;
-  const prevDepsRef = useRef<React.DependencyList>();
-  const callbackRef = useRef<T>();
+  const prevDepsRef = useRef<React.DependencyList>([]);
+  const callbackRef = useRef<T>(callback);
 
   // Custom dependency comparison
   const depsChanged = useMemo(() => {
@@ -338,10 +338,10 @@ export function useThrottle<T extends (...args: unknown[]) => void>(
 
 // Memory usage monitoring hook
 export function useMemoryMonitor(): {
-  memoryInfo: MemoryInfo | null;
+  memoryInfo: any | null;
   isLowMemory: boolean;
 } {
-  const [memoryInfo, setMemoryInfo] = useState<MemoryInfo | null>(null);
+  const [memoryInfo, setMemoryInfo] = useState<any | null>(null);
   const [isLowMemory, setIsLowMemory] = useState(false);
 
   useEffect(() => {
@@ -350,7 +350,7 @@ export function useMemoryMonitor(): {
     }
 
     const checkMemory = () => {
-      const memory = (performance as Performance & { memory: MemoryInfo }).memory;
+      const memory = (performance as any).memory;
       setMemoryInfo(memory);
       
       // Consider low memory if used heap is > 80% of heap limit

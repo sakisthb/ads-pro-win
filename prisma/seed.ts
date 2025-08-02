@@ -151,7 +151,7 @@ async function main() {
   await prisma.prediction.deleteMany();
   await prisma.analysis.deleteMany();
   await prisma.workflow.deleteMany();
-  await prisma.aiAgent.deleteMany();
+  await prisma.aIAgent.deleteMany();
   await prisma.campaign.deleteMany();
   await prisma.user.deleteMany();
   await prisma.organization.deleteMany();
@@ -165,7 +165,7 @@ async function main() {
         name: COMPANY_NAMES[i],
         slug: COMPANY_NAMES[i].toLowerCase().replace(/[^a-z0-9]/g, '-'),
         plan: randomChoice(['free', 'basic', 'professional', 'enterprise']),
-        settings: {
+        settings: JSON.stringify({
           timezone: 'Europe/Athens',
           currency: 'EUR',
           language: 'en',
@@ -179,7 +179,7 @@ async function main() {
             predictive_analytics: true,
             automated_reporting: true
           }
-        }
+        })
       }
     });
     organizations.push(org);
@@ -235,15 +235,15 @@ async function main() {
         budgetSpent,
         startDate,
         endDate: status === 'completed' ? randomDate(startDate, new Date()) : null,
-        targetAudience: generateTargetAudience(),
-        adCreatives: generateAdCreatives(),
-        performance: generateCampaignPerformance(),
-        settings: {
+        targetAudience: JSON.stringify(generateTargetAudience()),
+        adCreatives: JSON.stringify(generateAdCreatives()),
+        performance: JSON.stringify(generateCampaignPerformance()),
+        settings: JSON.stringify({
           bidding_strategy: randomChoice(['lowest_cost', 'cost_cap', 'bid_cap', 'target_cost']),
           optimization_goal: randomChoice(['reach', 'impressions', 'clicks', 'conversions']),
           placement: randomChoice(['automatic', 'manual']),
           schedule: randomChoice(['all_time', 'scheduled'])
-        },
+        }),
         organizationId: org.id,
         userId: user.id
       });
@@ -272,25 +272,25 @@ async function main() {
     const numAgents = randomInt(12, 20);
     for (let i = 0; i < numAgents; i++) {
       const agentType = randomChoice(AI_AGENT_TYPES);
-      const agent = await prisma.aiAgent.create({
+      const agent = await prisma.aIAgent.create({
         data: {
           name: `${agentType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} #${i + 1}`,
           type: agentType,
           status: randomChoice(['active', 'inactive', 'training']),
-          configuration: {
+          configuration: JSON.stringify({
             model: randomChoice(['gpt-4', 'claude-3', 'gemini-pro']),
             temperature: randomFloat(0.1, 0.9),
             max_tokens: randomInt(1000, 4000),
             training_data_size: randomInt(10000, 100000),
             accuracy_threshold: randomFloat(0.8, 0.95)
-          },
-          performance: {
+          }),
+          performance: JSON.stringify({
             accuracy: randomFloat(0.75, 0.95),
             processing_time: randomFloat(0.5, 3.0),
             success_rate: randomFloat(0.85, 0.98),
             last_accuracy: randomFloat(0.8, 0.95),
             total_processed: randomInt(1000, 50000)
-          },
+          }),
           lastRunAt: Math.random() > 0.3 ? randomDate(new Date(2024, 0, 1), new Date()) : null,
           organizationId: org.id,
           campaignId: Math.random() > 0.5 ? randomChoice(campaigns.filter(c => c.organizationId === org.id))?.id : null
@@ -313,7 +313,7 @@ async function main() {
           description: `Automated ${workflowType} workflow for enhanced campaign performance`,
           type: workflowType,
           status: randomChoice(['active', 'inactive', 'error']),
-          configuration: {
+          configuration: JSON.stringify({
             triggers: [randomChoice(['schedule', 'performance_threshold', 'budget_spent', 'conversion_rate'])],
             actions: [randomChoice(['pause_campaign', 'increase_budget', 'send_alert', 'optimize_targeting'])],
             conditions: {
@@ -321,12 +321,12 @@ async function main() {
               budget_threshold: randomFloat(0.7, 0.9),
               time_window: randomChoice(['1h', '6h', '24h', '7d'])
             }
-          },
-          schedule: {
+          }),
+          schedule: JSON.stringify({
             frequency: randomChoice(['hourly', 'daily', 'weekly']),
             time: `${randomInt(0, 23).toString().padStart(2, '0')}:${randomChoice(['00', '15', '30', '45'])}`,
             timezone: 'Europe/Athens'
-          },
+          }),
           lastRunAt: Math.random() > 0.2 ? randomDate(new Date(2024, 0, 1), new Date()) : null,
           nextRunAt: randomDate(new Date(), new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
           organizationId: org.id,
@@ -351,7 +351,7 @@ async function main() {
         type: analysisType,
         title: `${analysisType.charAt(0).toUpperCase() + analysisType.slice(1)} Analysis #${batch * 200 + i + 1}`,
         description: `Comprehensive ${analysisType} analysis with AI-powered insights`,
-        data: {
+        data: JSON.stringify({
           metrics: generateCampaignPerformance(),
           trends: {
             week_over_week: randomFloat(-0.2, 0.3),
@@ -371,9 +371,9 @@ async function main() {
               tablet: randomFloat(0.05, 0.15)
             }
           }
-        },
-        insights: generateAnalysisInsights(),
-        recommendations: [
+        }),
+        insights: JSON.stringify(generateAnalysisInsights()),
+        recommendations: JSON.stringify([
           {
             action: 'Optimize targeting parameters',
             impact: randomChoice(['low', 'medium', 'high']),
@@ -386,7 +386,7 @@ async function main() {
             effort: randomChoice(['low', 'medium']),
             priority: randomInt(1, 5)
           }
-        ],
+        ]),
         status: randomChoice(['running', 'completed', 'failed']),
         organizationId: org.id,
         campaignId: Math.random() > 0.3 ? randomChoice(campaigns.filter(c => c.organizationId === org.id))?.id : null
@@ -409,7 +409,7 @@ async function main() {
       type: predictionType,
       title: `${predictionType.charAt(0).toUpperCase() + predictionType.slice(1)} Prediction #${i + 1}`,
       description: `AI-powered ${predictionType} prediction with machine learning insights`,
-      data: {
+      data: JSON.stringify({
         forecast: {
           next_7_days: randomFloat(1000, 10000),
           next_30_days: randomFloat(5000, 50000),
@@ -426,7 +426,7 @@ async function main() {
           training_data_points: randomInt(10000, 100000),
           feature_count: randomInt(50, 200)
         }
-      },
+      }),
       confidence: randomFloat(0.65, 0.95),
       accuracy: randomFloat(0.7, 0.92),
       organizationId: org.id,

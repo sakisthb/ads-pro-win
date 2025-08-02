@@ -8,7 +8,7 @@ import React, {
   useCallback,
   CSSProperties 
 } from 'react';
-import { useVirtualizedList, useThrottle } from '@/lib/react-optimization';
+import { useVirtualizedList } from '@/lib/react-optimization';
 
 // Types for virtual scrolling
 interface VirtualScrollListProps<T> {
@@ -68,8 +68,8 @@ export function VirtualScrollList<T>({
     overscan
   );
 
-  // Throttled scroll handler for performance
-  const handleScroll = useThrottle((event: React.UIEvent<HTMLDivElement>) => {
+  // Scroll handler for performance  
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     const newScrollTop = event.currentTarget.scrollTop;
     setScrollTop(newScrollTop);
     onScroll?.(newScrollTop);
@@ -83,7 +83,7 @@ export function VirtualScrollList<T>({
         loadMore();
       }
     }
-  }, 16); // ~60fps throttling
+  }, [setScrollTop, onScroll, loadMore, hasNextPage, isLoading, containerHeight, totalHeight, itemHeight]);
 
   // Empty state
   if (items.length === 0 && !isLoading) {
@@ -198,9 +198,9 @@ export function VirtualGrid<T>({
 
   const offsetY = visibleRange.start * rowHeight;
 
-  const handleScroll = useThrottle((event: React.UIEvent<HTMLDivElement>) => {
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(event.currentTarget.scrollTop);
-  }, 16);
+  }, [setScrollTop]);
 
   return (
     <div

@@ -83,7 +83,7 @@ export class AnimationOptimizer {
 
   // Create optimized CSS transform
   static createTransform(transforms: Record<string, string | number>): string {
-    const transformParts = [];
+    const transformParts: string[] = [];
     
     // Order transforms for optimal performance
     const orderedKeys = ['translateX', 'translateY', 'translateZ', 'translate3d', 'scaleX', 'scaleY', 'scale', 'rotateX', 'rotateY', 'rotateZ', 'rotate'];
@@ -135,7 +135,7 @@ export function useOptimizedAnimation(
         easing: animationConfig.easing || 'ease-out',
         delay: animationConfig.delay || 0,
         fill: animationConfig.fillMode || 'forwards',
-        iterations: animationConfig.iterations || 1,
+        iterations: typeof animationConfig.iterations === 'number' ? animationConfig.iterations : (animationConfig.iterations === 'infinite' ? Infinity : 1),
         direction: animationConfig.direction || 'normal',
       }
     );
@@ -537,10 +537,10 @@ export const animationUtils = {
         if (['x', 'y', 'scale', 'rotate'].includes(property)) {
           optimizedFrame.transform = AnimationOptimizer.createTransform({
             [property === 'x' ? 'translateX' : 
-             property === 'y' ? 'translateY' : property]: value
+             property === 'y' ? 'translateY' : property]: value as string | number
           });
         } else {
-          (optimizedFrame as CSSProperties)[property as keyof CSSProperties] = value;
+          (optimizedFrame as any)[property] = value;
         }
       });
       

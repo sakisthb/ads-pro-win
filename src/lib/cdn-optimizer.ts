@@ -80,13 +80,18 @@ class CDNOptimizer {
     }
 
     // For other CDNs, use their optimization parameters
-    return this.buildOptimizedUrl(src, {
+    const params: Record<string, string | number> = {
       w: width,
-      h: height,
       q: quality,
       f: format,
       fit,
-    });
+    };
+    
+    if (height !== undefined) {
+      params.h = height;
+    }
+    
+    return this.buildOptimizedUrl(src, params);
   }
 
   // CSS optimization and minification

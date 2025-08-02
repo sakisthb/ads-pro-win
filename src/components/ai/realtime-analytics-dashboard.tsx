@@ -451,11 +451,9 @@ export const RealTimeAnalyticsDashboard: React.FC<RealTimeAnalyticsDashboardProp
                           <span className="text-xs text-gray-500">
                             {activity.time.toLocaleTimeString()}
                           </span>
-                          {activity.confidence && (
-                            <Badge variant="outline" className="text-xs">
-                              {Math.round(activity.confidence * 100)}%
-                            </Badge>
-                          )}
+                          <Badge variant="outline" className="text-xs">
+                            Live
+                          </Badge>
                         </div>
                       </div>
                     </div>

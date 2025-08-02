@@ -15,7 +15,7 @@ const RATE_LIMIT = {
 
 function getRateLimitKey(request: NextRequest): string {
   const forwarded = request.headers.get("x-forwarded-for");
-  const ip = forwarded ? forwarded.split(",")[0] : request.ip || "unknown";
+  const ip = forwarded ? forwarded.split(",")[0] : "unknown";
   return `rate_limit:${ip}`;
 }
 

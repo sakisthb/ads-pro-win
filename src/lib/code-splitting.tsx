@@ -289,7 +289,7 @@ export function withLazyLoading<P extends Record<string, unknown>>(
   importFn: () => Promise<{ default: ComponentType<P> }>,
   options: LazyLoadOptions = {}
 ) {
-  const { Component, preload } = createLazyComponent(importFn, options);
+  const { Component, preload } = createLazyComponent(importFn as () => Promise<{ default: ComponentType<unknown> }>, options);
   const { fallback = <LoadingFallback />, onError } = options;
 
   const LazyWrapper: React.FC<P> = (props) => (
@@ -300,7 +300,7 @@ export function withLazyLoading<P extends Record<string, unknown>>(
     </LazyErrorBoundary>
   );
 
-  LazyWrapper.displayName = `withLazyLoading(${Component.displayName || 'Component'})`;
+  LazyWrapper.displayName = `withLazyLoading(${(Component as any)?.displayName || 'Component'})`;
   (LazyWrapper as unknown as { preload: () => Promise<void> }).preload = preload;
 
   return LazyWrapper;
@@ -473,7 +473,7 @@ export const bundleUtils = {
   },
 
   // Measure chunk load time
-  measureChunkLoad: async <T>(loadFn: () => Promise<T>): Promise<{ result: T; loadTime: number }> => {
+  measureChunkLoad: async (loadFn: () => Promise<any>): Promise<{ result: any; loadTime: number }> => {
     const startTime = performance.now();
     const result = await loadFn();
     const loadTime = performance.now() - startTime;

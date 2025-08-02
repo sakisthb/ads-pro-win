@@ -29,7 +29,7 @@ export function useCampaignAnalysis() {
     analyzeAsync: analyzeMutation.mutateAsync,
     bulkAnalyze: bulkAnalyzeMutation.mutate,
     bulkAnalyzeAsync: bulkAnalyzeMutation.mutateAsync,
-    isAnalyzing: analyzeMutation.isLoading || bulkAnalyzeMutation.isLoading,
+    isAnalyzing: analyzeMutation.isPending || bulkAnalyzeMutation.isPending,
     error: analyzeMutation.error || bulkAnalyzeMutation.error,
   };
 }
@@ -48,7 +48,7 @@ export function useCreativeGeneration() {
   return {
     generate: generateMutation.mutate,
     generateAsync: generateMutation.mutateAsync,
-    isGenerating: generateMutation.isLoading,
+    isGenerating: generateMutation.isPending,
     error: generateMutation.error,
     data: generateMutation.data?.result as CreativeGenerationResult | undefined,
   };
@@ -68,7 +68,7 @@ export function useCampaignOptimization() {
   return {
     optimize: optimizeMutation.mutate,
     optimizeAsync: optimizeMutation.mutateAsync,
-    isOptimizing: optimizeMutation.isLoading,
+    isOptimizing: optimizeMutation.isPending,
     error: optimizeMutation.error,
     data: optimizeMutation.data?.result as OptimizationResult | undefined,
   };
@@ -256,7 +256,7 @@ export function useDataCleanup() {
   return {
     cleanup: cleanupMutation.mutate,
     cleanupAsync: cleanupMutation.mutateAsync,
-    isCleaningUp: cleanupMutation.isLoading,
+    isCleaningUp: cleanupMutation.isPending,
     error: cleanupMutation.error,
     result: cleanupMutation.data?.data,
   };

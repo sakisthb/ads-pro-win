@@ -187,15 +187,15 @@ export const withRateLimit = (maxRequests = 100, windowMs = 60000) => {
   };
 };
 
-// Import compression middleware
-import { withCompression, withSmartCompression } from './compression-middleware';
+// Import compression middleware (withCompression is defined locally above)
+import { withSmartCompression } from './compression-middleware';
 
 // Combined performance middleware
 export const withPerformanceOptimizations = (
   handler: (req: NextRequest) => Promise<NextResponse>
 ) => {
   return withCache()(
-    withCompression()(
+    withCompression(
       withRateLimit()(handler)
     )
   );

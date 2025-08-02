@@ -121,49 +121,20 @@ export const mockOrganization = (overrides = {}) => ({
   ...overrides,
 })
 
-// WebSocket mock helpers
-export const createMockWebSocket = () => {
-  const mockWS = {
+// WebSocket mock helpers - SIMPLIFIED FOR BUILD FIX
+export const createMockWebSocket = (): any => {
+  return {
     send: jest.fn(),
     close: jest.fn(),
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
-    readyState: WebSocket.OPEN,
+    readyState: 1, // WebSocket.OPEN
     url: 'ws://localhost:8080',
     onopen: null,
     onclose: null,
     onmessage: null,
     onerror: null,
-  }
-
-  // Helper to simulate messages
-  mockWS.simulateMessage = (data: any) => {
-    const event = new MessageEvent('message', {
-      data: JSON.stringify(data),
-    })
-    if (mockWS.onmessage) {
-      mockWS.onmessage(event)
-    }
-  }
-
-  // Helper to simulate connection
-  mockWS.simulateOpen = () => {
-    const event = new Event('open')
-    if (mockWS.onopen) {
-      mockWS.onopen(event)
-    }
-  }
-
-  // Helper to simulate close
-  mockWS.simulateClose = () => {
-    mockWS.readyState = WebSocket.CLOSED
-    const event = new CloseEvent('close', { code: 1000, reason: 'Test close' })
-    if (mockWS.onclose) {
-      mockWS.onclose(event)
-    }
-  }
-
-  return mockWS
+  };
 }
 
 // Test helpers

@@ -106,7 +106,7 @@ async function globalTeardown(config: FullConfig) {
       )
       console.log('✅ Test summary saved to test-results/test-summary.json')
     } catch (error) {
-      console.warn('⚠️ Could not save test summary:', error.message)
+      console.warn('⚠️ Could not save test summary:', error instanceof Error ? error.message : error)
     }
 
     // 7. Final verification

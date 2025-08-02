@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AIAnalysisPanel, CreativeGenerationPanel } from '@/components/ai';
 import { useCampaigns, useCreateCampaign, useUpdateCampaign } from '@/hooks/use-campaigns';
-import { useCampaignAnalysis, useOptimization } from '@/hooks/use-ai-agents';
+import { useCampaignAnalysis, useCampaignOptimization } from '@/hooks/use-ai-agents';
 import { useAIWebSocket } from '@/hooks/use-websocket';
 import { 
   Plus, PlayCircle, PauseCircle, StopCircle, Edit, 
@@ -38,7 +38,7 @@ const CampaignManager = React.memo(() => {
 
   // AI operations for selected campaign
   const { analyze, isAnalyzing } = useCampaignAnalysis();
-  const { optimize, isOptimizing } = useOptimization();
+  const { optimize, isOptimizing } = useCampaignOptimization();
 
   // WebSocket connection for real-time updates
   const { isConnected, aiOperation } = useAIWebSocket("demo-org-123");
@@ -91,7 +91,7 @@ const CampaignManager = React.memo(() => {
 
   const handleStatusChange = useCallback(async (campaignId: string, newStatus: string) => {
     try {
-      await updateCampaign.mutateAsync({
+      await updateCampaign.updateAsync({
         id: campaignId,
         status: newStatus as any,
       });
@@ -130,7 +130,7 @@ const CampaignManager = React.memo(() => {
     try {
       await optimize({
         campaignId,
-        optimizationType: 'comprehensive',
+        optimizationType: 'performance',
         provider: 'openai',
       });
     } catch (error) {

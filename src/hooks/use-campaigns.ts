@@ -17,7 +17,7 @@ export function useCreateCampaign() {
   return {
     create: createMutation.mutate,
     createAsync: createMutation.mutateAsync,
-    isCreating: createMutation.isLoading,
+    isCreating: createMutation.isPending,
     error: createMutation.error,
     data: createMutation.data?.data,
   };
@@ -37,7 +37,7 @@ export function useUpdateCampaign() {
   return {
     update: updateMutation.mutate,
     updateAsync: updateMutation.mutateAsync,
-    isUpdating: updateMutation.isLoading,
+    isUpdating: updateMutation.isPending,
     error: updateMutation.error,
     data: updateMutation.data?.data,
   };
@@ -74,7 +74,6 @@ export function useCampaigns(filters?: {
     filters,
     {
       staleTime: 30 * 1000, // 30 seconds
-      keepPreviousData: true, // Keep previous data while loading new data
     }
   );
 
@@ -101,7 +100,7 @@ export function useDeleteCampaign() {
   return {
     delete: deleteMutation.mutate,
     deleteAsync: deleteMutation.mutateAsync,
-    isDeleting: deleteMutation.isLoading,
+    isDeleting: deleteMutation.isPending,
     error: deleteMutation.error,
   };
 }
@@ -120,7 +119,7 @@ export function useUpdateCampaignStatus() {
   return {
     updateStatus: updateStatusMutation.mutate,
     updateStatusAsync: updateStatusMutation.mutateAsync,
-    isUpdating: updateStatusMutation.isLoading,
+    isUpdating: updateStatusMutation.isPending,
     error: updateStatusMutation.error,
   };
 }
@@ -139,7 +138,7 @@ export function useUpdateCampaignPerformance() {
   return {
     updatePerformance: updatePerformanceMutation.mutate,
     updatePerformanceAsync: updatePerformanceMutation.mutateAsync,
-    isUpdating: updatePerformanceMutation.isLoading,
+    isUpdating: updatePerformanceMutation.isPending,
     error: updatePerformanceMutation.error,
   };
 }
@@ -173,7 +172,7 @@ export function useDuplicateCampaign() {
   return {
     duplicate: duplicateMutation.mutate,
     duplicateAsync: duplicateMutation.mutateAsync,
-    isDuplicating: duplicateMutation.isLoading,
+    isDuplicating: duplicateMutation.isPending,
     error: duplicateMutation.error,
     data: duplicateMutation.data?.data,
   };

@@ -269,7 +269,7 @@ export default function LazyComponentsDemo() {
             <div className="text-center text-red-500">
               <p>Error: {manualError.message}</p>
             </div>
-          ) : ManualLazyComponent && (isManualLoaded || isManualLoading) ? (
+          ) : (isManualLoaded || isManualLoading) && ManualLazyComponent ? (
             <Suspense fallback={<LoadingFallback skeleton="dashboard" />}>
               <ManualLazyComponent />
             </Suspense>

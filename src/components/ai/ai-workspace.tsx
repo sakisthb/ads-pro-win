@@ -242,7 +242,7 @@ export const AIWorkspace: React.FC<AIWorkspaceProps> = ({
       </Card>
 
       {/* Main Workspace Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="w-full">
         <Card>
           <CardHeader className="pb-3">
             <TabsList className="grid grid-cols-4 w-full">

@@ -34,7 +34,7 @@ const PerformanceMonitor = React.memo(() => {
         database: {
           averageQueryTime: 62,
           totalQueries: 15000,
-          slowQueries: 0,
+          slowQueries: [],
           uptime: Date.now() - (24 * 60 * 60 * 1000) // 24 hours
         },
         cache: {

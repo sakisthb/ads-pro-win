@@ -1,9 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { 
   useAdvancedMemo, 
-  useAdvancedCallback, 
   useRenderProfiler,
   useOptimizedState,
   withPerformanceOptimization 
@@ -125,9 +124,9 @@ const CampaignList = React.memo(({
   });
 
   // Optimized click handler
-  const handleCampaignClick = useAdvancedCallback((campaign: Campaign) => {
+  const handleCampaignClick = useCallback((campaign: Campaign) => {
     onCampaignSelect(campaign);
-  }, [onCampaignSelect], { deepCompare: false });
+  }, [onCampaignSelect]);
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
@@ -159,7 +158,7 @@ const CampaignItem = React.memo(({
   campaign: Campaign;
   onClick: (campaign: Campaign) => void;
 }) => {
-  const handleClick = useAdvancedCallback(() => {
+  const handleClick = useCallback(() => {
     onClick(campaign);
   }, [campaign, onClick]);
 
@@ -281,12 +280,12 @@ const OptimizedDashboard = React.memo(() => {
   ], [], { ttl: 30000 }); // Cache for 30 seconds
 
   // Optimized handlers
-  const handleCampaignSelect = useAdvancedCallback((campaign: Campaign) => {
+  const handleCampaignSelect = useCallback((campaign: Campaign) => {
     setSelectedCampaign(campaign);
     console.log('Selected campaign:', campaign.name);
   }, [setSelectedCampaign]);
 
-  const handleRefresh = useAdvancedCallback(() => {
+  const handleRefresh = useCallback(() => {
     console.log('Refreshing dashboard data...');
     // In real app, this would invalidate caches and refetch data
   }, []);

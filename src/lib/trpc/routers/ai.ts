@@ -73,9 +73,9 @@ export const aiRouter = createTRPCRouter({
           status: campaign.status,
           budget: campaign.budget,
           budgetSpent: campaign.budgetSpent,
-          performance: campaign.performance as Record<string, any>,
-          targetAudience: campaign.targetAudience as Record<string, any>,
-          adCreatives: campaign.adCreatives as any[],
+          performance: campaign.performance as unknown as Record<string, any>,
+          targetAudience: campaign.targetAudience as unknown as Record<string, any>,
+          adCreatives: campaign.adCreatives as unknown as any[],
           organizationId: campaign.organizationId,
         };
 
@@ -209,9 +209,9 @@ export const aiRouter = createTRPCRouter({
           status: campaign.status,
           budget: campaign.budget,
           budgetSpent: campaign.budgetSpent,
-          performance: campaign.performance as Record<string, any>,
-          targetAudience: campaign.targetAudience as Record<string, any>,
-          adCreatives: campaign.adCreatives as any[],
+          performance: campaign.performance as unknown as Record<string, any>,
+          targetAudience: campaign.targetAudience as unknown as Record<string, any>,
+          adCreatives: campaign.adCreatives as unknown as any[],
           organizationId: campaign.organizationId,
         };
 
@@ -443,9 +443,9 @@ export const aiRouter = createTRPCRouter({
               status: campaign.status,
               budget: campaign.budget,
               budgetSpent: campaign.budgetSpent,
-              performance: campaign.performance as Record<string, any>,
-              targetAudience: campaign.targetAudience as Record<string, any>,
-              adCreatives: campaign.adCreatives as any[],
+              performance: campaign.performance as unknown as Record<string, any>,
+              targetAudience: campaign.targetAudience as unknown as Record<string, any>,
+              adCreatives: campaign.adCreatives as unknown as any[],
               organizationId: campaign.organizationId,
             };
 

@@ -16,52 +16,14 @@ export { default as WebSocketStatus, WebSocketStatusBadge } from './websocket-st
 // Named exports for specific use cases (removed to avoid duplicates)
 
 // Component types for external usage
-export type { 
-  AIAnalysisPanelProps 
-} from './ai-analysis-panel';
+// Note: Props types are internal to components, not exported separately
+// All components are exported above with their interfaces
 
-export type { 
-  CreativeGenerationPanelProps 
-} from './creative-generation-panel';
+// Component groupings removed to avoid import conflicts
+// Import components directly from their specific modules as needed
 
-export type { 
-  OptimizationDashboardProps 
-} from './optimization-dashboard';
-
-export type { 
-  RealTimeAnalyticsDashboardProps 
-} from './realtime-analytics-dashboard';
-
-export type { 
-  WebSocketStatusProps 
-} from './websocket-status';
-
-// Component groupings for organized imports
-export const AnalysisComponents = {
-  AIAnalysisPanel,
-  OptimizationDashboard,
-  RealTimeAnalyticsDashboard,
-};
-
-export const CreativeComponents = {
-  CreativeGenerationPanel,
-};
-
-export const WorkspaceComponents = {
-  AIWorkspace,
-};
-
-export const StatusComponents = {
-  WebSocketStatus,
-  WebSocketStatusBadge,
-};
-
-export const AllAIComponents = {
-  ...AnalysisComponents,
-  ...CreativeComponents,
-  ...WorkspaceComponents,
-  ...StatusComponents,
-};
+// Component groupings removed due to import conflicts
+// Use individual component exports instead
 
 // Component categories for dynamic rendering
 export const AI_COMPONENT_CATEGORIES = {

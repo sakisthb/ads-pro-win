@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import dynamic from "next/dynamic";
-import { TRPCProvider } from "@/components/providers/trpc-provider";
+import { TRPCReactProvider } from "@/components/providers/trpc-provider";
 import { DevAuthProvider } from "@/components/providers/dev-auth-provider";
 
 // Lazy load performance monitor for better initial load (Client Component)
@@ -51,12 +51,12 @@ export default function RootLayout({
       </head>
       <body className="h-full antialiased">
         <DevAuthProvider>
-          <TRPCProvider>
+          <TRPCReactProvider>
             {children}
             
             {/* Performance monitoring in development */}
             {process.env.NODE_ENV === 'development' && <PerformanceMonitor />}
-          </TRPCProvider>
+          </TRPCReactProvider>
         </DevAuthProvider>
         
         {/* Performance monitoring script */}
