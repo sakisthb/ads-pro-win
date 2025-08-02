@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cacheService } from './cache';
+import { cache } from './cache';
 import { config } from './config';
 
 // Rate limiting store (in production, use Redis)
@@ -57,7 +57,7 @@ export async function cacheMiddleware(
   const cacheKey = `api:${url.pathname}${url.search}`;
 
   // Try to get from cache
-  const cached = await cacheService.get<Response>(cacheKey);
+  const cached = await cache.get<Response>(cacheKey);
   if (cached) {
     return new NextResponse(cached.body, {
       status: cached.status,
@@ -83,7 +83,7 @@ export async function cacheMiddleware(
       headers: Object.fromEntries(responseClone.headers.entries()),
     };
     
-    await cacheService.set(cacheKey, responseData, 300); // 5 minutes TTL
+    await cache.set(cacheKey, responseData, 300); // 5 minutes TTL
     
     // Add cache headers
     response.headers.set('X-Cache', 'MISS');
@@ -155,7 +155,7 @@ export async function apiResponse<T>(
   
   // Apply caching for GET requests
   if (request.method === 'GET' && !skipCache && cacheKey) {
-    const cached = await cacheService.get<T>(cacheKey);
+    const cached = await cache.get<T>(cacheKey);
     if (cached) {
       return NextResponse.json(cached, {
         headers: {
@@ -173,7 +173,7 @@ export async function apiResponse<T>(
   
   // Cache result if applicable
   if (request.method === 'GET' && !skipCache && cacheKey) {
-    await cacheService.set(cacheKey, result, ttl);
+    await cache.set(cacheKey, result, ttl);
   }
   
   // Create response
@@ -204,7 +204,7 @@ export async function batchRequestHandler<T>(
   
   // Try to get all from cache first
   const cachedResults = await Promise.all(
-    cacheKeys.map(key => cacheService.get<T>(key))
+    cacheKeys.map(key => cache.get<T>(key))
   );
   
   // Find uncached requests
@@ -229,7 +229,7 @@ export async function batchRequestHandler<T>(
       chunk.map(async (req) => {
         const result = await req.handler();
         const cacheKey = `${cachePrefix}:${req.key}`;
-        await cacheService.set(cacheKey, result, ttl);
+        await cache.set(cacheKey, result, ttl);
         return { key: req.key, result };
       })
     );

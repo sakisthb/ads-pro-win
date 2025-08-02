@@ -176,21 +176,21 @@ export async function retry<T>(
 }
 
 // Memoize function
-export function memoize<T extends (...args: unknown[]) => unknown>(
-  fn: T,
-  keyFn?: (...args: Parameters<T>) => string
-): T {
+export function memoize(
+  fn: (...args: unknown[]) => unknown,
+  keyFn?: (...args: unknown[]) => string
+) {
   const cache = new Map<string, unknown>();
   
-  return ((...args: Parameters<T>) => {
+  return async (...args: unknown[]) => {
     const key = keyFn ? keyFn(...args) : JSON.stringify(args);
     if (cache.has(key)) {
-      return cache.get(key) as ReturnType<T>;
+      return cache.get(key);
     }
-    const result = fn(...args);
+    const result = await fn(...args);
     cache.set(key, result);
     return result;
-  }) as T;
+  };
 }
 
 // Batch array into chunks

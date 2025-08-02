@@ -53,6 +53,7 @@ model User {
   @@index([email])
   @@index([isActive])
   @@index([lastLoginAt])
+  @@index([organizationId, role]) // Composite index for org+role queries
 }
 
 model Campaign {
@@ -91,6 +92,8 @@ model Campaign {
   @@index([endDate])
   @@index([createdAt])
   @@index([budget])
+  @@index([organizationId, status]) // Composite index for org+status queries
+  @@index([organizationId, platform]) // Composite index for org+platform queries
 }
 
 model AIAgent {
@@ -115,6 +118,8 @@ model AIAgent {
   @@index([type])
   @@index([status])
   @@index([lastRunAt])
+  @@index([organizationId, type]) // Composite index for org+type queries
+  @@index([organizationId, status]) // Composite index for org+status queries
 }
 
 model Workflow {
@@ -142,6 +147,8 @@ model Workflow {
   @@index([status])
   @@index([nextRunAt])
   @@index([lastRunAt])
+  @@index([organizationId, type]) // Composite index for org+type queries
+  @@index([organizationId, status]) // Composite index for org+status queries
 }
 
 model Analysis {
@@ -167,6 +174,8 @@ model Analysis {
   @@index([type])
   @@index([status])
   @@index([createdAt])
+  @@index([organizationId, type]) // Composite index for org+type queries
+  @@index([organizationId, status]) // Composite index for org+status queries
 }
 
 model Prediction {
@@ -191,6 +200,8 @@ model Prediction {
   @@index([type])
   @@index([confidence])
   @@index([createdAt])
+  @@index([organizationId, type]) // Composite index for org+type queries
+  @@index([organizationId, confidence]) // Composite index for org+confidence queries
 }
 
 model Optimization {
@@ -216,6 +227,8 @@ model Optimization {
   @@index([type])
   @@index([status])
   @@index([createdAt])
+  @@index([organizationId, type]) // Composite index for org+type queries
+  @@index([organizationId, status]) // Composite index for org+status queries
 }
 
 model APIIntegration {
@@ -238,6 +251,8 @@ model APIIntegration {
   @@index([platform])
   @@index([status])
   @@index([lastSyncAt])
+  @@index([organizationId, platform]) // Composite index for org+platform queries
+  @@index([organizationId, status]) // Composite index for org+status queries
 }
 
 model Notification {
@@ -259,4 +274,5 @@ model Notification {
   @@index([type])
   @@index([isRead])
   @@index([createdAt])
+  @@index([organizationId, isRead]) // Composite index for org+isRead queries
 }

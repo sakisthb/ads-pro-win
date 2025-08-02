@@ -1,230 +1,234 @@
 import Redis from 'ioredis';
-import { config } from './config';
+import { performanceMonitor } from './database';
 
-// Redis client instance
-let redis: Redis | null = null;
+// Redis connection with connection pooling
+const redis = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt(process.env.REDIS_PORT || '6379'),
+  password: process.env.REDIS_PASSWORD,
+  maxRetriesPerRequest: 3,
+  lazyConnect: true,
+  keepAlive: 30000,
+  connectTimeout: 10000,
+  commandTimeout: 5000,
+});
 
-// Initialize Redis connection
-export function initializeRedis(): Redis {
-  if (!redis) {
-    redis = new Redis({
-      host: config.redis.host,
-      port: config.redis.port,
-      password: config.redis.password,
-      db: config.redis.db,
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-    });
+// Cache configuration
+const CACHE_TTL = {
+  SHORT: 300, // 5 minutes
+  MEDIUM: 3600, // 1 hour
+  LONG: 86400, // 24 hours
+  SESSION: 1800, // 30 minutes
+};
 
-    redis.on('error', (error) => {
-      console.error('Redis connection error:', error);
-    });
+// Cache keys
+const CACHE_KEYS = {
+  CAMPAIGNS: 'campaigns',
+  ANALYTICS: 'analytics',
+  USER_SESSION: 'user_session',
+  API_RESPONSE: 'api_response',
+} as const;
 
-    redis.on('connect', () => {
-      console.log('Redis connected successfully');
-    });
-  }
-  return redis;
-}
+// Cache interface (for future use)
+// interface CacheOptions {
+//   ttl?: number;
+//   prefix?: string;
+// }
 
-// Get Redis client
-export function getRedisClient(): Redis {
-  if (!redis) {
-    return initializeRedis();
-  }
-  return redis;
-}
+// Cache wrapper class
+class CacheManager {
+  private prefix: string;
 
-// Cache operations
-export class CacheService {
-  private redis: Redis;
-  private defaultTTL: number = 3600; // 1 hour
-
-  constructor() {
-    this.redis = getRedisClient();
-  }
-
-  // Set cache with TTL
-  async set(key: string, value: unknown, ttl: number = this.defaultTTL): Promise<void> {
-    try {
-      const serializedValue = JSON.stringify(value);
-      await this.redis.setex(key, ttl, serializedValue);
-    } catch (error) {
-      console.error('Cache set error:', error);
-    }
+  constructor(prefix = 'ads_pro') {
+    this.prefix = prefix;
   }
 
-  // Get cache value
+  private getKey(key: string): string {
+    return `${this.prefix}:${key}`;
+  }
+
   async get<T>(key: string): Promise<T | null> {
     try {
-      const value = await this.redis.get(key);
-      if (value) {
-        return JSON.parse(value) as T;
-      }
-      return null;
+      const startTime = Date.now();
+      const value = await redis.get(this.getKey(key));
+      const duration = Date.now() - startTime;
+      
+      performanceMonitor.addMetric({
+        query: 'cache_get',
+        duration,
+        timestamp: new Date(),
+      });
+
+      return value ? JSON.parse(value) : null;
     } catch (error) {
       console.error('Cache get error:', error);
       return null;
     }
   }
 
-  // Delete cache key
+  async set(key: string, value: unknown, ttl: number = CACHE_TTL.MEDIUM): Promise<void> {
+    try {
+      const startTime = Date.now();
+      await redis.setex(this.getKey(key), ttl, JSON.stringify(value));
+      const duration = Date.now() - startTime;
+      
+      performanceMonitor.addMetric({
+        query: 'cache_set',
+        duration,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      console.error('Cache set error:', error);
+    }
+  }
+
   async delete(key: string): Promise<void> {
     try {
-      await this.redis.del(key);
+      await redis.del(this.getKey(key));
     } catch (error) {
       console.error('Cache delete error:', error);
     }
   }
 
-  // Delete multiple cache keys
-  async deleteMultiple(keys: string[]): Promise<void> {
+  async deletePattern(pattern: string): Promise<void> {
     try {
+      const keys = await redis.keys(this.getKey(pattern));
       if (keys.length > 0) {
-        await this.redis.del(...keys);
+        await redis.del(...keys);
       }
     } catch (error) {
-      console.error('Cache delete multiple error:', error);
+      console.error('Cache delete pattern error:', error);
     }
   }
 
-  // Clear all cache
-  async clear(): Promise<void> {
+  async exists(key: string): Promise<boolean> {
     try {
-      await this.redis.flushdb();
+      const result = await redis.exists(this.getKey(key));
+      return result === 1;
     } catch (error) {
-      console.error('Cache clear error:', error);
+      console.error('Cache exists error:', error);
+      return false;
     }
   }
 
-  // Get cache statistics
-  async getStats(): Promise<{ keys: number; memory: string }> {
+  async increment(key: string, value = 1): Promise<number> {
     try {
-      const info = await this.redis.info('memory');
-      const keys = await this.redis.dbsize();
-      
-      // Parse memory info
-      const memoryMatch = info.match(/used_memory_human:(\S+)/);
-      const memory = memoryMatch ? memoryMatch[1] : '0B';
-      
-      return { keys, memory };
+      return await redis.incrby(this.getKey(key), value);
     } catch (error) {
-      console.error('Cache stats error:', error);
-      return { keys: 0, memory: '0B' };
+      console.error('Cache increment error:', error);
+      return 0;
     }
   }
 
-  // Set cache with pattern-based invalidation
-  async setWithPattern(key: string, value: unknown, pattern: string, ttl: number = this.defaultTTL): Promise<void> {
+  async expire(key: string, ttl: number): Promise<void> {
     try {
-      const serializedValue = JSON.stringify(value);
-      await this.redis.setex(key, ttl, serializedValue);
-      
-      // Store pattern for invalidation
-      const patternKey = `pattern:${pattern}`;
-      await this.redis.sadd(patternKey, key);
-      await this.redis.expire(patternKey, ttl);
+      await redis.expire(this.getKey(key), ttl);
     } catch (error) {
-      console.error('Cache set with pattern error:', error);
+      console.error('Cache expire error:', error);
     }
   }
+}
 
-  // Invalidate cache by pattern
-  async invalidatePattern(pattern: string): Promise<void> {
-    try {
-      const patternKey = `pattern:${pattern}`;
-      const keys = await this.redis.smembers(patternKey);
-      
-      if (keys.length > 0) {
-        await this.redis.del(...keys);
-        await this.redis.del(patternKey);
-      }
-    } catch (error) {
-      console.error('Cache invalidate pattern error:', error);
-    }
-  }
+// Create cache instance
+export const cache = new CacheManager();
 
-  // Cache middleware for API routes
-  async withCache<T>(
-    key: string,
-    fn: () => Promise<T>,
-    ttl: number = this.defaultTTL
-  ): Promise<T> {
+// Cache decorator for functions
+export function withCache(
+  fn: (...args: unknown[]) => Promise<unknown>,
+  keyGenerator: (...args: unknown[]) => string,
+  ttl: number = CACHE_TTL.MEDIUM
+) {
+  return async (...args: unknown[]) => {
+    const cacheKey = keyGenerator(...args);
+    
     // Try to get from cache first
-    const cached = await this.get<T>(key);
+    const cached = await cache.get(cacheKey);
     if (cached !== null) {
       return cached;
     }
 
     // Execute function and cache result
-    const result = await fn();
-    await this.set(key, result, ttl);
+    const result = await fn(...args);
+    await cache.set(cacheKey, result, ttl);
+    
     return result;
-  }
+  };
 }
 
-// Cache key generators
-export const cacheKeys = {
-  // Organization cache keys
-  organization: (id: string) => `org:${id}`,
-  organizationBySlug: (slug: string) => `org:slug:${slug}`,
-  
-  // Campaign cache keys
-  campaign: (id: string) => `campaign:${id}`,
-  campaignsByOrg: (orgId: string) => `campaigns:org:${orgId}`,
-  campaignsByStatus: (orgId: string, status: string) => `campaigns:org:${orgId}:status:${status}`,
-  campaignsByPlatform: (orgId: string, platform: string) => `campaigns:org:${orgId}:platform:${platform}`,
-  
-  // AI Agent cache keys
-  aiAgent: (id: string) => `aiagent:${id}`,
-  aiAgentsByOrg: (orgId: string) => `aiagents:org:${orgId}`,
-  aiAgentsByType: (orgId: string, type: string) => `aiagents:org:${orgId}:type:${type}`,
-  
-  // Analytics cache keys
-  analytics: (orgId: string, type: string, params: string) => `analytics:${orgId}:${type}:${params}`,
-  performanceMetrics: (orgId: string, dateRange: string) => `metrics:${orgId}:performance:${dateRange}`,
-  platformAnalytics: (orgId: string, platform: string, dateRange: string) => `analytics:${orgId}:platform:${platform}:${dateRange}`,
-  
-  // Workflow cache keys
-  workflow: (id: string) => `workflow:${id}`,
-  workflowsByOrg: (orgId: string) => `workflows:org:${orgId}`,
-  scheduledWorkflows: (orgId: string) => `workflows:org:${orgId}:scheduled`,
-  
-  // Predictions cache keys
-  prediction: (id: string) => `prediction:${id}`,
-  predictionsByOrg: (orgId: string) => `predictions:org:${orgId}`,
-  performanceForecast: (orgId: string, campaignId: string, timeframe: string) => `forecast:${orgId}:${campaignId}:${timeframe}`,
-  
-  // User cache keys
-  user: (id: string) => `user:${id}`,
-  userByEmail: (email: string) => `user:email:${email}`,
+// Specific cache functions for common operations
+export const cacheCampaigns = withCache(
+  async (...args: unknown[]) => {
+    const organizationId = args[0] as string;
+    // This would be replaced with actual campaign fetching logic
+    return { organizationId, campaigns: [] };
+  },
+  (...args: unknown[]) => `${CACHE_KEYS.CAMPAIGNS}:${args[0] as string}`,
+  CACHE_TTL.SHORT
+);
+
+export const cacheAnalytics = withCache(
+  async (...args: unknown[]) => {
+    const campaignId = args[0] as string;
+    // This would be replaced with actual analytics fetching logic
+    return { campaignId, analytics: [] };
+  },
+  (...args: unknown[]) => `${CACHE_KEYS.ANALYTICS}:${args[0] as string}`,
+  CACHE_TTL.MEDIUM
+);
+
+// Session cache functions
+export const cacheUserSession = async (userId: string, sessionData: unknown): Promise<void> => {
+  await cache.set(`${CACHE_KEYS.USER_SESSION}:${userId}`, sessionData, CACHE_TTL.SESSION);
 };
 
-// Cache invalidation patterns
-export const cachePatterns = {
-  organization: (orgId: string) => `org:${orgId}:*`,
-  campaigns: (orgId: string) => `campaigns:org:${orgId}:*`,
-  aiAgents: (orgId: string) => `aiagents:org:${orgId}:*`,
-  analytics: (orgId: string) => `analytics:${orgId}:*`,
-  workflows: (orgId: string) => `workflows:org:${orgId}:*`,
-  predictions: (orgId: string) => `predictions:org:${orgId}:*`,
-  users: (orgId: string) => `user:org:${orgId}:*`,
+export const getCachedUserSession = async (userId: string): Promise<unknown | null> => {
+  return await cache.get(`${CACHE_KEYS.USER_SESSION}:${userId}`);
 };
 
-// Initialize cache service
-export const cacheService = new CacheService();
+// API response cache
+export const cacheAPIResponse = async (endpoint: string, params: unknown, response: unknown): Promise<void> => {
+  const key = `${CACHE_KEYS.API_RESPONSE}:${endpoint}:${JSON.stringify(params)}`;
+  await cache.set(key, response, CACHE_TTL.SHORT);
+};
 
-// Test Redis connection
-export async function testRedisConnection(): Promise<boolean> {
+export const getCachedAPIResponse = async (endpoint: string, params: unknown): Promise<unknown | null> => {
+  const key = `${CACHE_KEYS.API_RESPONSE}:${endpoint}:${JSON.stringify(params)}`;
+  return await cache.get(key);
+};
+
+// Cache invalidation functions
+export const invalidateCampaignCache = async (organizationId: string): Promise<void> => {
+  await cache.deletePattern(`${CACHE_KEYS.CAMPAIGNS}:${organizationId}`);
+};
+
+export const invalidateAnalyticsCache = async (campaignId: string): Promise<void> => {
+  await cache.deletePattern(`${CACHE_KEYS.ANALYTICS}:${campaignId}`);
+};
+
+export const invalidateUserSession = async (userId: string): Promise<void> => {
+  await cache.delete(`${CACHE_KEYS.USER_SESSION}:${userId}`);
+};
+
+// Health check
+export const checkCacheHealth = async () => {
   try {
-    const redis = getRedisClient();
     await redis.ping();
-    console.log('✅ Redis connection successful');
-    return true;
+    return { status: 'healthy', timestamp: new Date() };
   } catch (error) {
-    console.error('❌ Redis connection failed:', error);
-    return false;
+    return { 
+      status: 'unhealthy', 
+      error: error instanceof Error ? error.message : 'Unknown error', 
+      timestamp: new Date() 
+    };
   }
-}
+};
 
-export default cacheService; 
+// Cleanup function
+export const cleanupCache = async () => {
+  await redis.quit();
+};
+
+// Export Redis instance for direct access if needed
+export { redis };
+
+export default cache; 

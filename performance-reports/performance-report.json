@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-08-02T07:34:36.653Z",
+  "testConfiguration": {
+    "baseUrl": "http://localhost:3000",
+    "outputDir": "./performance-reports",
+    "targets": {
+      "performance": 90,
+      "accessibility": 90,
+      "bestPractices": 90,
+      "seo": 90,
+      "bundleSize": 500
+    }
+  },
+  "results": {
+    "bundleSize": true,
+    "lighthouse": null,
+    "manual": {
+      "serverResponse": true,
+      "memoryUsage": 4.819679260253906,
+      "databasePerformance": "excellent"
+    }
+  },
+  "summary": {
+    "overallGrade": "A+",
+    "readyForProduction": true,
+    "recommendations": []
+  }
+}

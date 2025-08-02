@@ -1,0 +1,195 @@
+{
+  "name": "Ads Pro Enterprise",
+  "short_name": "Ads Pro",
+  "description": "AI-powered marketing intelligence platform for enterprise campaigns",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["business", "productivity", "marketing"],
+  "dir": "ltr",
+  
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View your campaign dashboard",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/icons/dashboard-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Campaigns",
+      "short_name": "Campaigns",
+      "description": "Manage your campaigns",
+      "url": "/campaigns",
+      "icons": [
+        {
+          "src": "/icons/campaigns-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "short_name": "Analytics",
+      "description": "View campaign analytics",
+      "url": "/analytics",
+      "icons": [
+        {
+          "src": "/icons/analytics-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "AI Agents",
+      "short_name": "AI Agents",
+      "description": "Manage AI agents",
+      "url": "/ai-agents",
+      "icons": [
+        {
+          "src": "/icons/ai-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Dashboard view with campaign overview"
+    },
+    {
+      "src": "/screenshots/dashboard-narrow.png",
+      "sizes": "375x812",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile dashboard view"
+    },
+    {
+      "src": "/screenshots/campaigns-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Campaign management interface"
+    },
+    {
+      "src": "/screenshots/analytics-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Analytics and reporting dashboard"
+    }
+  ],
+  
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "files",
+          "accept": ["image/*", ".csv", ".xlsx"]
+        }
+      ]
+    }
+  },
+  
+  "file_handlers": [
+    {
+      "action": "/import",
+      "accept": {
+        "text/csv": [".csv"],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+        "application/json": [".json"]
+      }
+    }
+  ],
+  
+  "protocol_handlers": [
+    {
+      "protocol": "web+adspro",
+      "url": "/campaign?id=%s"
+    }
+  ],
+  
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  
+  "prefer_related_applications": false,
+  "related_applications": [],
+  
+  "iarc_rating_id": "",
+  
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  }
+}

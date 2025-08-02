@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
+
 const nextConfig: NextConfig = {
   /* config options here */
   experimental: {
@@ -14,8 +18,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Specify the source directory
   distDir: '.next',
-  // Ensure the app directory is properly configured
-  appDir: true,
+  // Note: appDir is enabled by default in Next.js 13+ App Router
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
