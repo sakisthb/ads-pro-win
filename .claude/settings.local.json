@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node:*)",
+      "Bash(set NODE_ENV=production)",
+      "Bash(npm install:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run lint)",
+      "Bash(npm audit:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(find:*)"
+    ],
+    "deny": []
+  }
+}

@@ -1,0 +1,145 @@
+================================================================================
+VITE PROJECT REFERENCE FILES - NEXT.JS MIGRATION GUIDE
+================================================================================
+Date: 04/08/2025
+Project: Ads Pro Enterprise
+Status: Reference Files Identified for Next.js Migration
+
+================================================================================
+🎨 KΥΡΙΑ DESIGN FILES (PRIORITY 1)
+================================================================================
+
+1. **LandingPage.tsx** (94KB, 1934 lines)
+   - Location: ui/src/pages/LandingPage.tsx
+   - Features: Animated sections, Interactive demos, Real-time stats
+   - Key Elements: Framer Motion animations, Platform integrations
+   - Migration: Convert to Next.js App Router structure
+
+2. **index.css** (5.7KB, 185 lines)
+   - Location: ui/src/index.css
+   - Features: OKLCH color system, Smooth theme transitions
+   - Key Elements: Custom scrollbars, Dark/Light theme variables
+   - Migration: Adapt to Next.js globals.css
+
+3. **theme-provider.tsx** (455B, 11 lines)
+   - Location: ui/src/components/theme-provider.tsx
+   - Features: next-themes integration
+   - Migration: Already implemented in our project
+
+4. **mode-toggle.tsx** (1.6KB, 51 lines)
+   - Location: ui/src/components/mode-toggle.tsx
+   - Features: Advanced theme toggle with animations
+   - Migration: Already implemented in our project
+
+================================================================================
+🔧 COMPONENTS FOR MIGRATION (PRIORITY 2)
+================================================================================
+
+5. **PublicNavigation.tsx** (6.7KB, 184 lines)
+   - Location: ui/src/components/PublicNavigation.tsx
+   - Features: Glassmorphism navigation
+   - Migration: Convert to Next.js navigation component
+
+6. **navbar.tsx** (7.7KB, 188 lines)
+   - Location: ui/src/components/navbar.tsx
+   - Features: Advanced navbar with animations
+   - Migration: Enhance our existing navigation
+
+7. **user-profile-menu.tsx** (11KB, 278 lines)
+   - Location: ui/src/components/user-profile-menu.tsx
+   - Features: Advanced user menu with animations
+   - Migration: Add to our user menu system
+
+8. **ai-fortune-teller.tsx** (127KB, 2713 lines)
+   - Location: ui/src/components/ai-fortune-teller.tsx
+   - Features: Massive AI component with advanced features
+   - Migration: Break down into smaller components
+
+================================================================================
+📄 PAGES FOR MIGRATION (PRIORITY 3)
+================================================================================
+
+9. **Dashboard.tsx** (41KB, 902 lines)
+   - Location: ui/src/pages/Dashboard.tsx
+   - Features: Advanced dashboard with real-time data
+   - Migration: Convert to Next.js dashboard page
+
+10. **Analytics.tsx** (25KB, 522 lines)
+    - Location: ui/src/pages/Analytics.tsx
+    - Features: Analytics dashboard with charts
+    - Migration: Convert to Next.js analytics page
+
+11. **Campaigns.tsx** (24KB, 487 lines)
+    - Location: ui/src/pages/Campaigns.tsx
+    - Features: Campaign management interface
+    - Migration: Convert to Next.js campaigns page
+
+12. **Settings.tsx** (34KB, 785 lines)
+    - Location: ui/src/pages/Settings.tsx
+    - Features: Advanced settings interface
+    - Migration: Convert to Next.js settings page
+
+================================================================================
+🎯 MIGRATION STRATEGY
+================================================================================
+
+PHASE 1: Design System Foundation
+- ✅ Theme provider (DONE)
+- ✅ Mode toggle (DONE)
+- 🔄 Update globals.css with OKLCH colors
+- 🔄 Implement glassmorphism components
+
+PHASE 2: Core Components
+- 🔄 PublicNavigation → EnhancedNavigation
+- 🔄 Navbar improvements
+- 🔄 User profile menu
+- 🔄 AI components (break down large files)
+
+PHASE 3: Page Migration
+- 🔄 LandingPage → HomePage (enhance existing)
+- 🔄 Dashboard page
+- 🔄 Analytics page
+- 🔄 Campaigns page
+- 🔄 Settings page
+
+PHASE 4: Advanced Features
+- 🔄 Real-time animations
+- 🔄 Interactive demos
+- 🔄 Advanced AI components
+- 🔄 Platform integrations
+
+================================================================================
+🔧 TECHNICAL REQUIREMENTS
+================================================================================
+
+Dependencies to Install:
+- ✅ next-themes (DONE)
+- ✅ framer-motion (DONE)
+- ✅ lucide-react (DONE)
+- 🔄 Additional UI libraries as needed
+
+File Structure:
+```
+src/
+├── app/                    # Next.js App Router
+├── components/
+│   ├── ui/                # Base UI components
+│   ├── sections/          # Page sections
+│   └── providers/         # Context providers
+├── lib/                   # Utilities
+└── styles/               # Global styles
+```
+
+================================================================================
+📋 NEXT STEPS
+================================================================================
+
+1. Install next-themes package
+2. Update globals.css with OKLCH colors
+3. Implement glassmorphism navigation
+4. Add more WOW animations
+5. Migrate key components one by one
+6. Test dark/light theme switching
+7. Optimize for performance
+
+================================================================================ 

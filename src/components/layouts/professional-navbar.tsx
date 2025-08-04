@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Bell, Search, RefreshCw, Download, Zap, Settings } from "lucide-react"
+import { Bell, Search, RefreshCw, Download, Zap, Settings, Command } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +14,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 
-export function ProfessionalNavbar() {
+interface ProfessionalNavbarProps {
+  onCommandPaletteOpen?: () => void
+}
+
+export function ProfessionalNavbar({ onCommandPaletteOpen }: ProfessionalNavbarProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
@@ -36,6 +40,16 @@ export function ProfessionalNavbar() {
 
         {/* Quick Actions */}
         <div className="flex items-center space-x-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onCommandPaletteOpen}
+            className="h-8 px-2 gap-1"
+            title="Open Command Palette (Ctrl+K)"
+          >
+            <Command className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs">⌘K</span>
+          </Button>
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
             <RefreshCw className="h-4 w-4" />
           </Button>

@@ -1,8 +1,9 @@
-// Next.js Middleware for API Security and Logging
-// Handles authentication, rate limiting, and request logging
+// Next.js Middleware for API Security, Logging, and Compression
+// Handles authentication, rate limiting, request logging, and response compression
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { withJSONCompression, withSmartCompression } from "./lib/compression-middleware";
 
 // Rate limiting store (in production, use Redis)
 const rateLimit = new Map<string, { count: number; resetTime: number }>();
@@ -72,6 +73,19 @@ export function middleware(request: NextRequest) {
     response.headers.set("Access-Control-Allow-Origin", "*");
     response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    // Performance optimization headers - Phase 3 Week 8
+    response.headers.set("X-DNS-Prefetch-Control", "on");
+    response.headers.set("X-XSS-Protection", "1; mode=block");
+    response.headers.set("X-Powered-By", "Ads Pro Enterprise v3.0");
+    
+    // Compression indicators
+    const acceptEncoding = request.headers.get("accept-encoding") || "";
+    if (acceptEncoding.includes("br")) {
+      response.headers.set("X-Compression-Available", "br,gzip");
+    } else if (acceptEncoding.includes("gzip")) {
+      response.headers.set("X-Compression-Available", "gzip");
+    }
 
     // Log response time in development
     if (process.env.NODE_ENV === "development") {
