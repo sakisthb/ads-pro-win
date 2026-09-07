@@ -1,257 +1,222 @@
 // Tests for AI Agents Hooks
-// Testing AI operations, data fetching, and error handling
+// The hooks are thin wrappers over tRPC mutations/queries; these tests verify
+// the wiring: default state, argument pass-through, and error/pending surfacing.
 
-import { renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { 
-  useCampaignAnalysis, 
-  useCreativeGeneration, 
-  useOptimization,
-  useAnalyticsDashboard 
+import { renderHook, act } from '@testing-library/react'
+import {
+  useCampaignAnalysis,
+  useCreativeGeneration,
+  useCampaignOptimization,
+  useAnalyticsDashboard
 } from '../use-ai-agents'
-import { createMockTRPCClient, mockCampaign, mockAIAnalysisResult } from '@/test-utils/test-utils'
+import { api } from '@/lib/trpc/client'
 
-// Mock tRPC client
+const mockMutate = jest.fn()
+const mockMutateAsync = jest.fn().mockResolvedValue({ success: true })
+const mockBulkMutate = jest.fn()
+const mockRefetch = jest.fn().mockResolvedValue({})
+
+let mockIsPending = false
+let mockError: Error | null = null
+
+const mockMutationResult = () => ({
+  mutate: mockMutate,
+  mutateAsync: mockMutateAsync,
+  isPending: mockIsPending,
+  error: mockError,
+  data: undefined,
+})
+
+const mockBulkMutationResult = () => ({
+  mutate: mockBulkMutate,
+  mutateAsync: mockBulkMutate,
+  isPending: mockIsPending,
+  error: mockError,
+  data: undefined,
+})
+
 jest.mock('@/lib/trpc/client', () => ({
-  api: createMockTRPCClient(),
+  api: {
+    ai: {
+      analyzeCampaign: { useMutation: jest.fn(() => mockMutationResult()) },
+      bulkAnalyzeCampaigns: { useMutation: jest.fn(() => mockBulkMutationResult()) },
+      generateCreative: { useMutation: jest.fn(() => mockMutationResult()) },
+      optimizeCampaign: { useMutation: jest.fn(() => mockMutationResult()) },
+      getAnalyticsDashboard: {
+        useQuery: jest.fn(() => ({
+          data: { data: { summary: { totalCampaigns: 3 } } },
+          isLoading: false,
+          error: null,
+          refetch: mockRefetch,
+        })),
+      },
+    },
+  },
 }))
 
 describe('AI Agents Hooks', () => {
-  let queryClient: QueryClient
-  let wrapper: React.FC<{ children: React.ReactNode }>
-
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
-    
-    wrapper = ({ children }) => (
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
-    )
-  })
-
-  afterEach(() => {
-    queryClient.clear()
+    jest.clearAllMocks()
+    mockIsPending = false
+    mockError = null
   })
 
   describe('useCampaignAnalysis', () => {
-    it('should initialize with correct default state', () => {
-      const { result } = renderHook(() => useCampaignAnalysis(), { wrapper })
+    it('exposes analysis and bulk analysis mutations with default state', () => {
+      const { result } = renderHook(() => useCampaignAnalysis())
 
+      expect(typeof result.current.analyze).toBe('function')
+      expect(typeof result.current.analyzeAsync).toBe('function')
+      expect(typeof result.current.bulkAnalyze).toBe('function')
+      expect(typeof result.current.bulkAnalyzeAsync).toBe('function')
       expect(result.current.isAnalyzing).toBe(false)
-      expect(result.current.analysisResult).toBeNull()
       expect(result.current.error).toBeNull()
-      expect(typeof result.current.analyzeCampaign).toBe('function')
     })
 
-    it('should handle successful campaign analysis', async () => {
-      const mockResult = mockAIAnalysisResult()
-      const { result } = renderHook(() => useCampaignAnalysis(), { wrapper })
+    it('delegates analyze calls to the tRPC mutation', () => {
+      const { result } = renderHook(() => useCampaignAnalysis())
 
-      // Mock successful analysis
-      const mockMutate = jest.fn().mockImplementation((data, { onSuccess }) => {
-        setTimeout(() => onSuccess(mockResult), 0)
+      act(() => {
+        result.current.analyze({ campaignId: 'camp_123', analysisType: 'comprehensive' })
       })
-      
-      result.current.analyzeCampaign = mockMutate
 
-      // Trigger analysis
-      result.current.analyzeCampaign({
+      expect(mockMutate).toHaveBeenCalledWith({
         campaignId: 'camp_123',
         analysisType: 'comprehensive',
       })
-
-      await waitFor(() => {
-        expect(mockMutate).toHaveBeenCalledWith({
-          campaignId: 'camp_123',
-          analysisType: 'comprehensive',
-        })
-      })
     })
 
-    it('should handle analysis errors gracefully', async () => {
-      const { result } = renderHook(() => useCampaignAnalysis(), { wrapper })
-      const errorMessage = 'Analysis failed'
+    it('delegates bulk analysis calls to the bulk tRPC mutation', () => {
+      const { result } = renderHook(() => useCampaignAnalysis())
 
-      // Mock error
-      const mockMutate = jest.fn().mockImplementation((data, { onError }) => {
-        setTimeout(() => onError(new Error(errorMessage)), 0)
-      })
-      
-      result.current.analyzeCampaign = mockMutate
-
-      result.current.analyzeCampaign({
-        campaignId: 'camp_123',
-        analysisType: 'comprehensive',
+      act(() => {
+        result.current.bulkAnalyze({ campaignIds: ['camp_123', 'camp_456'] })
       })
 
-      await waitFor(() => {
-        expect(mockMutate).toHaveBeenCalled()
-      })
+      expect(mockBulkMutate).toHaveBeenCalledWith({ campaignIds: ['camp_123', 'camp_456'] })
     })
 
-    it('should handle different analysis types', async () => {
-      const { result } = renderHook(() => useCampaignAnalysis(), { wrapper })
-      const mockMutate = jest.fn()
-      result.current.analyzeCampaign = mockMutate
+    it('surfaces pending state and mutation errors', () => {
+      const error = new Error('Analysis failed')
+      mockIsPending = true
+      mockError = error
 
-      const analysisTypes = ['comprehensive', 'performance', 'audience', 'budget'] as const
+      const { result } = renderHook(() => useCampaignAnalysis())
 
-      for (const type of analysisTypes) {
-        result.current.analyzeCampaign({
-          campaignId: 'camp_123',
-          analysisType: type,
-        })
-
-        expect(mockMutate).toHaveBeenCalledWith({
-          campaignId: 'camp_123',
-          analysisType: type,
-        })
-      }
-
-      expect(mockMutate).toHaveBeenCalledTimes(analysisTypes.length)
+      expect(result.current.isAnalyzing).toBe(true)
+      expect(result.current.error).toBe(error)
     })
   })
 
   describe('useCreativeGeneration', () => {
-    it('should initialize with correct default state', () => {
-      const { result } = renderHook(() => useCreativeGeneration(), { wrapper })
+    it('exposes generation mutation with default state', () => {
+      const { result } = renderHook(() => useCreativeGeneration())
 
+      expect(typeof result.current.generate).toBe('function')
+      expect(typeof result.current.generateAsync).toBe('function')
       expect(result.current.isGenerating).toBe(false)
-      expect(result.current.generatedContent).toBeNull()
       expect(result.current.error).toBeNull()
-      expect(typeof result.current.generateCreative).toBe('function')
+      expect(result.current.data).toBeUndefined()
     })
 
-    it('should handle successful creative generation', async () => {
-      const { result } = renderHook(() => useCreativeGeneration(), { wrapper })
-      
-      const mockResult = {
-        id: 'creative_123',
-        content: {
-          headlines: ['Great Product!', 'Amazing Deal!'],
-          descriptions: ['High quality product', 'Limited time offer'],
-        },
-        variants: [],
-      }
+    it('delegates generate calls to the tRPC mutation', () => {
+      const { result } = renderHook(() => useCreativeGeneration())
 
-      const mockMutate = jest.fn().mockImplementation((data, { onSuccess }) => {
-        setTimeout(() => onSuccess(mockResult), 0)
+      act(() => {
+        result.current.generate({ campaignId: 'camp_123', contentType: 'text' })
       })
-      
-      result.current.generateCreative = mockMutate
 
-      result.current.generateCreative({
+      expect(mockMutate).toHaveBeenCalledWith({
         campaignId: 'camp_123',
         contentType: 'text',
-        tone: 'professional',
-      })
-
-      await waitFor(() => {
-        expect(mockMutate).toHaveBeenCalledWith({
-          campaignId: 'camp_123',
-          contentType: 'text',
-          tone: 'professional',
-        })
       })
     })
 
-    it('should handle different content types', () => {
-      const { result } = renderHook(() => useCreativeGeneration(), { wrapper })
-      const mockMutate = jest.fn()
-      result.current.generateCreative = mockMutate
+    it('surfaces pending state and generation errors', () => {
+      const error = new Error('Generation failed')
+      mockIsPending = true
+      mockError = error
 
-      const contentTypes = ['text', 'image', 'video'] as const
+      const { result } = renderHook(() => useCreativeGeneration())
 
-      for (const type of contentTypes) {
-        result.current.generateCreative({
-          campaignId: 'camp_123',
-          contentType: type,
-          tone: 'professional',
-        })
-      }
-
-      expect(mockMutate).toHaveBeenCalledTimes(contentTypes.length)
+      expect(result.current.isGenerating).toBe(true)
+      expect(result.current.error).toBe(error)
     })
   })
 
-  describe('useOptimization', () => {
-    it('should initialize with correct default state', () => {
-      const { result } = renderHook(() => useOptimization(), { wrapper })
+  describe('useCampaignOptimization', () => {
+    it('exposes optimization mutation with default state', () => {
+      const { result } = renderHook(() => useCampaignOptimization())
 
+      expect(typeof result.current.optimize).toBe('function')
+      expect(typeof result.current.optimizeAsync).toBe('function')
       expect(result.current.isOptimizing).toBe(false)
-      expect(result.current.optimizationResult).toBeNull()
       expect(result.current.error).toBeNull()
-      expect(typeof result.current.optimizeCampaign).toBe('function')
+      expect(result.current.data).toBeUndefined()
     })
 
-    it('should handle successful optimization', async () => {
-      const { result } = renderHook(() => useOptimization(), { wrapper })
-      
-      const mockResult = {
-        id: 'opt_123',
-        recommendations: [
-          { type: 'budget', action: 'increase', value: 20 },
-          { type: 'targeting', action: 'expand', value: 'lookalike_audiences' },
-        ],
-        projectedImpact: { ctr: 0.5, cpc: -0.1 },
-      }
+    it('delegates optimize calls to the tRPC mutation', () => {
+      const { result } = renderHook(() => useCampaignOptimization())
 
-      const mockMutate = jest.fn().mockImplementation((data, { onSuccess }) => {
-        setTimeout(() => onSuccess(mockResult), 0)
+      act(() => {
+        result.current.optimize({ campaignId: 'camp_123', optimizationType: 'performance' })
       })
-      
-      result.current.optimizeCampaign = mockMutate
 
-      result.current.optimizeCampaign({
+      expect(mockMutate).toHaveBeenCalledWith({
         campaignId: 'camp_123',
         optimizationType: 'performance',
       })
+    })
 
-      await waitFor(() => {
-        expect(mockMutate).toHaveBeenCalledWith({
-          campaignId: 'camp_123',
-          optimizationType: 'performance',
-        })
-      })
+    it('surfaces pending state and optimization errors', () => {
+      const error = new Error('Optimization failed')
+      mockIsPending = true
+      mockError = error
+
+      const { result } = renderHook(() => useCampaignOptimization())
+
+      expect(result.current.isOptimizing).toBe(true)
+      expect(result.current.error).toBe(error)
     })
   })
 
   describe('useAnalyticsDashboard', () => {
-    it('should initialize with correct default state', () => {
-      const { result } = renderHook(() => useAnalyticsDashboard(), { wrapper })
+    it('unwraps dashboard data from the query result', () => {
+      const { result } = renderHook(() => useAnalyticsDashboard())
 
+      expect(result.current.dashboard).toEqual({ summary: { totalCampaigns: 3 } })
       expect(result.current.isLoading).toBe(false)
-      expect(result.current.data).toBeUndefined()
       expect(result.current.error).toBeNull()
       expect(typeof result.current.refetch).toBe('function')
     })
 
-    it('should handle different timeframes', () => {
-      const timeframes = ['24h', '7d', '30d', '90d'] as const
+    it('queries with the requested timeframe', () => {
+      renderHook(() => useAnalyticsDashboard('30d'))
+
+      const useQuery = api.ai.getAnalyticsDashboard.useQuery as unknown as jest.Mock
+      expect(useQuery).toHaveBeenCalledWith(
+        { timeframe: '30d' },
+        expect.objectContaining({ refetchInterval: 5 * 60 * 1000 })
+      )
+    })
+
+    it('supports all documented timeframes', () => {
+      const timeframes = ['1d', '7d', '30d', '90d'] as const
 
       for (const timeframe of timeframes) {
-        const { result } = renderHook(
-          () => useAnalyticsDashboard(timeframe), 
-          { wrapper }
-        )
-
+        const { result } = renderHook(() => useAnalyticsDashboard(timeframe))
         expect(result.current).toBeDefined()
       }
     })
 
-    it('should provide refetch functionality', () => {
-      const { result } = renderHook(() => useAnalyticsDashboard(), { wrapper })
-      
-      expect(typeof result.current.refetch).toBe('function')
-      
-      // Should be able to call refetch
-      result.current.refetch()
+    it('provides refetch functionality', () => {
+      const { result } = renderHook(() => useAnalyticsDashboard())
+
+      act(() => {
+        result.current.refetch()
+      })
+
+      expect(mockRefetch).toHaveBeenCalled()
     })
   })
 })
