@@ -553,33 +553,291 @@ export class RealTimeAIAgents {
     }
   }
 
-  // Legacy methods for backward compatibility
-  async analyzeAudience(campaignData: CampaignData, config: RealTimeAIAgentConfig) {
-    // Implementation similar to original but with progress updates
-    // Simplified for brevity - would include full real-time implementation
-    return await aiDbService.storeCampaignAnalysis({
-      campaignId: campaignData.id,
-      analysisType: 'audience_analysis',
-      insights: ['Audience analysis completed'],
-      recommendations: ['Audience recommendations'],
-      performanceScore: 0.8,
-      confidence: 0.8,
-      generatedAt: new Date(),
-    });
+  // Audience Analysis with Real-Time Updates
+  async analyzeAudience(
+    campaignData: CampaignData,
+    config: RealTimeAIAgentConfig = {
+      provider: AI_PROVIDERS.OPENAI,
+      organizationId: this.organizationId,
+    }
+  ): Promise<CampaignAnalysisResult> {
+    const startTime = Date.now();
+
+    try {
+      this.sendProgress(
+        {
+          operationType: 'analysis',
+          campaignId: campaignData.id,
+          progress: 0,
+          stage: 'initializing',
+          message: 'Starting audience analysis...',
+        },
+        config
+      );
+
+      const model = this.getModel(config.provider);
+
+      this.sendProgress(
+        {
+          operationType: 'analysis',
+          campaignId: campaignData.id,
+          progress: 20,
+          stage: 'preparing',
+          message: 'Preparing audience data...',
+        },
+        config
+      );
+
+      const prompt = `
+      As an Audience Analysis AI Agent, analyze the following campaign audience and provide actionable insights:
+
+      Campaign: ${campaignData.name}
+      Platform: ${campaignData.platform}
+      Target Audience: ${JSON.stringify(campaignData.targetAudience, null, 2)}
+      Performance: ${JSON.stringify(campaignData.performance, null, 2)}
+
+      Provide analysis in the following JSON format:
+      {
+        "insights": ["insight1", "insight2"],
+        "recommendations": ["recommendation1", "recommendation2"],
+        "performanceScore": 0.85,
+        "confidence": 0.92,
+        "segments": ["segment1", "segment2"]
+      }
+
+      Focus on:
+      - Audience segmentation quality
+      - Targeting effectiveness
+      - Reach vs. engagement trade-offs
+      - Lookalike and expansion opportunities
+      - Platform-specific audience best practices
+      `;
+
+      this.sendProgress(
+        {
+          operationType: 'analysis',
+          campaignId: campaignData.id,
+          progress: 50,
+          stage: 'analyzing',
+          message: 'AI is analyzing audience performance...',
+        },
+        config
+      );
+
+      const response = await model.invoke(prompt);
+
+      this.sendProgress(
+        {
+          operationType: 'analysis',
+          campaignId: campaignData.id,
+          progress: 80,
+          stage: 'processing',
+          message: 'Processing audience analysis results...',
+        },
+        config
+      );
+
+      const audience = parseAIResponse(response.content as string);
+
+      const result: CampaignAnalysisResult = {
+        campaignId: campaignData.id,
+        analysisType: 'audience_analysis',
+        insights: (audience as any).insights || ['Audience analysis completed'],
+        recommendations:
+          (audience as any).recommendations || ['Review audience targeting strategy'],
+        performanceScore: (audience as any).performanceScore || 0,
+        confidence: (audience as any).confidence || 0,
+        generatedAt: new Date(),
+      };
+
+      this.sendProgress(
+        {
+          operationType: 'analysis',
+          campaignId: campaignData.id,
+          progress: 90,
+          stage: 'saving',
+          message: 'Saving audience analysis to database...',
+          confidence: result.confidence,
+        },
+        config
+      );
+
+      await aiDbService.storeCampaignAnalysis(result);
+
+      const processingTime = Date.now() - startTime;
+      await updateAgentPerformance(this.organizationId, AGENT_TYPES.AUDIENCE_EXPERT, {
+        lastAnalysis: new Date(),
+        processingTime,
+        confidence: result.confidence,
+        audiencesAnalyzed: 1,
+      });
+
+      this.sendProgress(
+        {
+          operationType: 'analysis',
+          campaignId: campaignData.id,
+          progress: 100,
+          stage: 'completed',
+          message: 'Audience analysis completed successfully!',
+          confidence: result.confidence,
+        },
+        config
+      );
+
+      this.sendComplete(result, config);
+
+      return result;
+    } catch (error) {
+      console.error('Real-time audience analysis error:', error);
+      this.sendError(error, config);
+      throw error;
+    }
   }
 
-  async manageBudget(campaignData: CampaignData, config: RealTimeAIAgentConfig) {
-    // Implementation similar to original but with progress updates
-    // Simplified for brevity - would include full real-time implementation
-    return await aiDbService.storeCampaignAnalysis({
-      campaignId: campaignData.id,
-      analysisType: 'budget_management',
-      insights: ['Budget analysis completed'],
-      recommendations: ['Budget recommendations'],
-      performanceScore: 0.75,
-      confidence: 0.75,
-      generatedAt: new Date(),
-    });
+  // Budget Management with Real-Time Updates
+  async manageBudget(
+    campaignData: CampaignData,
+    config: RealTimeAIAgentConfig = {
+      provider: AI_PROVIDERS.OPENAI,
+      organizationId: this.organizationId,
+    }
+  ): Promise<CampaignAnalysisResult> {
+    const startTime = Date.now();
+
+    try {
+      this.sendProgress(
+        {
+          operationType: 'optimization',
+          campaignId: campaignData.id,
+          progress: 0,
+          stage: 'initializing',
+          message: 'Starting budget analysis...',
+        },
+        config
+      );
+
+      const model = this.getModel(config.provider);
+      const utilization =
+        campaignData.budget > 0
+          ? (campaignData.budgetSpent / campaignData.budget) * 100
+          : 0;
+
+      this.sendProgress(
+        {
+          operationType: 'optimization',
+          campaignId: campaignData.id,
+          progress: 20,
+          stage: 'preparing',
+          message: 'Preparing budget utilization data...',
+        },
+        config
+      );
+
+      const prompt = `
+      As a Budget Management AI Agent, analyze the following campaign budget and provide optimization recommendations:
+
+      Campaign: ${campaignData.name}
+      Platform: ${campaignData.platform}
+      Total Budget: $${campaignData.budget}
+      Spent: $${campaignData.budgetSpent}
+      Utilization: ${utilization.toFixed(1)}%
+      Performance: ${JSON.stringify(campaignData.performance, null, 2)}
+
+      Provide analysis in the following JSON format:
+      {
+        "insights": ["insight1", "insight2"],
+        "recommendations": ["recommendation1", "recommendation2"],
+        "performanceScore": 0.82,
+        "confidence": 0.88,
+        "projectedSpend": 650
+      }
+
+      Focus on:
+      - Budget utilization efficiency
+      - Pacing and delivery analysis
+      - Cost per result trends
+      - Reallocation opportunities
+      - Scale vs. profitability trade-offs
+      `;
+
+      this.sendProgress(
+        {
+          operationType: 'optimization',
+          campaignId: campaignData.id,
+          progress: 50,
+          stage: 'analyzing',
+          message: 'AI is analyzing budget performance...',
+        },
+        config
+      );
+
+      const response = await model.invoke(prompt);
+
+      this.sendProgress(
+        {
+          operationType: 'optimization',
+          campaignId: campaignData.id,
+          progress: 80,
+          stage: 'processing',
+          message: 'Processing budget recommendations...',
+        },
+        config
+      );
+
+      const budget = parseAIResponse(response.content as string);
+
+      const result: CampaignAnalysisResult = {
+        campaignId: campaignData.id,
+        analysisType: 'budget_management',
+        insights: (budget as any).insights || ['Budget analysis completed'],
+        recommendations: (budget as any).recommendations || ['Review budget allocation'],
+        performanceScore: (budget as any).performanceScore || 0,
+        confidence: (budget as any).confidence || 0,
+        generatedAt: new Date(),
+      };
+
+      this.sendProgress(
+        {
+          operationType: 'optimization',
+          campaignId: campaignData.id,
+          progress: 90,
+          stage: 'saving',
+          message: 'Saving budget analysis to database...',
+          confidence: result.confidence,
+        },
+        config
+      );
+
+      await aiDbService.storeCampaignAnalysis(result);
+
+      const processingTime = Date.now() - startTime;
+      await updateAgentPerformance(this.organizationId, AGENT_TYPES.BUDGET_MANAGER, {
+        lastOptimization: new Date(),
+        processingTime,
+        confidence: result.confidence,
+        budgetsManaged: 1,
+      });
+
+      this.sendProgress(
+        {
+          operationType: 'optimization',
+          campaignId: campaignData.id,
+          progress: 100,
+          stage: 'completed',
+          message: 'Budget analysis completed successfully!',
+          confidence: result.confidence,
+        },
+        config
+      );
+
+      this.sendComplete(result, config);
+
+      return result;
+    } catch (error) {
+      console.error('Real-time budget management error:', error);
+      this.sendError(error, config);
+      throw error;
+    }
   }
 }
 
