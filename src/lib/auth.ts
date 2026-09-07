@@ -1,47 +1,32 @@
-// Authentication Configuration for Ads Pro Enterprise
-// AI-Powered Marketing Intelligence Platform
+// Authentication helpers for Ads Pro Enterprise
+// Supabase Auth (replaces Clerk)
 
-import { getAuth } from "@clerk/nextjs/server";
-import { type GetServerSidePropsContext } from "next";
+import { createClient } from '@/lib/supabase/server'
 
-// Custom session type for Clerk
-interface CustomSession {
-  user: {
-    id: string;
-    email?: string;
-    name?: string;
-    image?: string;
-    emailVerified?: boolean;
-  };
-  expires: string;
+export interface Session {
+  userId: string
+  email?: string
+  emailVerified?: boolean
 }
 
-export const getServerAuthSession = async (ctx: {
-  req: GetServerSidePropsContext["req"];
-  res: GetServerSidePropsContext["res"];
-}): Promise<CustomSession | null> => {
-  try {
-    const { userId } = await getAuth(ctx.req);
-    
-    if (!userId) {
-      return null;
-    }
+/**
+ * Returns the authenticated user's session from Supabase Auth, or `null` when
+ * the request is unauthenticated. Auth state is read from the request cookies
+ * via the server-side Supabase client.
+ */
+export async function getSession(): Promise<Session | null> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-    // Convert Clerk user to session format
-    const session: CustomSession = {
-      user: {
-        id: userId,
-        email: "", // Will be fetched from database if needed
-        name: "", // Will be fetched from database if needed
-        image: "", // Will be fetched from database if needed
-        emailVerified: true, // Clerk handles email verification
-      },
-      expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-    };
-
-    return session;
-  } catch (error) {
-    console.error("Error getting auth session:", error);
-    return null;
+  if (!user) {
+    return null
   }
-}; 
+
+  return {
+    userId: user.id,
+    email: user.email ?? undefined,
+    emailVerified: Boolean(user.email_confirmed_at),
+  }
+}
