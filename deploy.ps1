@@ -1,41 +1,29 @@
-# Ads Pro Enterprise - Deployment Script (PowerShell)
-# AI-Powered Marketing Intelligence Platform
+# ads-pro-win — Docker Production Deployment (Windows)
+$TAG = if ($args[0]) { $args[0] } else { (git rev-parse --short HEAD) }
+$COMPOSE_FILE = "docker-compose.production.yml"
 
-Write-Host "🚀 Starting Ads Pro Enterprise Deployment..." -ForegroundColor Green
+Write-Host "Building Docker image (tag: $TAG)..." -ForegroundColor Cyan
+docker build -t "ads-pro-win:$TAG" -t "ads-pro-win:latest" .
 
-# Check if we're in the right directory
-if (-not (Test-Path "package.json")) {
-    Write-Host "❌ Error: Not in the project root directory" -ForegroundColor Red
+Write-Host "Starting Redis..." -ForegroundColor Cyan
+docker compose -f $COMPOSE_FILE up -d redis --remove-orphans
+
+Write-Host "Running migrations (fail-closed)..." -ForegroundColor Cyan
+$migration = docker compose -f $COMPOSE_FILE run --rm --no-deps web npx prisma migrate deploy
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Migration failed. Deployment halted." -ForegroundColor Red
     exit 1
 }
 
-# Install dependencies
-Write-Host "📦 Installing dependencies..." -ForegroundColor Yellow
-npm install
+Write-Host "Starting application services..." -ForegroundColor Cyan
+docker compose -f $COMPOSE_FILE up -d --remove-orphans
 
-# Generate Prisma client
-Write-Host "🗄️ Generating Prisma client..." -ForegroundColor Yellow
-npx prisma generate
-
-# Build the application
-Write-Host "🔨 Building for production..." -ForegroundColor Yellow
-npm run build
-
-# Check if build was successful
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "✅ Build successful!" -ForegroundColor Green
+Write-Host "Checking health..." -ForegroundColor Cyan
+Start-Sleep -Seconds 5
+$response = Invoke-WebRequest -Uri "http://localhost:3000/api/health" -UseBasicParsing -ErrorAction SilentlyContinue
+if ($response.StatusCode -eq 200) {
+    Write-Host "Deployment successful!" -ForegroundColor Green
 } else {
-    Write-Host "❌ Build failed!" -ForegroundColor Red
+    Write-Host "Health check failed. Check logs: docker compose -f $COMPOSE_FILE logs" -ForegroundColor Red
     exit 1
 }
-
-# Deploy to Vercel
-Write-Host "🚀 Deploying to Vercel..." -ForegroundColor Yellow
-vercel --prod
-
-Write-Host "🎉 Deployment completed!" -ForegroundColor Green
-Write-Host "📋 Next steps:" -ForegroundColor Cyan
-Write-Host "1. Configure environment variables in Vercel dashboard" -ForegroundColor White
-Write-Host "2. Set up database and run migrations" -ForegroundColor White
-Write-Host "3. Test the deployed application" -ForegroundColor White
-Write-Host "4. Monitor performance and errors" -ForegroundColor White 

@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.env*
+!.env.production.example
+*.md
+tests
+e2e
+.vscode
+.claude
+*.log
+dist
+coverage

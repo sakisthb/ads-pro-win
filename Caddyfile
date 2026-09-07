@@ -1,0 +1,13 @@
+{$DOMAIN:localhost} {
+  reverse_proxy web:3000
+
+  header /_next/static/* {
+    Cache-Control "public, max-age=31536000, immutable"
+  }
+
+  header /images/* {
+    Cache-Control "public, max-age=86400"
+  }
+
+  encode gzip zstd
+}

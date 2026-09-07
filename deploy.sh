@@ -1,43 +1,72 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Ads Pro Enterprise - Deployment Script
-# AI-Powered Marketing Intelligence Platform
+# =============================================================================
+# ads-pro-win — Docker Production Deployment
+# =============================================================================
 
-echo "🚀 Starting Ads Pro Enterprise Deployment..."
+TAG="${1:-$(git rev-parse --short HEAD)}"
+COMPOSE_FILE="docker-compose.production.yml"
+HEALTH_URL="http://localhost:3000/api/health"
+MAX_RETRIES=10
+RETRY_INTERVAL=3
 
-# Check if we're in the right directory
-if [ ! -f "package.json" ]; then
-    echo "❌ Error: Not in the project root directory"
-    exit 1
-fi
-
-# Install dependencies
-echo "📦 Installing dependencies..."
-npm install
-
-# Generate Prisma client
-echo "🗄️ Generating Prisma client..."
-npx prisma generate
-
-# Build the application
-echo "🔨 Building for production..."
-npm run build
-
-# Check if build was successful
-if [ $? -eq 0 ]; then
-    echo "✅ Build successful!"
+# Support both the `docker compose` CLI plugin and standalone `docker-compose`
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
 else
-    echo "❌ Build failed!"
-    exit 1
+  echo "❌ Docker Compose not found (need `docker compose` or `docker-compose`)." >&2
+  exit 1
 fi
 
-# Deploy to Vercel
-echo "🚀 Deploying to Vercel..."
-vercel --prod
+echo "🚀 Deploying ads-pro-win (tag: $TAG)..."
 
-echo "🎉 Deployment completed!"
-echo "📋 Next steps:"
-echo "1. Configure environment variables in Vercel dashboard"
-echo "2. Set up database and run migrations"
-echo "3. Test the deployed application"
-echo "4. Monitor performance and errors" 
+# Step 1: Build
+echo "📦 Building Docker image..."
+docker build -t ads-pro-win:"$TAG" -t ads-pro-win:latest .
+
+# Step 2: Start Redis first (cheap dependency, required by worker and rate-limiter)
+echo "🔄 Starting Redis..."
+"$COMPOSE_CMD" -f "$COMPOSE_FILE" up -d redis --remove-orphans
+
+# Step 3: Run database migrations before any web traffic starts (fail-closed)
+echo "🗄️  Running Prisma migrations..."
+if ! "$COMPOSE_CMD" -f "$COMPOSE_FILE" run --rm --no-deps web npx prisma migrate deploy; then
+  echo "❌ Migration failed. Deployment halted."
+  echo "🔄 To rollback: docker compose -f $COMPOSE_FILE down && git checkout HEAD~1 && ./deploy.sh"
+  exit 1
+fi
+
+# Step 4: Start application services
+echo "🔄 Starting application services..."
+"$COMPOSE_CMD" -f "$COMPOSE_FILE" up -d --remove-orphans
+
+# Step 5: Health check
+echo "🏥 Waiting for health check..."
+for i in $(seq 1 $MAX_RETRIES); do
+  if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
+    echo "✅ Health check passed!"
+    break
+  fi
+  if [ "$i" -eq "$MAX_RETRIES" ]; then
+    echo "❌ Health check failed after $MAX_RETRIES attempts."
+    echo "📋 Logs:"
+    "$COMPOSE_CMD" -f "$COMPOSE_FILE" logs --tail=30
+    echo ""
+    echo "🔄 To rollback: docker compose -f $COMPOSE_FILE down && git checkout HEAD~1 && ./deploy.sh"
+    exit 1
+  fi
+  echo "   Attempt $i/$MAX_RETRIES — retrying in ${RETRY_INTERVAL}s..."
+  sleep "$RETRY_INTERVAL"
+done
+
+# Done
+echo ""
+echo "═══════════════════════════════════════════"
+echo "  ✅ Deployment successful!"
+echo "  🏷️  Tag: $TAG"
+echo "  🌐 URL: https://${DOMAIN:-localhost}"
+echo "  🏥 Health: $HEALTH_URL"
+echo "═══════════════════════════════════════════"

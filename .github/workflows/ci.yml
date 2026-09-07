@@ -1,0 +1,230 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 24
+  # Placeholder values that satisfy env.ts validation in test/CI contexts.
+  # Real secrets are never committed; production values are injected by the
+  # deployment host from its protected `.env` file.
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/adspro_test
+  DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/adspro_test
+  SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+  NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+  ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+  REDIS_HOST: localhost
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ci-redis-password
+  REDIS_DB: "0"
+  INTERNAL_RATE_LIMIT_SECRET: ci-local-dev-secret-must-be-at-least-32-characters-long
+  TRUSTED_PROXY_HOPS: "1"
+  RATE_LIMIT_ENABLED: "false"
+  NEXT_PUBLIC_SITE_URL: https://ci.example.com
+
+jobs:
+  install-and-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Security audit
+        run: npm audit --audit-level=high
+      - name: Lint
+        run: npm run lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+  test:
+    runs-on: ubuntu-latest
+    needs: install-and-audit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Run unit and integration tests
+        run: npm run test:ci
+
+  migration-validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: adspro_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Validate migrations apply cleanly
+        run: npx prisma migrate deploy
+      - name: Confirm migration status
+        run: npx prisma migrate status
+      - name: Detect uncommitted schema drift
+        run: |
+          npx prisma migrate diff \
+            --from-schema-datamodel prisma/schema.prisma \
+            --to-url "$DATABASE_URL" \
+            --exit-code
+
+  build-production:
+    runs-on: ubuntu-latest
+    needs: [install-and-audit, typecheck]
+    env:
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Build production application
+        run: npm run build
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    needs: build-production
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: adspro_smoke
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        env:
+          REDIS_PASSWORD: ci-redis-password
+        options: >-
+          --health-cmd "redis-cli -a \"$REDIS_PASSWORD\" ping | grep PONG"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    env:
+      NODE_ENV: production
+      SMOKE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/adspro_smoke
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Apply migrations to smoke database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ env.SMOKE_DATABASE_URL }}
+      - name: Build application image
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }} \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }} \
+            -t ads-pro-web:latest .
+      - name: Smoke test container health endpoints
+        run: |
+          docker run -d --name ads-pro-smoke \
+            --add-host=host.docker.internal:host-gateway \
+            -p 3000:3000 \
+            -e NODE_ENV=production \
+            -e DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/adspro_smoke \
+            -e SUPABASE_SERVICE_ROLE_KEY=${{ env.SUPABASE_SERVICE_ROLE_KEY }} \
+            -e NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }} \
+            -e NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }} \
+            -e ENCRYPTION_KEY=${{ env.ENCRYPTION_KEY }} \
+            -e REDIS_HOST=host.docker.internal \
+            -e REDIS_PORT=6379 \
+            -e REDIS_PASSWORD=${{ env.REDIS_PASSWORD }} \
+            -e REDIS_DB=0 \
+            -e INTERNAL_RATE_LIMIT_SECRET=${{ env.INTERNAL_RATE_LIMIT_SECRET }} \
+            -e TRUSTED_PROXY_HOPS=1 \
+            -e RATE_LIMIT_ENABLED=false \
+            -e NEXT_PUBLIC_SITE_URL=${{ env.NEXT_PUBLIC_SITE_URL }} \
+            ads-pro-web:latest
+
+          for i in {1..30}; do
+            if curl -fsS http://localhost:3000/api/health?probe=live > /dev/null; then
+              echo "Liveness probe responded"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Liveness probe did not respond in time"
+              docker logs ads-pro-smoke
+              docker stop ads-pro-smoke
+              exit 1
+            fi
+            sleep 2
+          done
+
+          if curl -fsS http://localhost:3000/api/health > /dev/null; then
+            echo "Readiness probe responded"
+          else
+            echo "Readiness probe failed"
+            docker logs ads-pro-smoke
+            docker stop ads-pro-smoke
+            exit 1
+          fi
+
+          docker stop ads-pro-smoke

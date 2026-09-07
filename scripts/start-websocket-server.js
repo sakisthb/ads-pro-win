@@ -10,8 +10,12 @@ console.log('🚀 Starting AI WebSocket Server...');
 try {
   // Initialize WebSocket server
   const wsServer = initializeWebSocketServer();
-  
-  console.log('✅ WebSocket server started successfully');
+  if (!wsServer) {
+    console.log('WebSocket server is disabled in production pending authenticated tickets.');
+    process.exit(0);
+  }
+
+  console.log('WebSocket server started successfully');
   console.log(`📡 Listening on port ${process.env.WS_PORT || 3001}`);
   console.log('🔌 Ready to accept connections');
 
