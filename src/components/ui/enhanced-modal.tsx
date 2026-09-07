@@ -39,13 +39,13 @@ const modalVariants = {
     opacity: 1, 
     scale: 1, 
     y: 0,
-    transition: { duration: 0.3, ease: 'easeOut' }
+    transition: { duration: 0.3, ease: 'easeOut' as const }
   },
   exit: { 
     opacity: 0, 
     scale: 0.95, 
     y: 20,
-    transition: { duration: 0.2, ease: 'easeIn' }
+    transition: { duration: 0.2, ease: 'easeIn' as const }
   }
 }
 
@@ -217,7 +217,7 @@ export const EnhancedConfirmModal: React.FC<EnhancedConfirmModalProps> = ({
       onClose={onClose}
       title={title}
       size={size}
-      variant={variant}
+      variant={variant === 'danger' ? 'error' : variant}
     >
       <div className="space-y-4">
         <div className="flex items-start space-x-3">

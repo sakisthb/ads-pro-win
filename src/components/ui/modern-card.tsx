@@ -55,8 +55,8 @@ const ModernCard = React.forwardRef<HTMLDivElement, ModernCardProps>(
           className
         )}
         onClick={onClick}
-        {...hoverEffects}
-        {...props}
+        {...(hoverEffects as any)}
+        {...(props as any)}
       >
         {children}
       </motion.div>

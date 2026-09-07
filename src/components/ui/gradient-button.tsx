@@ -73,7 +73,7 @@ const GradientButton = React.forwardRef<HTMLButtonElement, GradientButtonProps>(
         whileHover={!disabled && !isLoading ? { scale: 1.05 } : {}}
         whileTap={!disabled && !isLoading ? { scale: 0.95 } : {}}
         transition={{ duration: 0.2 }}
-        {...props}
+        {...(props as any)}
       >
         {/* Loading spinner */}
         {isLoading && (

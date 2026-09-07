@@ -197,7 +197,7 @@ export const RealTimeDashboard: React.FC = () => {
                 transition={{ duration: 1, repeat: Infinity }}
               />
               <span className="text-sm text-gray-300">
-                {isLive ? 'LIVE' : 'PAUSED'} • {currentTime.toLocaleTimeString()}
+                {isLive ? 'LIVE' : 'PAUSED'} • {currentTime.toLocaleTimeString('en-US')}
               </span>
             </div>
             

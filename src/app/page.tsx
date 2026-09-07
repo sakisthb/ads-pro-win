@@ -1,570 +1,607 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { motion, useScroll, useTransform, useSpring, AnimatePresence } from 'framer-motion'
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Target, 
-  Globe, 
-  Zap, 
-  Shield, 
-  Database, 
-  Cloud,
-  ArrowRight,
-  CheckCircle,
-  Star,
-  Users,
-  DollarSign,
-  Award,
-  Rocket,
-  Sparkles,
-  Eye,
-  Brain,
-  Cpu,
-  Network,
-  Lock,
-  RefreshCw,
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-  Trophy
+import React, { useState, useRef } from 'react'
+import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
+import {
+  ArrowRight, CheckCircle, Star, Zap, Shield, Globe,
+  TrendingUp, BarChart3, Brain, Target, Sparkles,
+  Rocket, Play, ChevronRight, Mail,
 } from 'lucide-react'
-import { HeroSection } from '@/components/sections/hero-section'
-import { FeaturesSection } from '@/components/sections/features-section'
-import { PricingSection } from '@/components/sections/pricing-section'
-import { TestimonialsSection } from '@/components/sections/testimonials-section'
-import { InteractiveGlobe } from '@/components/sections/interactive-globe'
-import { RealTimeDashboard } from '@/components/sections/real-time-dashboard'
-import { AIInteractiveDemo } from '@/components/sections/ai-interactive-demo'
-import { EnhancedNavigation } from '@/components/ui/enhanced-navigation'
-import { GradientButton } from '@/components/ui/gradient-button'
-import { EnhancedBadge } from '@/components/ui/enhanced-badge'
-import { ModernCard } from '@/components/ui/modern-card'
+import { useRouter } from 'next/navigation'
+import { AnimatedCounter } from '@/components/ui/animated-counter'
+import { AnimatedSection, StaggerContainer } from '@/components/ui/animated-section'
 
-const navigationItems = [
-  {
-    label: 'Features',
-    href: '#features',
-    children: [
-      { label: 'Attribution', href: '#attribution' },
-      { label: 'Analytics', href: '#analytics' },
-      { label: 'Reporting', href: '#reporting' }
-    ]
-  },
-  {
-    label: 'Pricing',
-    href: '#pricing'
-  },
-  {
-    label: 'About',
-    href: '#about',
-    children: [
-      { label: 'Company', href: '#company' },
-      { label: 'Team', href: '#team' },
-      { label: 'Careers', href: '#careers' }
-    ]
-  },
-  {
-    label: 'Resources',
-    href: '#resources',
-    children: [
-      { label: 'Documentation', href: '#docs' },
-      { label: 'API Reference', href: '#api' },
-      { label: 'Support', href: '#support' }
-    ]
-  }
+/* ──────────────────────────────────────────────
+   Deterministic particle data (no Math.random)
+   ────────────────────────────────────────────── */
+const PARTICLES = Array.from({ length: 35 }, (_, i) => ({
+  x: (i * 37 + 13) % 100,
+  startY: (i * 53 + 7) % 100,
+  size: ((i * 17 + 3) % 4) + 1,
+  duration: ((i * 13 + 5) % 12) + 8,
+  delay: (i * 7 + 2) % 10,
+  opacity: ((i * 11 + 9) % 5) / 10 + 0.1,
+}))
+
+const ORBS = [
+  { cx: '15%', cy: '20%', r: 220, from: 'from-blue-500/30', to: 'to-purple-500/30', dur: 18 },
+  { cx: '75%', cy: '35%', r: 280, from: 'from-pink-500/25', to: 'to-orange-500/25', dur: 22 },
+  { cx: '50%', cy: '70%', r: 200, from: 'from-cyan-500/20', to: 'to-blue-500/20', dur: 16 },
+  { cx: '85%', cy: '80%', r: 180, from: 'from-purple-500/20', to: 'to-pink-500/20', dur: 20 },
 ]
 
-// Floating particles component
-const FloatingParticles = () => {
+const STATS = [
+  { label: 'Average ROI', target: 340, prefix: '+', suffix: '%' },
+  { label: 'Brands Served', target: 500, prefix: '', suffix: '+' },
+  { label: 'Platforms', target: 4, prefix: '', suffix: '' },
+  { label: 'Uptime', target: 99.9, prefix: '', suffix: '%', decimals: 1 },
+]
+
+const DEMO_TABS = [
+  {
+    id: 'revenue',
+    label: 'Revenue Overview',
+    icon: BarChart3,
+    bars: [65, 45, 80, 55, 90, 70, 95],
+    metric: '€4.1M',
+    metricLabel: 'Total Revenue',
+    trend: '+34%',
+  },
+  {
+    id: 'attribution',
+    label: 'Attribution',
+    icon: Target,
+    bars: [40, 70, 55, 85, 60, 75, 50],
+    metric: '6.3x',
+    metricLabel: 'Blended ROAS',
+    trend: '+1.2x',
+  },
+  {
+    id: 'predictions',
+    label: 'AI Predictions',
+    icon: Brain,
+    bars: [50, 60, 75, 80, 88, 92, 97],
+    metric: '97%',
+    metricLabel: 'Forecast Accuracy',
+    trend: '+5%',
+  },
+]
+
+const PLATFORMS = [
+  { name: 'Meta Ads', color: '#1877F2' },
+  { name: 'Google Ads', color: '#4285F4' },
+  { name: 'TikTok', color: '#FF0050' },
+  { name: 'WooCommerce', color: '#96588A' },
+  { name: 'Shopify', color: '#7AB55C' },
+  { name: 'LinkedIn', color: '#0A66C2' },
+]
+
+const TESTIMONIALS = [
+  {
+    quote: 'Ads Pro transformed how we allocate budget. ROI jumped 340% in six months.',
+    name: 'Maria K.',
+    role: 'CMO, TechVentures',
+    stars: 5,
+  },
+  {
+    quote: 'The AI predictions are scarily accurate. We stopped guessing and started scaling.',
+    name: 'Jonas W.',
+    role: 'Head of Growth, ScaleUp EU',
+    stars: 5,
+  },
+  {
+    quote: 'Finally, one dashboard for Meta, Google, TikTok and WooCommerce. Game changer.',
+    name: 'Elena P.',
+    role: 'Director, CommerceLab',
+    stars: 5,
+  },
+]
+
+const PRICING = [
+  {
+    name: 'Pro',
+    price: '€497',
+    period: '/mo',
+    features: ['5 Ad Accounts', 'Cross-Platform Attribution', 'Real-Time Dashboard', 'Email Support', '30-Day Data Retention'],
+    popular: false,
+  },
+  {
+    name: 'Enterprise',
+    price: '€1,497',
+    period: '/mo',
+    features: ['Unlimited Ad Accounts', 'AI Predictions', 'Custom Integrations', 'Priority Support 24/7', 'Unlimited Data Retention', 'Dedicated CSM'],
+    popular: true,
+  },
+  {
+    name: 'Scale',
+    price: 'Custom',
+    period: '',
+    features: ['White-Label Solution', 'On-Premise Deployment', 'SLA Guarantee', 'Custom AI Models', 'Team Training', 'API Access'],
+    popular: false,
+  },
+]
+
+/* ──────────────────────────────────────────────
+   Sub-components
+   ────────────────────────────────────────────── */
+
+function ParticleField() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {[...Array(20)].map((_, i) => (
+      {PARTICLES.map((p, i) => (
         <motion.div
           key={i}
-          className="absolute w-2 h-2 bg-gradient-to-r from-purple-400 to-blue-400 rounded-full opacity-20"
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -100, 0],
-            scale: [1, 1.5, 1],
-            opacity: [0.2, 0.8, 0.2],
-          }}
-          transition={{
-            duration: Math.random() * 10 + 10,
-            repeat: Infinity,
-            delay: Math.random() * 5,
-          }}
+          className="absolute rounded-full bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400"
           style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
+            left: `${p.x}%`,
+            top: `${p.startY}%`,
+            width: p.size,
+            height: p.size,
           }}
+          animate={{ y: [0, -800], opacity: [0, p.opacity, p.opacity, 0], scale: [0.5, 1, 1, 0.5] }}
+          transition={{ duration: p.duration, delay: p.delay, repeat: Infinity, ease: 'linear' }}
         />
       ))}
     </div>
   )
 }
 
-// Interactive stats component
-const InteractiveStats = () => {
-  const [isVisible, setIsVisible] = useState(false)
-  const [currentStats, setCurrentStats] = useState({
-    users: 0,
-    revenue: 0,
-    uptime: 0,
-    integrations: 0
-  })
-
-  const targetStats = {
-    users: 15000,
-    revenue: 3.2,
-    uptime: 99.99,
-    integrations: 75
-  }
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true)
-        }
-      },
-      { threshold: 0.1 }
-    )
-
-    const element = document.getElementById('stats-section')
-    if (element) observer.observe(element)
-
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    if (isVisible) {
-      const duration = 2000
-      const steps = 60
-      const stepDuration = duration / steps
-
-      const interval = setInterval(() => {
-        setCurrentStats(prev => ({
-          users: Math.min(prev.users + Math.ceil(targetStats.users / steps), targetStats.users),
-          revenue: Math.min(prev.revenue + targetStats.revenue / steps, targetStats.revenue),
-          uptime: Math.min(prev.uptime + targetStats.uptime / steps, targetStats.uptime),
-          integrations: Math.min(prev.integrations + Math.ceil(targetStats.integrations / steps), targetStats.integrations)
-        }))
-      }, stepDuration)
-
-      return () => clearInterval(interval)
-    }
-  }, [isVisible])
-
+function FloatingOrbs() {
   return (
-    <section id="stats-section" className="relative w-full py-20 bg-gradient-to-r from-gray-900 via-purple-900 to-blue-900 dark:from-black dark:via-purple-900 dark:to-blue-900 overflow-hidden">
-      <FloatingParticles />
-      
-      {/* Background Elements */}
-      <div className="absolute inset-0">
-        <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.03%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%221%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-50" />
-        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-500/5 to-blue-500/5" />
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {ORBS.map((orb, i) => (
         <motion.div
-          className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl"
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.2, 0.4, 0.2],
-          }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
+          key={i}
+          className={`absolute rounded-full bg-gradient-to-br ${orb.from} ${orb.to} blur-3xl`}
+          style={{ left: orb.cx, top: orb.cy, width: orb.r, height: orb.r }}
+          animate={{ x: [0, 40, -30, 0], y: [0, -30, 20, 0], scale: [1, 1.15, 0.95, 1] }}
+          transition={{ duration: orb.dur, repeat: Infinity, ease: 'easeInOut' }}
         />
-        <motion.div
-          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl"
-          animate={{
-            scale: [1.2, 1, 1.2],
-            opacity: [0.4, 0.2, 0.4],
-          }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: 2
-          }}
-        />
-      </div>
-
-      {/* Content */}
-      <div className="container mx-auto px-4 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-center mb-16"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 mb-6"
-          >
-            <Sparkles className="w-6 h-6 text-yellow-400" />
-            <EnhancedBadge variant="gradient" size="lg" animate>
-              Enterprise Ready
-            </EnhancedBadge>
-            <Sparkles className="w-6 h-6 text-yellow-400" />
-          </motion.div>
-          
-          <h2 className="text-4xl md:text-7xl font-bold text-white mb-6 bg-gradient-to-r from-white via-purple-200 to-blue-200 bg-clip-text text-transparent">
-            Trusted by Industry Leaders
-          </h2>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            Join thousands of companies that trust our platform for their marketing analytics
-          </p>
-        </motion.div>
-
-        {/* Statistics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {[
-            { 
-              number: currentStats.users.toLocaleString(), 
-              label: 'Active Users', 
-              icon: Users,
-              color: 'from-purple-500 to-pink-500',
-              delay: 0.1
-            },
-            { 
-              number: `$${currentStats.revenue.toFixed(1)}B+`, 
-              label: 'Revenue Tracked', 
-              icon: DollarSign,
-              color: 'from-green-500 to-emerald-500',
-              delay: 0.2
-            },
-            { 
-              number: `${currentStats.uptime.toFixed(2)}%`, 
-              label: 'Uptime', 
-              icon: Shield,
-              color: 'from-blue-500 to-cyan-500',
-              delay: 0.3
-            },
-            { 
-              number: `${currentStats.integrations}+`, 
-              label: 'Integrations', 
-              icon: Network,
-              color: 'from-orange-500 to-red-500',
-              delay: 0.4
-            }
-          ].map((stat, index) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: stat.delay }}
-              className="text-center group"
-            >
-              <motion.div
-                className={`w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-r ${stat.color} flex items-center justify-center`}
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                transition={{ duration: 0.3 }}
-              >
-                <stat.icon className="w-10 h-10 text-white" />
-              </motion.div>
-              <div className="text-4xl md:text-5xl font-bold text-white mb-2 group-hover:text-purple-300 transition-colors">
-                {stat.number}
-              </div>
-              <div className="text-gray-300 text-lg group-hover:text-gray-200 transition-colors">{stat.label}</div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* CTA */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.5 }}
-          className="text-center mt-12"
-        >
-          <GradientButton size="xl" onClick={() => {}}>
-            <Rocket className="w-5 h-5 mr-2" />
-            Join Them Today
-          </GradientButton>
-        </motion.div>
-      </div>
-    </section>
+      ))}
+    </div>
   )
 }
 
-// AI Demo Section
-const AIDemoSection = () => {
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isMuted, setIsMuted] = useState(false)
-  const [currentDemo, setCurrentDemo] = useState(0)
-
-  const demos = [
-    { title: 'AI-Powered Attribution', icon: Brain, color: 'from-purple-500 to-pink-500' },
-    { title: 'Real-time Analytics', icon: Cpu, color: 'from-blue-500 to-cyan-500' },
-    { title: 'Predictive Insights', icon: Eye, color: 'from-green-500 to-emerald-500' },
-    { title: 'Smart Optimization', icon: Target, color: 'from-orange-500 to-red-500' }
-  ]
-
-  useEffect(() => {
-    if (isPlaying) {
-      const interval = setInterval(() => {
-        setCurrentDemo(prev => (prev + 1) % demos.length)
-      }, 3000)
-      return () => clearInterval(interval)
-    }
-  }, [isPlaying, demos.length])
-
-  return (
-    <section className="relative w-full py-20 bg-gradient-to-br from-black via-purple-900 to-blue-900 overflow-hidden">
-      <FloatingParticles />
-      
-      {/* Background Elements */}
-      <div className="absolute inset-0">
-        <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.02%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%221%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
-        <motion.div
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-full blur-3xl"
-          animate={{
-            scale: [1, 1.5, 1],
-            opacity: [0.1, 0.3, 0.1],
-          }}
-          transition={{
-            duration: 6,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-        />
-      </div>
-
-      {/* Content */}
-      <div className="container mx-auto px-4 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-center text-white"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 mb-6"
-          >
-            <Brain className="w-6 h-6 text-purple-400" />
-            <EnhancedBadge variant="glow" size="lg" animate>
-              AI-Powered Platform
-            </EnhancedBadge>
-            <Brain className="w-6 h-6 text-purple-400" />
-          </motion.div>
-
-          <h2 className="text-5xl md:text-7xl font-bold mb-8 bg-gradient-to-r from-white via-purple-200 to-blue-200 bg-clip-text text-transparent">
-            Experience the Future
-          </h2>
-          <p className="text-xl md:text-2xl text-gray-300 mb-12 max-w-3xl mx-auto">
-            Watch our AI in action as it transforms your marketing data into actionable insights
-          </p>
-
-          {/* Interactive Demo */}
-          <div className="max-w-4xl mx-auto">
-            <ModernCard variant="glass" className="p-8 md:p-12 text-center">
-              <motion.div
-                key={currentDemo}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="mb-8"
-              >
-                <div className={`w-24 h-24 mx-auto mb-6 rounded-3xl bg-gradient-to-r ${demos[currentDemo].color} flex items-center justify-center`}>
-                  <demos[currentDemo].icon className="w-12 h-12 text-white" />
-                </div>
-                <h3 className="text-3xl font-bold text-white mb-4">{demos[currentDemo].title}</h3>
-                <p className="text-gray-300 text-lg">
-                  Watch our AI analyze your marketing data in real-time and provide intelligent recommendations
-                </p>
-              </motion.div>
-
-              {/* Controls */}
-              <div className="flex items-center justify-center gap-4">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg font-medium"
-                >
-                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                  {isPlaying ? 'Pause' : 'Play'} Demo
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setIsMuted(!isMuted)}
-                  className="flex items-center gap-2 px-4 py-3 border border-white/30 text-white rounded-lg font-medium hover:bg-white/10"
-                >
-                  {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setCurrentDemo(prev => (prev + 1) % demos.length)}
-                  className="flex items-center gap-2 px-4 py-3 border border-white/30 text-white rounded-lg font-medium hover:bg-white/10"
-                >
-                  <RefreshCw className="w-5 h-5" />
-                  Next
-                </motion.button>
-              </div>
-            </ModernCard>
-          </div>
-        </motion.div>
-      </div>
-    </section>
-  )
-}
-
-// Awards Section
-const AwardsSection = () => {
-  const awards = [
-    { title: 'Best Analytics Platform 2024', icon: Award, company: 'TechCrunch' },
-    { title: 'AI Innovation Award', icon: Star, company: 'Forbes' },
-    { title: 'Enterprise Solution of the Year', icon: Trophy, company: 'Gartner' },
-    { title: 'Customer Choice Award', icon: Users, company: 'Capterra' }
-  ]
-
-  return (
-    <section className="relative w-full py-20 bg-gradient-to-br from-gray-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-black overflow-hidden">
-      <div className="container mx-auto px-4">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-center mb-16"
-        >
-          <h2 className="text-4xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
-            Recognized Excellence
-          </h2>
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
-            Industry recognition for our innovative approach to marketing analytics
-          </p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {awards.map((award, index) => (
-            <motion.div
-              key={award.title}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              whileHover={{ y: -10 }}
-              className="text-center group"
-            >
-              <ModernCard variant="elevated" className="p-6 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center justify-center">
-                  <award.icon className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                  {award.title}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400">{award.company}</p>
-              </ModernCard>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
+/* ──────────────────────────────────────────────
+   Main page
+   ────────────────────────────────────────────── */
 export default function HomePage() {
-  const { scrollY } = useScroll()
-  const y = useTransform(scrollY, [0, 1000], [0, -200])
-  const opacity = useTransform(scrollY, [0, 500], [1, 0])
+  const router = useRouter()
+  const heroRef = useRef<HTMLDivElement>(null)
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
+
+  // Parallax layers
+  const ySlow = useTransform(scrollYProgress, [0, 1], ['0%', '25%'])
+  const yMid = useTransform(scrollYProgress, [0, 1], ['0%', '-15%'])
+  const yFast = useTransform(scrollYProgress, [0, 1], ['0%', '40%'])
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.7], [1, 0])
+
+  const [activeTab, setActiveTab] = useState('revenue')
+  const currentDemo = DEMO_TABS.find((t) => t.id === activeTab) ?? DEMO_TABS[0]
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-gray-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-black">
-      {/* Navigation */}
-      <EnhancedNavigation
-        items={navigationItems}
-        variant="glass"
-        showSearch={true}
-        showNotifications={true}
-        showUserMenu={true}
-      />
+    <div className="min-h-screen bg-gray-950 text-white overflow-x-hidden">
+      {/* ═══════════════════════════════════════
+          HERO
+          ═══════════════════════════════════════ */}
+      <section ref={heroRef} className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        {/* Parallax layer 1 — slow (orbs) */}
+        <motion.div style={{ y: ySlow }} className="absolute inset-0">
+          <FloatingOrbs />
+        </motion.div>
 
-      {/* Hero Section */}
-      <HeroSection />
+        {/* Parallax layer 2 — mid (grid + particles) */}
+        <motion.div style={{ y: yMid }} className="absolute inset-0">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:72px_72px]" />
+          <ParticleField />
+        </motion.div>
 
-      {/* AI Demo Section */}
-      <AIDemoSection />
+        {/* Parallax layer 3 — fast (radial glow) */}
+        <motion.div style={{ y: yFast }} className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-radial from-purple-500/15 via-transparent to-transparent blur-2xl" />
+        </motion.div>
 
-      {/* Interactive Globe */}
-      <InteractiveGlobe />
+        {/* Content */}
+        <motion.div style={{ opacity: heroOpacity }} className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 text-center pt-28 pb-20">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7 }}
+            className="inline-flex items-center gap-2 mb-8 px-5 py-2 rounded-full border border-purple-500/30 bg-purple-500/10 backdrop-blur-sm"
+          >
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <span className="text-sm font-medium text-purple-300">AI-Powered Marketing Intelligence</span>
+          </motion.div>
 
-      {/* Interactive Stats */}
-      <InteractiveStats />
+          <motion.h1
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.15 }}
+            className="text-5xl sm:text-6xl md:text-7xl font-black leading-[1.1] mb-8 tracking-tight"
+          >
+            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              Stop Guessing.
+            </span>
+            <br />
+            <span className="text-white">Start Scaling.</span>
+          </motion.h1>
 
-      {/* Real-Time Dashboard */}
-      <RealTimeDashboard />
+          <motion.p
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.3 }}
+            className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed"
+          >
+            Unified attribution, real-time analytics, and AI predictions across every ad platform — so you know exactly where to invest your next euro.
+          </motion.p>
 
-      {/* AI Interactive Demo */}
-      <AIInteractiveDemo />
+          {/* CTA Buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.45 }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16"
+          >
+            <button
+              onClick={() => router.push('/auth/signup')}
+              className="group relative px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 font-semibold text-lg shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-shadow duration-500 hover:scale-105 active:scale-[0.98]">
+              <span className="flex items-center gap-2">
+                Get Started Free <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </span>
+            </button>
+            <button className="group px-8 py-4 rounded-xl border border-gray-700 hover:border-purple-500/50 font-semibold text-lg text-gray-300 hover:text-white hover:bg-purple-500/10 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-500">
+              <span className="flex items-center gap-2">
+                <Play className="w-5 h-5" /> Watch Demo
+              </span>
+            </button>
+          </motion.div>
 
-      {/* Features Section */}
-      <div id="features">
-        <FeaturesSection />
-      </div>
+          {/* Stats bar */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.6 }}
+            className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto"
+          >
+            {STATS.map((s) => (
+              <div key={s.label} className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/5 hover:border-purple-500/30 transition-colors duration-300">
+                <div className="text-2xl sm:text-3xl font-bold text-white">
+                  <AnimatedCounter target={s.target} prefix={s.prefix} suffix={s.suffix} decimals={s.decimals ?? 0} />
+                </div>
+                <div className="text-xs sm:text-sm text-gray-500 mt-1">{s.label}</div>
+              </div>
+            ))}
+          </motion.div>
+        </motion.div>
 
-      {/* Awards Section */}
-      <AwardsSection />
+        {/* Scroll indicator */}
+        <motion.div
+          animate={{ y: [0, 8, 0] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-gray-600"
+        >
+          <span className="text-xs tracking-widest uppercase">Scroll</span>
+          <div className="w-5 h-8 rounded-full border-2 border-gray-700 flex items-start justify-center p-1">
+            <motion.div animate={{ y: [0, 12, 0] }} transition={{ duration: 2, repeat: Infinity }} className="w-1 h-2 rounded-full bg-gray-500" />
+          </div>
+        </motion.div>
+      </section>
 
-      {/* Pricing Section */}
-      <div id="pricing">
-        <PricingSection />
-      </div>
+      {/* ═══════════════════════════════════════
+          INTERACTIVE DEMO
+          ═══════════════════════════════════════ */}
+      <section className="relative py-24 px-4 sm:px-6">
+        <AnimatedSection className="max-w-5xl mx-auto text-center mb-14">
+          <h2 className="text-4xl sm:text-5xl font-bold mb-4">
+            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">See It In Action</span>
+          </h2>
+          <p className="text-gray-400 text-lg max-w-xl mx-auto">Explore live scenarios from real dashboards — revenue, attribution, and AI-powered predictions.</p>
+        </AnimatedSection>
 
-      {/* Testimonials Section */}
-      <TestimonialsSection />
+        {/* Tabs */}
+        <div className="max-w-4xl mx-auto">
+          <div className="flex flex-wrap justify-center gap-2 mb-10">
+            {DEMO_TABS.map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 ${
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg shadow-purple-500/20'
+                      : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 dark:bg-black text-white py-16 w-full">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <h3 className="text-xl font-bold mb-4">Ads Pro Enterprise</h3>
-              <p className="text-gray-400">
-                Advanced attribution analytics and cross-channel reporting that drives real results.
+          {/* Tab content */}
+          <div className="bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/10 p-6 sm:p-10 min-h-[340px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentDemo.id}
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.35 }}
+                className="grid sm:grid-cols-2 gap-8 items-center"
+              >
+                {/* Chart visualisation */}
+                <div className="flex items-end gap-2 h-48">
+                  {currentDemo.bars.map((h, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ height: 0 }}
+                      animate={{ height: `${h}%` }}
+                      transition={{ duration: 0.6, delay: i * 0.07, ease: 'easeOut' }}
+                      className="flex-1 rounded-t-md bg-gradient-to-t from-blue-500/80 via-purple-500/80 to-pink-500/80 relative group"
+                    >
+                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {h}%
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Metric card */}
+                <div className="text-center sm:text-left">
+                  <div className="text-5xl font-black text-white mb-2">{currentDemo.metric}</div>
+                  <div className="text-gray-400 mb-4">{currentDemo.metricLabel}</div>
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-green-500/15 text-green-400 text-sm font-semibold">
+                    <TrendingUp className="w-4 h-4" /> {currentDemo.trend}
+                  </span>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          PLATFORM INTEGRATIONS
+          ═══════════════════════════════════════ */}
+      <section className="relative py-24 px-4 sm:px-6 overflow-hidden">
+        {/* Connection lines SVG */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
+          <line x1="10%" y1="30%" x2="90%" y2="70%" stroke="white" strokeWidth="1" />
+          <line x1="20%" y1="80%" x2="80%" y2="20%" stroke="white" strokeWidth="1" />
+          <line x1="50%" y1="10%" x2="50%" y2="90%" stroke="white" strokeWidth="1" />
+          <line x1="5%" y1="50%" x2="95%" y2="50%" stroke="white" strokeWidth="1" />
+        </svg>
+
+        <AnimatedSection className="max-w-5xl mx-auto text-center mb-14">
+          <h2 className="text-4xl sm:text-5xl font-bold mb-4">
+            <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Every Platform. One View.</span>
+          </h2>
+          <p className="text-gray-400 text-lg max-w-xl mx-auto">Connect your entire marketing stack in minutes — no engineering required.</p>
+        </AnimatedSection>
+
+        <StaggerContainer className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 max-w-4xl mx-auto">
+          {PLATFORMS.map((p) => (
+            <motion.div
+              key={p.name}
+              variants={{ initial: { opacity: 0, y: 30 }, animate: { opacity: 1, y: 0 } }}
+              whileHover={{ y: -8, scale: 1.05 }}
+              className="flex flex-col items-center gap-3 bg-white/[0.03] border border-white/10 rounded-2xl p-6 hover:border-purple-500/40 transition-colors duration-300"
+            >
+              <motion.div
+                animate={{ y: [0, -6, 0] }}
+                transition={{ duration: 3 + (p.name.length % 3), repeat: Infinity, ease: 'easeInOut' }}
+                className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg"
+                style={{ backgroundColor: p.color }}
+              >
+                {p.name[0]}
+              </motion.div>
+              <span className="text-sm text-gray-400 font-medium">{p.name}</span>
+            </motion.div>
+          ))}
+        </StaggerContainer>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          BEFORE / AFTER
+          ═══════════════════════════════════════ */}
+      <section className="relative py-24 px-4 sm:px-6">
+        <AnimatedSection className="max-w-5xl mx-auto text-center mb-14">
+          <h2 className="text-4xl sm:text-5xl font-bold mb-4">
+            <span className="bg-gradient-to-r from-orange-400 to-pink-400 bg-clip-text text-transparent">Before vs After</span>
+          </h2>
+          <p className="text-gray-400 text-lg max-w-xl mx-auto">See how Ads Pro transforms scattered data into unified intelligence.</p>
+        </AnimatedSection>
+
+        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+          {/* Before */}
+          <AnimatedSection variant="fadeInLeft" className="bg-red-500/[0.04] border border-red-500/20 rounded-2xl p-8">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-3 h-3 rounded-full bg-red-500" />
+              <h3 className="text-xl font-bold text-red-400">Before</h3>
+            </div>
+            <ul className="space-y-4 text-gray-400">
+              {['Spreadsheets across 6+ tools', 'Manual CSV exports every week', 'No cross-platform attribution', 'Budget decisions based on gut feeling', 'Hours wasted on reporting'].map((item) => (
+                <li key={item} className="flex items-start gap-3">
+                  <span className="mt-1 w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 text-red-400 text-xs">✕</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </AnimatedSection>
+
+          {/* After */}
+          <AnimatedSection variant="fadeInRight" className="bg-green-500/[0.04] border border-green-500/20 rounded-2xl p-8">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-3 h-3 rounded-full bg-green-500" />
+              <h3 className="text-xl font-bold text-green-400">After</h3>
+            </div>
+            <ul className="space-y-4 text-gray-300">
+              {['One dashboard for every platform', 'Real-time data sync, zero manual work', 'AI-powered multi-touch attribution', 'Data-driven budget optimization', 'Automated reports in one click'].map((item) => (
+                <li key={item} className="flex items-start gap-3">
+                  <CheckCircle className="mt-0.5 w-5 h-5 text-green-400 flex-shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </AnimatedSection>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          PRICING
+          ═══════════════════════════════════════ */}
+      <section id="pricing" className="relative py-24 px-4 sm:px-6">
+        <AnimatedSection className="max-w-5xl mx-auto text-center mb-14">
+          <h2 className="text-4xl sm:text-5xl font-bold mb-4">
+            <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Simple, Transparent Pricing</span>
+          </h2>
+          <p className="text-gray-400 text-lg max-w-xl mx-auto">Choose the plan that fits your scale. Upgrade or downgrade anytime.</p>
+        </AnimatedSection>
+
+        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          {PRICING.map((plan, idx) => (
+            <AnimatedSection key={plan.name} delay={idx * 0.12}>
+              <motion.div
+                whileHover={{ y: -8 }}
+                className={`relative h-full rounded-2xl p-8 border backdrop-blur-xl transition-all duration-500 ${
+                  plan.popular
+                    ? 'bg-gradient-to-b from-purple-500/15 to-blue-500/10 border-purple-500/40 shadow-xl shadow-purple-500/10'
+                    : 'bg-white/[0.03] border-white/10 hover:border-purple-500/30'
+                }`}
+              >
+                {plan.popular && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-xs font-bold uppercase tracking-wide">
+                    Most Popular
+                  </span>
+                )}
+                <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="text-4xl font-black">{plan.price}</span>
+                  <span className="text-gray-500 text-sm">{plan.period}</span>
+                </div>
+                <ul className="space-y-3 mb-8">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-sm text-gray-300">
+                      <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  className={`w-full py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    plan.popular
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/25 hover:scale-[1.02]'
+                      : 'bg-white/5 border border-white/10 hover:bg-white/10 hover:border-purple-500/40'
+                  }`}
+                >
+                  {plan.price === 'Custom' ? 'Contact Sales' : 'Get Started'}
+                  {plan.price !== 'Custom' && <ChevronRight className="w-4 h-4 inline ml-1" />}
+                </button>
+              </motion.div>
+            </AnimatedSection>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          TESTIMONIALS
+          ═══════════════════════════════════════ */}
+      <section className="relative py-24 px-4 sm:px-6">
+        <AnimatedSection className="max-w-5xl mx-auto text-center mb-14">
+          <h2 className="text-4xl sm:text-5xl font-bold mb-4">
+            <span className="bg-gradient-to-r from-green-400 to-cyan-400 bg-clip-text text-transparent">Trusted by Growth Leaders</span>
+          </h2>
+          <p className="text-gray-400 text-lg max-w-xl mx-auto">Hear from teams that transformed their marketing with Ads Pro.</p>
+        </AnimatedSection>
+
+        <StaggerContainer className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          {TESTIMONIALS.map((t) => (
+            <motion.div
+              key={t.name}
+              variants={{ initial: { opacity: 0, y: 30 }, animate: { opacity: 1, y: 0 } }}
+              className="bg-white/[0.03] border border-white/10 rounded-2xl p-8 hover:border-purple-500/30 transition-colors duration-300"
+            >
+              <div className="flex gap-1 mb-4">
+                {Array.from({ length: t.stars }, (_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                ))}
+              </div>
+              <p className="text-gray-300 mb-6 leading-relaxed italic">&ldquo;{t.quote}&rdquo;</p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-sm font-bold">
+                  {t.name[0]}
+                </div>
+                <div>
+                  <div className="text-sm font-semibold">{t.name}</div>
+                  <div className="text-xs text-gray-500">{t.role}</div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </StaggerContainer>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          FOOTER + NEWSLETTER
+          ═══════════════════════════════════════ */}
+      <footer className="relative border-t border-white/5 py-16 px-4 sm:px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-10 mb-12">
+            {/* Brand + newsletter */}
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-lg font-bold">Ads Pro</span>
+              </div>
+              <p className="text-gray-500 text-sm mb-6 max-w-sm">
+                AI-powered marketing analytics that shows you exactly where to invest your next euro.
               </p>
+              <form onSubmit={(e) => e.preventDefault()} className="flex gap-2 max-w-sm">
+                <input
+                  type="email"
+                  placeholder="you@company.com"
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+                />
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 text-sm font-semibold hover:shadow-lg hover:shadow-purple-500/20 transition-shadow"
+                >
+                  <Mail className="w-4 h-4" />
+                </button>
+              </form>
             </div>
+
+            {/* Links */}
             <div>
-              <h4 className="font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">Features</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">API</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Documentation</a></li>
+              <h4 className="text-sm font-semibold mb-4 text-gray-300">Product</h4>
+              <ul className="space-y-2 text-sm text-gray-500">
+                {['Features', 'Pricing', 'Integrations', 'API Docs'].map((l) => (
+                  <li key={l}><a href="#" className="hover:text-white transition-colors">{l}</a></li>
+                ))}
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Support</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">Help Center</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Community</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Status</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
+              <h4 className="text-sm font-semibold mb-4 text-gray-300">Company</h4>
+              <ul className="space-y-2 text-sm text-gray-500">
+                {['About', 'Blog', 'Careers', 'Contact'].map((l) => (
+                  <li key={l}><a href="#" className="hover:text-white transition-colors">{l}</a></li>
+                ))}
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
-            <p>© 2024 Ads Pro Enterprise. All rights reserved.</p>
+
+          <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-600">
+            <p>&copy; {new Date().getFullYear()} Ads Pro. All rights reserved.</p>
+            <div className="flex gap-4">
+              {['Privacy', 'Terms', 'Cookies'].map((l) => (
+                <a key={l} href="#" className="hover:text-gray-400 transition-colors">{l}</a>
+              ))}
+            </div>
           </div>
         </div>
       </footer>

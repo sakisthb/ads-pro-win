@@ -173,7 +173,10 @@ export function useOptimizedState<T>(
 }
 
 // Performance profiler hook
-export function useRenderProfiler(componentName: string): RenderProfilerData {
+export function useRenderProfiler(
+  componentName: string,
+  enabled: boolean = true,
+): RenderProfilerData {
   const profileDataRef = useRef<RenderProfilerData>({
     componentName,
     renderCount: 0,
@@ -185,14 +188,15 @@ export function useRenderProfiler(componentName: string): RenderProfilerData {
 
   const startTimeRef = useRef<number>(0);
 
-  // Mark render start
-  startTimeRef.current = performance.now();
+  if (enabled) {
+    startTimeRef.current = performance.now();
+  }
 
   useEffect(() => {
-    // Mark render end
+    if (!enabled) return;
     const endTime = performance.now();
     const renderTime = endTime - startTimeRef.current;
-    
+
     const data = profileDataRef.current;
     data.renderCount++;
     data.lastRenderTime = renderTime;
@@ -428,8 +432,8 @@ export function withPerformanceOptimization<P extends Record<string, unknown>>(
   const componentName = name || WrappedComponent.displayName || WrappedComponent.name;
 
   const OptimizedComponent = React.memo((props: P) => {
-    const profileData = profileRenders ? useRenderProfiler(componentName) : null;
-    
+    const profileData = useRenderProfiler(componentName, profileRenders);
+
     if (profileData && process.env.NODE_ENV === 'development') {
       // Add performance data to component for debugging
       (OptimizedComponent as unknown as { _performanceData: RenderProfilerData })._performanceData = profileData;

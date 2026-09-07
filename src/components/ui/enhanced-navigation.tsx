@@ -36,7 +36,7 @@ export const EnhancedNavigation: React.FC<EnhancedNavigationProps> = ({
   const [isOpen, setIsOpen] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const [scrolled, setScrolled] = useState(false)
-  const { theme, toggleTheme } = useTheme()
+  const { theme, setTheme } = useTheme()
 
   useEffect(() => {
     const handleScroll = () => {

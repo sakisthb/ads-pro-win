@@ -38,41 +38,51 @@ const EnhancedBadge = React.forwardRef<HTMLSpanElement, EnhancedBadgeProps>(
       lg: 'px-4 py-2 text-base',
     }
 
-    const BadgeComponent = animate ? motion.span : 'span'
-    const animationProps = animate ? {
-      initial: { scale: 0.8, opacity: 0 },
-      animate: { scale: 1, opacity: 1 },
-      transition: { duration: 0.2 }
-    } : {}
-
     return (
-      <BadgeComponent
-        ref={ref}
-        className={cn(
-          // Base styles
-          'inline-flex items-center rounded-full font-medium transition-all duration-200',
-          
-          // Variant styles
-          variants[variant],
-          
-          // Size styles
-          sizes[size],
-          
-          // Hover effects
-          'hover:scale-105',
-          
-          className
-        )}
-        {...animationProps}
-        {...props}
-      >
-        {icon && (
-          <span className={cn('mr-1', size === 'sm' ? 'w-3 h-3' : size === 'lg' ? 'w-5 h-5' : 'w-4 h-4')}>
-            {icon}
+      <>
+        {animate ? (
+          <motion.span
+            ref={ref}
+            className={cn(
+              'inline-flex items-center rounded-full font-medium transition-all duration-200',
+              variants[variant],
+              sizes[size],
+              'hover:scale-105',
+              className
+            )}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            {...(props as any)}
+          >
+            {icon && (
+              <span className={cn('mr-1', size === 'sm' ? 'w-3 h-3' : size === 'lg' ? 'w-5 h-5' : 'w-4 h-4')}>
+                {icon}
+              </span>
+            )}
+            {children}
+          </motion.span>
+        ) : (
+          <span
+            ref={ref}
+            className={cn(
+              'inline-flex items-center rounded-full font-medium transition-all duration-200',
+              variants[variant],
+              sizes[size],
+              'hover:scale-105',
+              className
+            )}
+            {...props}
+          >
+            {icon && (
+              <span className={cn('mr-1', size === 'sm' ? 'w-3 h-3' : size === 'lg' ? 'w-5 h-5' : 'w-4 h-4')}>
+                {icon}
+              </span>
+            )}
+            {children}
           </span>
         )}
-        {children}
-      </BadgeComponent>
+      </>
     )
   }
 )

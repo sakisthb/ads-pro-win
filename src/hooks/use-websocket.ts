@@ -3,20 +3,19 @@
 // WebSocket React Hook for Real-Time AI Updates
 // Manages WebSocket connection and real-time data updates
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { WSMessage, AIProgressData } from '@/lib/websocket/websocket-server';
+import { useEffect, useRef, useState, useCallback } from "react";
+import type { WSMessage, AIProgressData } from "@/lib/websocket/websocket-server";
 
 interface WebSocketState {
   isConnected: boolean;
   isConnecting: boolean;
+  isFetchingTicket: boolean;
   error: string | null;
   lastMessage: WSMessage | null;
   connectionId: string | null;
 }
 
 interface UseWebSocketOptions {
-  organizationId?: string;
-  userId?: string;
   autoConnect?: boolean;
   reconnectAttempts?: number;
   reconnectInterval?: number;
@@ -34,23 +33,27 @@ interface AIOperationState {
   result?: any;
 }
 
+interface TicketResponse {
+  token: string;
+  expiresAt: string;
+}
+
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const {
-    organizationId,
-    userId,
     autoConnect = true,
     reconnectAttempts = 3,
-    reconnectInterval = 3000
+    reconnectInterval = 3000,
   } = options;
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectCountRef = useRef(0);
-  const sessionIdRef = useRef<string | null>(null);
+  const fetchingTicketRef = useRef(false);
 
   const [state, setState] = useState<WebSocketState>({
     isConnected: false,
     isConnecting: false,
+    isFetchingTicket: false,
     error: null,
     lastMessage: null,
     connectionId: null,
@@ -59,42 +62,69 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const [aiOperation, setAIOperation] = useState<AIOperationState>({
     isRunning: false,
     progress: 0,
-    stage: 'idle',
-    message: 'Ready',
+    stage: "idle",
+    message: "Ready",
   });
 
-  const getWebSocketUrl = useCallback(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = process.env.NODE_ENV === 'development' 
-      ? 'localhost:3001' 
-      : window.location.host;
-    
-    const params = new URLSearchParams();
-    if (organizationId) params.set('organizationId', organizationId);
-    if (userId) params.set('userId', userId);
-    if (sessionIdRef.current) params.set('sessionId', sessionIdRef.current);
-    
-    // In production, you'd get the actual auth token
-    params.set('token', 'demo-token');
-    
-    return `${protocol}//${host}?${params.toString()}`;
-  }, [organizationId, userId]);
+  const getWebSocketUrl = useCallback((ticket: string) => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host =
+      process.env.NODE_ENV === "development" ? "localhost:3001" : window.location.host;
+
+    return `${protocol}//${host}?ticket=${encodeURIComponent(ticket)}`;
+  }, []);
+
+  const fetchTicket = useCallback(async (): Promise<string | null> => {
+    if (fetchingTicketRef.current) return null;
+    fetchingTicketRef.current = true;
+
+    setState((prev) => ({ ...prev, isFetchingTicket: true, error: null }));
+
+    try {
+      const response = await fetch("/api/ws/ticket", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to obtain WebSocket ticket");
+      }
+
+      const data = (await response.json()) as TicketResponse;
+      return data.token;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Ticket request failed";
+      setState((prev) => ({
+        ...prev,
+        isFetchingTicket: false,
+        error: message,
+      }));
+      return null;
+    } finally {
+      fetchingTicketRef.current = false;
+    }
+  }, []);
 
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
       const message: WSMessage = JSON.parse(event.data);
-      
-      setState(prev => ({
+
+      setState((prev) => ({
         ...prev,
         lastMessage: message,
         error: null,
+        connectionId:
+          message.type === "ai_progress" && message.data?.stage === "connected"
+            ? message.sessionId
+            : prev.connectionId,
       }));
 
       // Handle different message types
       switch (message.type) {
-        case 'ai_progress':
+        case "ai_progress": {
           const progressData = message.data as AIProgressData;
-          setAIOperation(prev => ({
+          setAIOperation((prev) => ({
             ...prev,
             isRunning: true,
             progress: progressData.progress || prev.progress,
@@ -106,112 +136,131 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             error: undefined,
           }));
           break;
+        }
 
-        case 'ai_complete':
-          setAIOperation(prev => ({
+        case "ai_complete":
+          setAIOperation((prev) => ({
             ...prev,
             isRunning: false,
             progress: 100,
-            stage: 'completed',
-            message: 'Operation completed successfully',
+            stage: "completed",
+            message: "Operation completed successfully",
             result: message.data,
             error: undefined,
           }));
           break;
 
-        case 'ai_error':
-          setAIOperation(prev => ({
+        case "ai_error":
+          setAIOperation((prev) => ({
             ...prev,
             isRunning: false,
-            stage: 'error',
-            message: 'Operation failed',
+            stage: "error",
+            message: "Operation failed",
             error: message.data.error,
           }));
           break;
 
-        case 'campaign_update':
+        case "campaign_update":
           // Handle campaign updates
-          console.log('Campaign update received:', message.data);
+          console.log("Campaign update received:", message.data);
           break;
 
-        case 'analytics_update':
+        case "analytics_update":
           // Handle analytics updates
-          console.log('Analytics update received:', message.data);
+          console.log("Analytics update received:", message.data);
           break;
       }
     } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
+      console.error("Error parsing WebSocket message:", error);
     }
   }, []);
 
-  const connect = useCallback(() => {
+  const openConnection = useCallback(
+    (ticket: string) => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        return;
+      }
+
+      setState((prev) => ({ ...prev, isConnecting: true, error: null }));
+
+      try {
+        const url = getWebSocketUrl(ticket);
+        const ws = new WebSocket(url);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          console.log("WebSocket connected");
+          setState((prev) => ({
+            ...prev,
+            isConnected: true,
+            isConnecting: false,
+            isFetchingTicket: false,
+            error: null,
+            connectionId: null,
+          }));
+          reconnectCountRef.current = 0;
+        };
+
+        ws.onmessage = handleMessage;
+
+        ws.onclose = (event) => {
+          console.log("🔌 WebSocket disconnected:", event.code, event.reason);
+          setState((prev) => ({
+            ...prev,
+            isConnected: false,
+            isConnecting: false,
+          }));
+
+          // Attempt reconnection
+          if (reconnectCountRef.current < reconnectAttempts) {
+            reconnectCountRef.current++;
+            console.log(
+              `🔄 Attempting reconnection ${reconnectCountRef.current}/${reconnectAttempts}`,
+            );
+
+            reconnectTimeoutRef.current = setTimeout(() => {
+              connect();
+            }, reconnectInterval);
+          } else {
+            setState((prev) => ({
+              ...prev,
+              error: "Failed to reconnect after maximum attempts",
+            }));
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error("WebSocket error:", error);
+          setState((prev) => ({
+            ...prev,
+            error: "WebSocket connection error",
+            isConnecting: false,
+          }));
+        };
+      } catch (error) {
+        console.error("Error creating WebSocket connection:", error);
+        setState((prev) => ({
+          ...prev,
+          error: "Failed to create WebSocket connection",
+          isConnecting: false,
+        }));
+      }
+    },
+    [getWebSocketUrl, handleMessage, reconnectAttempts, reconnectInterval],
+  );
+
+  const connect = useCallback(async () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
 
-    setState(prev => ({ ...prev, isConnecting: true, error: null }));
+    setState((prev) => ({ ...prev, error: null }));
 
-    try {
-      const url = getWebSocketUrl();
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        console.log('🔌 WebSocket connected');
-        setState(prev => ({
-          ...prev,
-          isConnected: true,
-          isConnecting: false,
-          error: null,
-          connectionId: sessionIdRef.current,
-        }));
-        reconnectCountRef.current = 0;
-      };
-
-      ws.onmessage = handleMessage;
-
-      ws.onclose = (event) => {
-        console.log('🔌 WebSocket disconnected:', event.code, event.reason);
-        setState(prev => ({
-          ...prev,
-          isConnected: false,
-          isConnecting: false,
-        }));
-
-        // Attempt reconnection
-        if (reconnectCountRef.current < reconnectAttempts) {
-          reconnectCountRef.current++;
-          console.log(`🔄 Attempting reconnection ${reconnectCountRef.current}/${reconnectAttempts}`);
-          
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
-          }, reconnectInterval);
-        } else {
-          setState(prev => ({
-            ...prev,
-            error: 'Failed to reconnect after maximum attempts',
-          }));
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setState(prev => ({
-          ...prev,
-          error: 'WebSocket connection error',
-          isConnecting: false,
-        }));
-      };
-
-    } catch (error) {
-      console.error('Error creating WebSocket connection:', error);
-      setState(prev => ({
-        ...prev,
-        error: 'Failed to create WebSocket connection',
-        isConnecting: false,
-      }));
+    const ticket = await fetchTicket();
+    if (ticket) {
+      openConnection(ticket);
     }
-  }, [getWebSocketUrl, handleMessage, reconnectAttempts, reconnectInterval]);
+  }, [fetchTicket, openConnection]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -224,7 +273,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       wsRef.current = null;
     }
 
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       isConnected: false,
       isConnecting: false,
@@ -239,25 +288,27 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     return false;
   }, []);
 
-  const subscribe = useCallback((channel: string) => {
-    return sendMessage({ type: 'subscribe', channel });
-  }, [sendMessage]);
+  const subscribe = useCallback(
+    (channel: string) => {
+      return sendMessage({ type: "subscribe", channel });
+    },
+    [sendMessage],
+  );
 
-  const unsubscribe = useCallback((channel: string) => {
-    return sendMessage({ type: 'unsubscribe', channel });
-  }, [sendMessage]);
+  const unsubscribe = useCallback(
+    (channel: string) => {
+      return sendMessage({ type: "unsubscribe", channel });
+    },
+    [sendMessage],
+  );
 
   const ping = useCallback(() => {
-    return sendMessage({ type: 'ping' });
+    return sendMessage({ type: "ping" });
   }, [sendMessage]);
 
   // Auto-connect on mount
   useEffect(() => {
     if (autoConnect) {
-      // Generate session ID if not already set
-      if (!sessionIdRef.current) {
-        sessionIdRef.current = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      }
       connect();
     }
 
@@ -277,12 +328,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     // Connection state
     isConnected: state.isConnected,
     isConnecting: state.isConnecting,
+    isFetchingTicket: state.isFetchingTicket,
     error: state.error,
     connectionId: state.connectionId,
-    
+
     // AI operation state
     aiOperation,
-    
+
     // Connection methods
     connect,
     disconnect,
@@ -290,20 +342,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     subscribe,
     unsubscribe,
     ping,
-    
+
     // Last message received
     lastMessage: state.lastMessage,
   };
 }
 
 // Specialized hook for AI operations
-export function useAIWebSocket(organizationId?: string) {
-  const ws = useWebSocket({ organizationId, autoConnect: true });
-  
+export function useAIWebSocket(_organizationId?: string) {
+  const ws = useWebSocket({ autoConnect: true });
+
   useEffect(() => {
     if (ws.isConnected) {
       // Subscribe to AI operation updates
-      ws.subscribe('ai_operations');
+      ws.subscribe("ai_operations");
     }
   }, [ws.isConnected, ws.subscribe]);
 
@@ -317,8 +369,8 @@ export function useAIWebSocket(organizationId?: string) {
 }
 
 // Hook for campaign real-time updates
-export function useCampaignWebSocket(campaignId: string, organizationId?: string) {
-  const ws = useWebSocket({ organizationId, autoConnect: true });
+export function useCampaignWebSocket(campaignId: string, _organizationId?: string) {
+  const ws = useWebSocket({ autoConnect: true });
   const [campaignUpdates, setCampaignUpdates] = useState<any[]>([]);
 
   useEffect(() => {
@@ -328,9 +380,11 @@ export function useCampaignWebSocket(campaignId: string, organizationId?: string
   }, [ws.isConnected, campaignId, ws.subscribe]);
 
   useEffect(() => {
-    if (ws.lastMessage?.type === 'campaign_update' && 
-        ws.lastMessage.data.campaignId === campaignId) {
-      setCampaignUpdates(prev => [ws.lastMessage!.data, ...prev.slice(0, 9)]);
+    if (
+      ws.lastMessage?.type === "campaign_update" &&
+      ws.lastMessage.data.campaignId === campaignId
+    ) {
+      setCampaignUpdates((prev) => [ws.lastMessage!.data, ...prev.slice(0, 9)]);
     }
   }, [ws.lastMessage, campaignId]);
 
@@ -342,18 +396,18 @@ export function useCampaignWebSocket(campaignId: string, organizationId?: string
 }
 
 // Hook for analytics real-time updates
-export function useAnalyticsWebSocket(organizationId?: string) {
-  const ws = useWebSocket({ organizationId, autoConnect: true });
+export function useAnalyticsWebSocket(_organizationId?: string) {
+  const ws = useWebSocket({ autoConnect: true });
   const [analyticsData, setAnalyticsData] = useState<any>(null);
 
   useEffect(() => {
     if (ws.isConnected) {
-      ws.subscribe('analytics_updates');
+      ws.subscribe("analytics_updates");
     }
   }, [ws.isConnected, ws.subscribe]);
 
   useEffect(() => {
-    if (ws.lastMessage?.type === 'analytics_update') {
+    if (ws.lastMessage?.type === "analytics_update") {
       setAnalyticsData(ws.lastMessage.data);
     }
   }, [ws.lastMessage]);

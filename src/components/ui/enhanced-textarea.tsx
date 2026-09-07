@@ -137,7 +137,7 @@ const EnhancedTextarea = React.forwardRef<HTMLTextAreaElement, EnhancedTextareaP
           initial={{ scale: 0.98 }}
           animate={{ scale: isFocused ? 1.01 : 1 }}
           transition={{ duration: 0.2 }}
-          {...props}
+          {...(props as any)}
         />
 
         {/* Helper Text and Character Count */}

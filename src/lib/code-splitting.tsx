@@ -308,7 +308,7 @@ export function withLazyLoading<P extends Record<string, unknown>>(
 
 // Route-based code splitting
 export function createLazyRoutes(routes: RouteConfig[]) {
-  const lazyRoutes = routes.map(route => {
+  return routes.map(route => {
     const { Component, preload } = createLazyComponent(route.component, {
       preload: route.preload,
       fallback: route.fallback,
@@ -320,17 +320,17 @@ export function createLazyRoutes(routes: RouteConfig[]) {
       preload,
     };
   });
+}
 
-  // Preload critical routes
+// Hook for preloading critical lazy routes on mount.
+export function usePreloadRoutes(lazyRoutes: Array<{ preload?: () => Promise<unknown> }>) {
   useEffect(() => {
     lazyRoutes.forEach(route => {
       if (route.preload) {
         route.preload().catch(console.error);
       }
     });
-  }, []);
-
-  return lazyRoutes;
+  }, [lazyRoutes]);
 }
 
 // Hook for managing lazy component state

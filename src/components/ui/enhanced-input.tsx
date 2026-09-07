@@ -4,7 +4,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
-interface EnhancedInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface EnhancedInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   variant?: 'default' | 'gradient' | 'floating' | 'underline'
   size?: 'sm' | 'md' | 'lg'
   icon?: React.ReactNode
@@ -73,39 +73,29 @@ const EnhancedInput = React.forwardRef<HTMLInputElement, EnhancedInputProps>(
           <InputComponent
             ref={ref}
             className={cn(
-              // Base styles
               'w-full rounded-lg transition-all duration-200 ease-in-out',
               'placeholder:text-gray-400 dark:placeholder:text-gray-500',
               'text-gray-900 dark:text-gray-100',
               'focus:outline-none focus:ring-2',
-              
-              // Variant styles
               variants[variant],
-              
-              // Size styles
               sizes[size],
-              
-              // Icon padding
               { 'pl-10': icon },
-              
-              // Error state
               {
                 'border-red-300 dark:border-red-600 focus:border-red-500 focus:ring-red-500/20': error,
               },
-              
               className
             )}
-            onFocus={(e) => {
+            onFocus={(e: any) => {
               setIsFocused(true)
               props.onFocus?.(e)
             }}
-            onBlur={(e) => {
+            onBlur={(e: any) => {
               setIsFocused(false)
               props.onBlur?.(e)
             }}
             onChange={handleChange}
-            {...animationProps}
-            {...props}
+            {...(animationProps as any)}
+            {...(props as any)}
           />
 
           {/* Floating Label */}
