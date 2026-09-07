@@ -1,9 +1,8 @@
 // Mock definitions for Ads Pro Enterprise tests
-// TEMPORARILY SIMPLIFIED FOR BUILD FIX
 
 import { jest } from '@jest/globals'
 
-// ALL MOCKS SIMPLIFIED DUE TO TYPESCRIPT COMPILATION ISSUES
+// AI database service mocks
 export const mockAIDatabaseService = {
   createAIAnalysis: jest.fn(),
   createCreativeGeneration: jest.fn(),
@@ -15,7 +14,7 @@ export const mockAIDatabaseService = {
   generateCampaignReport: jest.fn(),
   optimizeCampaignBudget: jest.fn(),
   runBulkAnalysis: jest.fn(),
-};
+}
 
 export const mockAIAgentsService = {
   generateCampaignInsights: jest.fn(),
@@ -23,7 +22,14 @@ export const mockAIAgentsService = {
   generateAdCreatives: jest.fn(),
   analyzeCampaignData: jest.fn(),
   generateRecommendations: jest.fn(),
-};
+}
+
+export const mockAIAgents = {
+  analyzeCampaign: jest.fn(),
+  generateCreative: jest.fn(),
+  optimizeCampaign: jest.fn(),
+  getAnalyticsDashboard: jest.fn(),
+}
 
 export const mockCampaignService = {
   getCampaigns: jest.fn(),
@@ -33,9 +39,25 @@ export const mockCampaignService = {
   deleteCampaign: jest.fn(),
   getCampaignMetrics: jest.fn(),
   updateCampaignStatus: jest.fn(),
-};
+}
 
-export const mockPrisma = {
+// Prisma mock with the models exercised by existing tests
+export const mockPrismaClient = {
+  aIAnalysis: {
+    create: jest.fn(),
+    createMany: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    deleteMany: jest.fn(),
+  },
+  creativeGeneration: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+  },
+  optimization: {
+    create: jest.fn(),
+  },
   campaign: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -51,19 +73,55 @@ export const mockPrisma = {
     findUnique: jest.fn(),
     create: jest.fn(),
   },
-};
+}
+
+export const mockPrisma = mockPrismaClient
 
 // Mock Next Auth
 export const mockNextAuth = {
   getServerSession: jest.fn(),
   useSession: jest.fn(),
-};
+}
 
-// Mock React Query
-export const mockUseQuery = jest.fn();
-export const mockUseMutation = jest.fn();
+// tRPC context mock
+export const mockTRPCContext = () => ({
+  session: {
+    user: { id: 'user_123', email: 'test@example.com' },
+    expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  },
+  prisma: mockPrismaClient,
+})
 
-// Test Utilities
+// React Query mocks
+export const mockUseQuery = jest.fn()
+export const mockUseMutation = jest.fn()
+
+// Redis mock
+export const mockRedisClient = {
+  get: jest.fn(),
+  set: jest.fn(),
+  del: jest.fn(),
+  expire: jest.fn(),
+  quit: jest.fn(),
+}
+
+// WebSocket server mock
+export const mockWebSocketServer = {
+  clients: new Set(),
+  broadcast: jest.fn(),
+}
+
+// Test environment helpers
+export function setupTestEnvironment() {
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] })
+}
+
+export function cleanupMocks() {
+  jest.useRealTimers()
+  jest.clearAllMocks()
+}
+
+// Mock data generators
 export const createMockCampaign = (overrides = {}) => ({
   id: 'test-campaign-1',
   name: 'Test Campaign',
@@ -72,17 +130,17 @@ export const createMockCampaign = (overrides = {}) => ({
   budget: 1000,
   budgetSpent: 250,
   ...overrides,
-});
+})
 
 export const createMockUser = (overrides = {}) => ({
   id: 'test-user-1',
   email: 'test@example.com',
   name: 'Test User',
   ...overrides,
-});
+})
 
 export const createMockOrganization = (overrides = {}) => ({
   id: 'test-org-1',
   name: 'Test Organization',
   ...overrides,
-});
+})

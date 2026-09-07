@@ -4,7 +4,6 @@
 import React, { ReactElement } from 'react'
 import { render, RenderOptions } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ClerkProvider } from '@clerk/nextjs'
 
 // Mock providers for testing
 const createTestQueryClient = () =>
@@ -20,18 +19,9 @@ const createTestQueryClient = () =>
     },
   })
 
-// Mock Clerk provider
-const MockClerkProvider = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <ClerkProvider 
-      publishableKey="pk_test_mock"
-      appearance={{
-        baseTheme: undefined,
-      }}
-    >
-      {children}
-    </ClerkProvider>
-  )
+// Mock auth provider — Supabase Auth session is mocked in jest.setup.js
+const MockAuthProvider = ({ children }: { children: React.ReactNode }) => {
+  return <>{children}</>
 }
 
 // All providers wrapper
@@ -39,11 +29,11 @@ const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   const testQueryClient = createTestQueryClient()
 
   return (
-    <MockClerkProvider>
+    <MockAuthProvider>
       <QueryClientProvider client={testQueryClient}>
         {children}
       </QueryClientProvider>
-    </MockClerkProvider>
+    </MockAuthProvider>
   )
 }
 

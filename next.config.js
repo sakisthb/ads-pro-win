@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Emit a standalone self-contained build (used by the Docker image)
+  output: 'standalone',
+
   // External packages that should not be bundled (moved from experimental)
-  serverExternalPackages: ['@prisma/client'],
+  serverExternalPackages: ['@prisma/client', '@modelcontextprotocol/sdk', 'bullmq', 'ioredis'],
   
   // Image optimization
   images: {
@@ -72,50 +75,9 @@ const nextConfig = {
 
     // Production optimizations
     if (!dev && !isServer) {
-      // Advanced bundle splitting
-      config.optimization.splitChunks = {
-        chunks: 'all',
-        cacheGroups: {
-          // Framework code (React, Next.js)
-          framework: {
-            test: /[\\/]node_modules[\\/](react|react-dom|next)[\\/]/,
-            name: 'framework',
-            chunks: 'all',
-            priority: 40,
-            enforce: true,
-          },
-          // Common vendor libraries
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendors',
-            chunks: 'all',
-            priority: 30,
-            minChunks: 2,
-            maxSize: 244000, // ~240KB
-          },
-          // UI components
-          ui: {
-            test: /[\\/]node_modules[\\/](@radix-ui|lucide-react)[\\/]/,
-            name: 'ui-vendor',
-            chunks: 'all',
-            priority: 35,
-          },
-          // Utility libraries
-          utils: {
-            test: /[\\/]node_modules[\\/](date-fns|lodash-es|clsx)[\\/]/,
-            name: 'utils-vendor',
-            chunks: 'all',
-            priority: 25,
-          },
-          // Default group
-          default: {
-            minChunks: 2,
-            priority: 20,
-            reuseExistingChunk: true,
-            maxSize: 244000,
-          },
-        },
-      };
+      // NOTE: overriding optimization.splitChunks with chunks: 'all' corrupted
+      // build-manifest rootMainFiles (the root layout CSS was emitted as an
+      // async <script> on every page). Bundle splitting is left to Next.js.
 
       // Enable tree shaking optimizations
       config.optimization.usedExports = true;

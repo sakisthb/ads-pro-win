@@ -18,13 +18,6 @@ export const config = {
     anonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
   },
-  auth: {
-    clerk: {
-      publishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
-      secretKey: env.CLERK_SECRET_KEY,
-      webhookSecret: env.CLERK_WEBHOOK_SECRET,
-    },
-  },
   ai: {
     openai: {
       apiKey: env.OPENAI_API_KEY,
@@ -46,11 +39,22 @@ export const config = {
       clientId: env.GOOGLE_ADS_CLIENT_ID,
       clientSecret: env.GOOGLE_ADS_CLIENT_SECRET,
       developerToken: env.GOOGLE_ADS_DEVELOPER_TOKEN,
+      loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
     },
     tiktok: {
       appId: env.TIKTOK_APP_ID,
       appSecret: env.TIKTOK_APP_SECRET,
     },
+  },
+  mcp: {
+    metaUrl: env.META_MCP_URL,
+    tiktokUrl: env.TIKTOK_MCP_URL,
+    googleUrl: env.GOOGLE_MCP_URL,
+  },
+  woocommerce: {
+    url: env.WOOCOMMERCE_URL,
+    key: env.WOOCOMMERCE_KEY,
+    secret: env.WOOCOMMERCE_SECRET,
   },
   billing: {
     stripe: {
@@ -76,6 +80,8 @@ export const config = {
     analyticsEnabled: true,
     cachingEnabled: true,
     realTimeEnabled: true,
+    mcpEnabled: process.env.MCP_ENABLED === 'true',
+    woocommerceEnabled: process.env.WOOCOMMERCE_ENABLED === 'true',
   },
 };
 
@@ -85,14 +91,6 @@ export function validateConfig() {
   // Required environment variables
   if (!env.DATABASE_URL) {
     errors.push('DATABASE_URL is required');
-  }
-
-  if (!env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
-    errors.push('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is required');
-  }
-
-  if (!env.CLERK_SECRET_KEY) {
-    errors.push('CLERK_SECRET_KEY is required');
   }
 
   if (!env.NEXT_PUBLIC_SUPABASE_URL) {
