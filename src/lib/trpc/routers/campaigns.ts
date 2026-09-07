@@ -3,7 +3,35 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, organizationProcedure, protectedProcedure } from "../server";
+import {
+  createTRPCRouter,
+  organizationAdminProcedure,
+  organizationProcedure,
+} from "../server";
+import {
+  generateLaunchPlan,
+  getMetaGrantedPermissions,
+  googleWriteConfigured,
+  launchGoogleCampaign,
+  launchMetaCampaign,
+  launchTikTokCampaign,
+  listMetaCustomAudiences,
+  listMetaPages,
+  listMetaPixels,
+  mapPrismaPlatform,
+  resolveLaunchAccount,
+  scaleGoogleCampaignBudget,
+  scaleMetaCampaignBudget,
+  scaleTikTokCampaignBudget,
+  updateGoogleCampaignStatus,
+  updateMetaCampaignStatus,
+  updateTikTokCampaignStatus,
+  type LaunchPlatform,
+  type LaunchSpec,
+  type LiveStatus,
+  type PlatformLaunchResult,
+} from "@/lib/platform-launch";
+import { contextForBrand, contextToPromptBlock, parseOrgSettings } from "@/lib/project-context";
 
 // Input validation schemas
 const createCampaignSchema = z.object({
@@ -41,9 +69,75 @@ const campaignFiltersSchema = z.object({
   offset: z.number().min(0).optional().default(0),
 });
 
+const launchPlatformSchema = z.enum(["meta", "google", "tiktok"]);
+const launchObjectiveSchema = z.enum([
+  "sales",
+  "traffic",
+  "awareness",
+  "leads",
+  "engagement",
+]);
+
+const launchInputSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().optional(),
+  objective: launchObjectiveSchema,
+  platforms: z.array(launchPlatformSchema).min(1),
+  dailyBudget: z.number().min(1),
+  goLive: z.boolean().default(false),
+  brandId: z.string().optional(),
+  accountIds: z.record(z.string()).optional(),
+  countries: z.array(z.string()).optional(),
+  ageMin: z.number().optional(),
+  ageMax: z.number().optional(),
+  interests: z.array(z.string()).optional(),
+  headline: z.string().min(1).max(80),
+  primaryText: z.string().min(1).max(2000),
+  cta: z.string().default("Shop Now"),
+  landingUrl: z.string().url().optional().or(z.literal("")),
+  pageId: z.string().optional(),
+  pixelId: z.string().optional(),
+  includeAd: z.boolean().default(true),
+});
+
+function assertNotDemoOrg(slug: string) {
+  if (slug === "demo") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Switch out of the Demo workspace to create or edit live campaigns.",
+    });
+  }
+}
+
+function toLaunchSpec(input: z.infer<typeof launchInputSchema>): LaunchSpec {
+  return {
+    name: input.name.trim(),
+    description: input.description,
+    objective: input.objective,
+    dailyBudget: input.dailyBudget,
+    landingUrl: input.landingUrl || undefined,
+    pageId: input.pageId,
+    pixelId: input.pixelId,
+    goLive: input.goLive,
+    includeAd: input.includeAd,
+    audience: {
+      countries: input.countries ?? [],
+      ageMin: input.ageMin ?? 18,
+      ageMax: input.ageMax ?? 65,
+      interests: input.interests ?? [],
+    },
+    creative: {
+      headline: input.headline,
+      primaryText: input.primaryText,
+      cta: input.cta,
+      landingUrl: input.landingUrl || undefined,
+    },
+  };
+}
+
 export const campaignsRouter = createTRPCRouter({
   // Create Campaign
-  create: organizationProcedure
+  create: organizationAdminProcedure
     .input(createCampaignSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -76,7 +170,7 @@ export const campaignsRouter = createTRPCRouter({
     }),
 
   // Update Campaign
-  update: organizationProcedure
+  update: organizationAdminProcedure
     .input(updateCampaignSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -251,7 +345,7 @@ export const campaignsRouter = createTRPCRouter({
     }),
 
   // Delete Campaign
-  delete: organizationProcedure
+  delete: organizationAdminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       try {
@@ -287,7 +381,7 @@ export const campaignsRouter = createTRPCRouter({
     }),
 
   // Update Campaign Status
-  updateStatus: organizationProcedure
+  updateStatus: organizationAdminProcedure
     .input(z.object({
       id: z.string(),
       status: z.enum(['draft', 'active', 'paused', 'completed']),
@@ -327,7 +421,7 @@ export const campaignsRouter = createTRPCRouter({
     }),
 
   // Update Campaign Performance
-  updatePerformance: organizationProcedure
+  updatePerformance: organizationAdminProcedure
     .input(z.object({
       id: z.string(),
       performance: z.record(z.any()),
@@ -445,7 +539,7 @@ export const campaignsRouter = createTRPCRouter({
     }),
 
   // Duplicate Campaign
-  duplicate: organizationProcedure
+  duplicate: organizationAdminProcedure
     .input(z.object({
       id: z.string(),
       name: z.string().min(1).max(200),
@@ -491,5 +585,352 @@ export const campaignsRouter = createTRPCRouter({
           cause: error,
         });
       }
+    }),
+
+  getLaunchContext: organizationAdminProcedure.query(async ({ ctx }) => {
+    const isDemo = ctx.organization.slug === "demo";
+    const brands = await ctx.prisma.brand.findMany({
+      where: { organizationId: ctx.organizationId },
+      select: { id: true, name: true, website: true },
+      orderBy: { name: "asc" },
+    });
+    const brandIds = brands.map((b) => b.id);
+    const accounts = await ctx.prisma.adAccount.findMany({
+      where: {
+        brand: { organizationId: ctx.organizationId },
+        platform: { in: ["meta", "google", "tiktok"] },
+      },
+      select: {
+        id: true,
+        brandId: true,
+        platform: true,
+        accountId: true,
+        name: true,
+        currency: true,
+        isActive: true,
+        accessToken: true,
+        tokenExpiry: true,
+        lastSyncAt: true,
+      },
+    });
+    const now = new Date();
+    const connections = await Promise.all(
+      accounts.map(async (a) => {
+        const isOAuth = a.platform === "meta" || a.platform === "google" || a.platform === "tiktok";
+        const isConnected = isOAuth
+          ? !!a.accessToken && !!a.tokenExpiry && a.tokenExpiry > now
+          : !!a.accessToken;
+        let canWrite = false;
+        let granted: string[] = [];
+        if (isConnected && a.platform === "meta") {
+          try {
+            const resolved = await resolveLaunchAccount(
+              ctx.prisma,
+              ctx.organizationId,
+              "meta",
+              a.id,
+            );
+            if (resolved) {
+              granted = await getMetaGrantedPermissions(resolved.accessToken);
+              canWrite = granted.includes("ads_management");
+            }
+          } catch {
+            canWrite = false;
+          }
+        } else if (isConnected && a.platform === "google") {
+          canWrite = googleWriteConfigured();
+        } else if (isConnected && a.platform === "tiktok") {
+          canWrite = true;
+        }
+        return {
+          id: a.id,
+          brandId: a.brandId,
+          platform: a.platform as LaunchPlatform,
+          accountId: a.accountId,
+          name: a.name,
+          currency: a.currency,
+          isActive: a.isActive,
+          isConnected,
+          canWrite,
+          lastSyncAt: a.lastSyncAt,
+          grantedPermissions: granted,
+        };
+      }),
+    );
+
+    const products = brandIds.length
+      ? await ctx.prisma.wooProduct.findMany({
+          where: { brandId: { in: brandIds } },
+          select: { id: true, brandId: true, name: true, sku: true, price: true },
+          orderBy: { updatedAt: "desc" },
+          take: 24,
+        })
+      : [];
+
+    const drafts = await ctx.prisma.campaign.findMany({
+      where: { organizationId: ctx.organizationId },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        platform: true,
+        budget: true,
+        createdAt: true,
+        settings: true,
+      },
+    });
+
+    return {
+      isDemo,
+      brands,
+      connections,
+      projectContext: parseOrgSettings(ctx.organization.settings).projectContext ?? null,
+      brandContexts: parseOrgSettings(ctx.organization.settings).brandContexts ?? {},
+      products: products.map((p) => ({
+        id: p.id,
+        brandId: p.brandId,
+        name: p.name,
+        sku: p.sku,
+        price: Number(p.price),
+      })),
+      drafts,
+    };
+  }),
+
+  getMetaAssets: organizationAdminProcedure
+    .input(z.object({ adAccountId: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const resolved = await resolveLaunchAccount(
+        ctx.prisma,
+        ctx.organizationId,
+        "meta",
+        input.adAccountId,
+      );
+      if (!resolved) {
+        return { pages: [], pixels: [], audiences: [], permissions: [] as string[] };
+      }
+      const [pages, pixels, audiences, permissions] = await Promise.all([
+        listMetaPages(resolved.accessToken),
+        listMetaPixels(resolved.accessToken, resolved.account.accountId),
+        listMetaCustomAudiences(resolved.accessToken, resolved.account.accountId),
+        getMetaGrantedPermissions(resolved.accessToken),
+      ]);
+      return { pages, pixels, audiences, permissions };
+    }),
+
+  generatePlan: organizationAdminProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(3).max(2000),
+        objective: launchObjectiveSchema,
+        platforms: z.array(launchPlatformSchema).min(1),
+        productName: z.string().optional(),
+        website: z.string().optional(),
+        dailyBudget: z.number().optional(),
+        brandId: z.string().min(1).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const settings = parseOrgSettings(ctx.organization.settings);
+      const projectContext = contextToPromptBlock(
+        contextForBrand(settings, input.brandId) ?? settings.projectContext,
+      );
+      return generateLaunchPlan({ ...input, projectContext: projectContext || undefined });
+    }),
+
+  launch: organizationAdminProcedure
+    .input(launchInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      assertNotDemoOrg(ctx.organization.slug);
+      const spec = toLaunchSpec(input);
+      const results: PlatformLaunchResult[] = [];
+
+      for (const platform of input.platforms) {
+        const resolved = await resolveLaunchAccount(
+          ctx.prisma,
+          ctx.organizationId,
+          platform,
+          input.accountIds?.[platform],
+          input.brandId,
+        );
+        if (!resolved) {
+          results.push({
+            platform,
+            ok: false,
+            message: `No connected ${platform} ad account. Connect it on Connections first.`,
+            warnings: [],
+          });
+          continue;
+        }
+        if (platform === "meta") {
+          results.push(
+            await launchMetaCampaign(resolved.accessToken, resolved.account.accountId, spec),
+          );
+        } else if (platform === "google") {
+          results.push(
+            await launchGoogleCampaign(resolved.accessToken, resolved.account.accountId, spec),
+          );
+        } else {
+          results.push(
+            await launchTikTokCampaign(resolved.accessToken, resolved.account.accountId, spec),
+          );
+        }
+      }
+
+      const primary = results.find((r) => r.ok) ?? results[0];
+      const anyOk = results.some((r) => r.ok);
+      const campaign = await ctx.prisma.campaign.create({
+        data: {
+          name: input.name.trim(),
+          description: input.description,
+          platform: mapPrismaPlatform(primary?.platform ?? input.platforms[0]),
+          budget: input.dailyBudget,
+          status: anyOk ? (input.goLive ? "active" : "paused") : "draft",
+          organizationId: ctx.organizationId,
+          userId: ctx.session.user.id,
+          targetAudience: JSON.stringify(spec.audience),
+          adCreatives: JSON.stringify([spec.creative]),
+          settings: JSON.stringify({
+            source: "campaign-launcher",
+            objective: input.objective,
+            goLive: input.goLive,
+            landingUrl: input.landingUrl,
+            brandId: input.brandId,
+            writeResults: results,
+            platformCampaignId: primary?.campaignId,
+            platformAdSetId: primary?.adSetId,
+            platformAdId: primary?.adId,
+            adsManagerUrl: primary?.adsManagerUrl,
+            launchedAt: new Date().toISOString(),
+          }),
+        },
+      });
+
+      return {
+        success: anyOk,
+        campaign,
+        results,
+      };
+    }),
+
+  updateLiveStatus: organizationAdminProcedure
+    .input(
+      z.object({
+        platform: launchPlatformSchema,
+        platformCampaignId: z.string().min(1),
+        status: z.enum(["PAUSED", "ACTIVE"]),
+        adAccountId: z.string().optional(),
+        brandId: z.string().optional(),
+        localCampaignId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      assertNotDemoOrg(ctx.organization.slug);
+      const resolved = await resolveLaunchAccount(
+        ctx.prisma,
+        ctx.organizationId,
+        input.platform,
+        input.adAccountId,
+        input.brandId,
+      );
+      if (!resolved) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Connect a ${input.platform} ad account first.`,
+        });
+      }
+
+      let result;
+      if (input.platform === "meta") {
+        result = await updateMetaCampaignStatus(
+          resolved.accessToken,
+          input.platformCampaignId,
+          input.status as LiveStatus,
+        );
+      } else if (input.platform === "google") {
+        result = await updateGoogleCampaignStatus(
+          resolved.accessToken,
+          resolved.account.accountId,
+          input.platformCampaignId,
+          input.status as LiveStatus,
+        );
+      } else {
+        result = await updateTikTokCampaignStatus(
+          resolved.accessToken,
+          resolved.account.accountId,
+          input.platformCampaignId,
+          input.status as LiveStatus,
+        );
+      }
+      if (!result.ok) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+      }
+
+      if (input.localCampaignId) {
+        await ctx.prisma.campaign.updateMany({
+          where: { id: input.localCampaignId, organizationId: ctx.organizationId },
+          data: { status: input.status === "ACTIVE" ? "active" : "paused" },
+        });
+      }
+
+      return result;
+    }),
+
+  scaleBudget: organizationAdminProcedure
+    .input(
+      z.object({
+        platform: launchPlatformSchema,
+        platformCampaignId: z.string().min(1),
+        multiplier: z.number().min(1.05).max(3).default(1.2),
+        adAccountId: z.string().optional(),
+        brandId: z.string().optional(),
+        currentDailyBudget: z.number().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      assertNotDemoOrg(ctx.organization.slug);
+      const resolved = await resolveLaunchAccount(
+        ctx.prisma,
+        ctx.organizationId,
+        input.platform,
+        input.adAccountId,
+        input.brandId,
+      );
+      if (!resolved) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Connect a ${input.platform} ad account first.`,
+        });
+      }
+
+      let result;
+      if (input.platform === "meta") {
+        result = await scaleMetaCampaignBudget(
+          resolved.accessToken,
+          input.platformCampaignId,
+          input.multiplier,
+        );
+      } else if (input.platform === "google") {
+        result = await scaleGoogleCampaignBudget(
+          resolved.accessToken,
+          resolved.account.accountId,
+          input.platformCampaignId,
+          input.multiplier,
+        );
+      } else {
+        const next = (input.currentDailyBudget ?? 50) * input.multiplier;
+        result = await scaleTikTokCampaignBudget(
+          resolved.accessToken,
+          resolved.account.accountId,
+          input.platformCampaignId,
+          next,
+        );
+      }
+      if (!result.ok) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+      }
+      return result;
     }),
 });

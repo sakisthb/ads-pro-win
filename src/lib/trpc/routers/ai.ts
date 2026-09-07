@@ -3,10 +3,16 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, organizationProcedure, protectedProcedure } from "../server";
-import { createRealTimeAIAgents, AGENT_TYPES, AI_PROVIDERS } from "@/lib/ai-agents-realtime";
+import {
+  createTRPCRouter,
+  organizationAdminProcedure,
+  organizationOwnerProcedure,
+  organizationProcedure,
+} from "../server";
+import { createRealTimeAIAgents } from "@/lib/ai-agents-realtime";
 import { createIntegratedAIAgents } from "@/lib/ai-agents-integrated";
 import { aiDbService } from "@/lib/ai-database-service";
+import { chat as marketingChat, ChatMessage } from "@/lib/ai/marketing-agent";
 
 // Input validation schemas
 const campaignAnalysisSchema = z.object({
@@ -43,7 +49,7 @@ const analyticsFilterSchema = z.object({
 
 export const aiRouter = createTRPCRouter({
   // Campaign Analysis Endpoints
-  analyzeCampaign: organizationProcedure
+  analyzeCampaign: organizationAdminProcedure
     .input(campaignAnalysisSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -119,7 +125,7 @@ export const aiRouter = createTRPCRouter({
     }),
 
   // Creative Generation Endpoint
-  generateCreative: organizationProcedure
+  generateCreative: organizationAdminProcedure
     .input(creativeGenerationSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -179,7 +185,7 @@ export const aiRouter = createTRPCRouter({
     }),
 
   // Campaign Optimization Endpoint
-  optimizeCampaign: organizationProcedure
+  optimizeCampaign: organizationAdminProcedure
     .input(optimizationSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -329,7 +335,10 @@ export const aiRouter = createTRPCRouter({
     }))
     .query(async ({ ctx, input }) => {
       try {
-        const agentHistory = await aiDbService.getAIAgentHistory(input.agentId);
+        const agentHistory = await aiDbService.getAIAgentHistory(
+          input.agentId,
+          ctx.organizationId,
+        );
 
         return {
           success: true,
@@ -382,9 +391,12 @@ export const aiRouter = createTRPCRouter({
     }))
     .query(async ({ ctx, input }) => {
       try {
-        const campaignWithContext = await aiDbService.getCampaignWithContext(input.campaignId);
+        const campaignWithContext = await aiDbService.getCampaignWithContext(
+          input.campaignId,
+          ctx.organizationId,
+        );
 
-        if (!campaignWithContext || campaignWithContext.organizationId !== ctx.organizationId) {
+        if (!campaignWithContext) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Campaign not found",
@@ -407,7 +419,7 @@ export const aiRouter = createTRPCRouter({
     }),
 
   // Bulk Campaign Analysis
-  bulkAnalyzeCampaigns: organizationProcedure
+  bulkAnalyzeCampaigns: organizationAdminProcedure
     .input(z.object({
       campaignIds: z.array(z.string()).min(1).max(10),
       analysisType: z.enum(['comprehensive', 'performance', 'audience', 'budget']).optional().default('comprehensive'),
@@ -516,13 +528,16 @@ export const aiRouter = createTRPCRouter({
     }),
 
   // Data Cleanup Utility
-  cleanupOldAIData: organizationProcedure
+  cleanupOldAIData: organizationOwnerProcedure
     .input(z.object({
       daysToKeep: z.number().min(1).max(365).optional().default(90),
     }))
     .mutation(async ({ ctx, input }) => {
       try {
-        const deletedCounts = await aiDbService.cleanupOldData(input.daysToKeep);
+        const deletedCounts = await aiDbService.cleanupOldData(
+          ctx.organizationId,
+          input.daysToKeep,
+        );
 
         return {
           success: true,
@@ -534,6 +549,41 @@ export const aiRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to cleanup old AI data",
+          cause: error,
+        });
+      }
+    }),
+
+  // --------------------------------------------------------------------------
+  // AI Chat with LangChain Tool Calling (Phase 5)
+  // --------------------------------------------------------------------------
+  chat: organizationAdminProcedure
+    .input(z.object({
+      message: z.string().min(1),
+      history: z.array(z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      })).default([]),
+      provider: z.enum(['openai', 'anthropic']).default('openai'),
+      model: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const response = await marketingChat(
+          {
+            organizationId: ctx.organizationId,
+            provider: input.provider,
+            model: input.model,
+          },
+          input.message,
+          input.history as ChatMessage[],
+        );
+        return { response, timestamp: new Date().toISOString() };
+      } catch (error) {
+        console.error('AI chat error:', error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to process chat message",
           cause: error,
         });
       }
