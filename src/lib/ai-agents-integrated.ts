@@ -1,124 +1,56 @@
 // Integrated AI Agents with Database Persistence
 // Enhanced AI agent system with full database integration
 
-import { ChatOpenAI } from "@langchain/openai";
-import { ChatAnthropic } from "@langchain/anthropic";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
-import { 
-  aiDbService, 
-  AIAgentResult, 
-  CampaignAnalysisResult, 
-  CreativeGenerationResult, 
-  OptimizationResult 
+import {
+  aiDbService,
+  CampaignAnalysisResult,
+  CreativeGenerationResult,
+  OptimizationResult,
 } from "./ai-database-service";
-
-export const AI_PROVIDERS = {
-  OPENAI: 'openai',
-  ANTHROPIC: 'anthropic', 
-  GOOGLE: 'google',
-} as const;
-
-export const AGENT_TYPES = {
-  CAMPAIGN_ANALYST: 'campaign_analyst',
-  CREATIVE_SPECIALIST: 'creative_specialist',
-  AUDIENCE_EXPERT: 'audience_expert',
-  PERFORMANCE_OPTIMIZER: 'performance_optimizer',
-  BUDGET_MANAGER: 'budget_manager',
-  COMPETITIVE_ANALYST: 'competitive_analyst',
-} as const;
-
-type AIProvider = typeof AI_PROVIDERS[keyof typeof AI_PROVIDERS];
-type AgentType = typeof AGENT_TYPES[keyof typeof AGENT_TYPES];
-
-interface CampaignData {
-  id: string;
-  name: string;
-  platform: string;
-  status: string;
-  budget: number;
-  budgetSpent: number;
-  performance: Record<string, any>;
-  targetAudience: Record<string, any>;
-  adCreatives: any[];
-  organizationId: string;
-}
-
-interface AIAgentConfig {
-  provider: AIProvider;
-  model?: string;
-  temperature?: number;
-  maxTokens?: number;
-  organizationId: string;
-  campaignId?: string;
-}
+import {
+  AI_PROVIDERS,
+  AGENT_TYPES,
+  createModelRegistry,
+  getModel,
+  parseAIResponse,
+  updateAgentPerformance,
+  type AIProvider,
+  type AgentType,
+  type CampaignData,
+  type AIAgentConfig,
+} from "./ai/agent-base";
 
 export class IntegratedAIAgents {
-  private models: Map<AIProvider, BaseLanguageModel> = new Map();
+  private models: Map<AIProvider, BaseLanguageModel> = createModelRegistry();
   private organizationId: string;
 
   constructor(organizationId: string) {
     this.organizationId = organizationId;
-    this.initializeModels();
-  }
-
-  private initializeModels() {
-    // Initialize OpenAI
-    if (process.env.OPENAI_API_KEY) {
-      this.models.set(AI_PROVIDERS.OPENAI, new ChatOpenAI({
-        openAIApiKey: process.env.OPENAI_API_KEY,
-        modelName: "gpt-4-turbo-preview",
-        temperature: 0.3,
-        maxTokens: 2000,
-      }));
-    }
-
-    // Initialize Anthropic
-    if (process.env.ANTHROPIC_API_KEY) {
-      this.models.set(AI_PROVIDERS.ANTHROPIC, new ChatAnthropic({
-        anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-        modelName: "claude-3-sonnet-20240229",
-        temperature: 0.3,
-        maxTokens: 2000,
-      }));
-    }
-
-    // Initialize Google
-    if (process.env.GOOGLE_API_KEY) {
-      this.models.set(AI_PROVIDERS.GOOGLE, new ChatGoogleGenerativeAI({
-        apiKey: process.env.GOOGLE_API_KEY,
-        model: "gemini-pro",
-        temperature: 0.3,
-      }));
-    }
   }
 
   private getModel(provider: AIProvider): BaseLanguageModel {
-    const model = this.models.get(provider);
-    if (!model) {
-      throw new Error(`AI provider ${provider} not configured. Check your environment variables.`);
-    }
-    return model;
+    return getModel(this.models, provider);
   }
 
   // Campaign Analysis Agent with Database Integration
   async analyzeCampaign(
-    campaignData: CampaignData, 
+    campaignData: CampaignData,
     config: AIAgentConfig = { provider: AI_PROVIDERS.OPENAI, organizationId: this.organizationId }
   ): Promise<CampaignAnalysisResult> {
     const startTime = Date.now();
     const model = this.getModel(config.provider);
-    
+
     const prompt = `
     As a Campaign Analysis AI Agent, analyze the following campaign data and provide detailed insights:
-    
+
     Campaign: ${campaignData.name}
     Platform: ${campaignData.platform}
     Budget: $${campaignData.budget} (Spent: $${campaignData.budgetSpent})
     Status: ${campaignData.status}
     Performance: ${JSON.stringify(campaignData.performance, null, 2)}
     Target Audience: ${JSON.stringify(campaignData.targetAudience, null, 2)}
-    
+
     Provide analysis in the following JSON format:
     {
       "insights": ["insight1", "insight2", "insight3"],
@@ -128,7 +60,7 @@ export class IntegratedAIAgents {
       "keyFindings": ["finding1", "finding2"],
       "actionItems": ["action1", "action2"]
     }
-    
+
     Focus on:
     - Performance metrics analysis
     - Budget efficiency
@@ -139,24 +71,24 @@ export class IntegratedAIAgents {
 
     try {
       const response = await model.invoke(prompt);
-      const analysis = this.parseAIResponse(response.content as string);
-      
+      const analysis = parseAIResponse(response.content as string);
+
       const result: CampaignAnalysisResult = {
         campaignId: campaignData.id,
         analysisType: 'comprehensive_analysis',
-        insights: analysis.insights || [],
-        recommendations: analysis.recommendations || [],
-        performanceScore: analysis.performanceScore || 0,
-        confidence: analysis.confidence || 0,
+        insights: (analysis as any).insights || [],
+        recommendations: (analysis as any).recommendations || [],
+        performanceScore: (analysis as any).performanceScore || 0,
+        confidence: (analysis as any).confidence || 0,
         generatedAt: new Date(),
       };
 
       // Store in database
       await aiDbService.storeCampaignAnalysis(result);
-      
+
       // Update AI agent performance
       const processingTime = Date.now() - startTime;
-      await this.updateAgentPerformance(AGENT_TYPES.CAMPAIGN_ANALYST, {
+      await updateAgentPerformance(this.organizationId, AGENT_TYPES.CAMPAIGN_ANALYST, {
         lastAnalysis: new Date(),
         processingTime,
         confidence: result.confidence,
@@ -183,15 +115,15 @@ export class IntegratedAIAgents {
   ): Promise<CreativeGenerationResult> {
     const startTime = Date.now();
     const model = this.getModel(config.provider);
-    
+
     const prompt = `
     As a Creative Generation AI Agent, create compelling ad creative based on:
-    
+
     Platform: ${briefData.platform}
     Target Audience: ${briefData.audience.join(', ')}
     Campaign Goals: ${briefData.goals.join(', ')}
     Constraints: ${briefData.constraints?.join(', ') || 'None'}
-    
+
     Generate creative in this JSON format:
     {
       "content": {
@@ -215,7 +147,7 @@ export class IntegratedAIAgents {
       "confidence": 0.88,
       "rationale": "Explanation of creative decisions"
     }
-    
+
     Optimize for:
     - Platform-specific best practices
     - Audience engagement
@@ -225,18 +157,18 @@ export class IntegratedAIAgents {
 
     try {
       const response = await model.invoke(prompt);
-      const creative = this.parseAIResponse(response.content as string);
-      
+      const creative = parseAIResponse(response.content as string);
+
       const result: CreativeGenerationResult = {
         campaignId: briefData.campaignId,
         creativeType: 'text',
-        content: creative.content || {
+        content: (creative as any).content || {
           title: "Generated Creative",
           description: "AI-generated creative content",
           targetAudience: briefData.audience,
         },
-        variants: creative.variants || [],
-        confidence: creative.confidence || 0,
+        variants: (creative as any).variants || [],
+        confidence: (creative as any).confidence || 0,
       };
 
       // Store in database as analysis
@@ -244,7 +176,7 @@ export class IntegratedAIAgents {
         await aiDbService.storeCampaignAnalysis({
           campaignId: briefData.campaignId,
           analysisType: 'creative_generation',
-          insights: [creative.rationale || 'Creative generated'],
+          insights: [(creative as any).rationale || 'Creative generated'],
           recommendations: [`Use generated creative: ${result.content.title}`],
           performanceScore: result.confidence,
           confidence: result.confidence,
@@ -253,7 +185,7 @@ export class IntegratedAIAgents {
       }
 
       const processingTime = Date.now() - startTime;
-      await this.updateAgentPerformance(AGENT_TYPES.CREATIVE_SPECIALIST, {
+      await updateAgentPerformance(this.organizationId, AGENT_TYPES.CREATIVE_SPECIALIST, {
         lastGeneration: new Date(),
         processingTime,
         confidence: result.confidence,
@@ -274,17 +206,17 @@ export class IntegratedAIAgents {
   ): Promise<OptimizationResult> {
     const startTime = Date.now();
     const model = this.getModel(config.provider);
-    
+
     const currentMetrics = campaignData.performance as Record<string, number>;
-    
+
     const prompt = `
     As a Performance Optimization AI Agent, analyze this campaign and provide optimization recommendations:
-    
+
     Campaign: ${campaignData.name}
     Platform: ${campaignData.platform}
     Current Metrics: ${JSON.stringify(currentMetrics, null, 2)}
     Budget Utilization: ${((campaignData.budgetSpent / campaignData.budget) * 100).toFixed(1)}%
-    
+
     Provide optimization in this JSON format:
     {
       "recommendations": [
@@ -304,7 +236,7 @@ export class IntegratedAIAgents {
       "priorityActions": ["action1", "action2"],
       "riskAssessment": "Low|Medium|High"
     }
-    
+
     Focus on:
     - Cost efficiency improvements
     - Conversion rate optimization
@@ -315,21 +247,21 @@ export class IntegratedAIAgents {
 
     try {
       const response = await model.invoke(prompt);
-      const optimization = this.parseAIResponse(response.content as string);
-      
+      const optimization = parseAIResponse(response.content as string);
+
       const result: OptimizationResult = {
         campaignId: campaignData.id,
         optimizationType: 'performance_optimization',
         currentMetrics,
-        recommendations: optimization.recommendations || [],
-        projectedMetrics: optimization.projectedMetrics || {},
+        recommendations: (optimization as any).recommendations || [],
+        projectedMetrics: (optimization as any).projectedMetrics || {},
       };
 
       // Store in database
       await aiDbService.storeOptimizationResult(result);
 
       const processingTime = Date.now() - startTime;
-      await this.updateAgentPerformance(AGENT_TYPES.PERFORMANCE_OPTIMIZER, {
+      await updateAgentPerformance(this.organizationId, AGENT_TYPES.PERFORMANCE_OPTIMIZER, {
         lastOptimization: new Date(),
         processingTime,
         campaignsOptimized: 1,
@@ -349,15 +281,15 @@ export class IntegratedAIAgents {
   ) {
     const startTime = Date.now();
     const model = this.getModel(config.provider);
-    
+
     const prompt = `
     As an Audience Analysis AI Agent, analyze the target audience for this campaign:
-    
+
     Campaign: ${campaignData.name}
     Platform: ${campaignData.platform}
     Current Targeting: ${JSON.stringify(campaignData.targetAudience, null, 2)}
     Performance: ${JSON.stringify(campaignData.performance, null, 2)}
-    
+
     Provide audience analysis in JSON format:
     {
       "audienceInsights": ["insight1", "insight2"],
@@ -370,22 +302,22 @@ export class IntegratedAIAgents {
 
     try {
       const response = await model.invoke(prompt);
-      const analysis = this.parseAIResponse(response.content as string);
-      
+      const analysis = parseAIResponse(response.content as string);
+
       const result: CampaignAnalysisResult = {
         campaignId: campaignData.id,
         analysisType: 'audience_analysis',
-        insights: analysis.audienceInsights || [],
-        recommendations: analysis.suggestions || [],
-        performanceScore: analysis.confidence || 0,
-        confidence: analysis.confidence || 0,
+        insights: (analysis as any).audienceInsights || [],
+        recommendations: (analysis as any).suggestions || [],
+        performanceScore: (analysis as any).confidence || 0,
+        confidence: (analysis as any).confidence || 0,
         generatedAt: new Date(),
       };
 
       await aiDbService.storeCampaignAnalysis(result);
 
       const processingTime = Date.now() - startTime;
-      await this.updateAgentPerformance(AGENT_TYPES.AUDIENCE_EXPERT, {
+      await updateAgentPerformance(this.organizationId, AGENT_TYPES.AUDIENCE_EXPERT, {
         lastAnalysis: new Date(),
         processingTime,
         confidence: result.confidence,
@@ -406,17 +338,17 @@ export class IntegratedAIAgents {
   ) {
     const startTime = Date.now();
     const model = this.getModel(config.provider);
-    
+
     const budgetUtilization = (campaignData.budgetSpent / campaignData.budget) * 100;
-    
+
     const prompt = `
     As a Budget Management AI Agent, analyze budget allocation and spending:
-    
+
     Campaign: ${campaignData.name}
     Total Budget: $${campaignData.budget}
     Spent: $${campaignData.budgetSpent} (${budgetUtilization.toFixed(1)}%)
     Performance: ${JSON.stringify(campaignData.performance, null, 2)}
-    
+
     Provide budget analysis in JSON format:
     {
       "budgetHealth": "Optimal|Warning|Critical",
@@ -433,22 +365,22 @@ export class IntegratedAIAgents {
 
     try {
       const response = await model.invoke(prompt);
-      const analysis = this.parseAIResponse(response.content as string);
-      
+      const analysis = parseAIResponse(response.content as string);
+
       const result: CampaignAnalysisResult = {
         campaignId: campaignData.id,
         analysisType: 'budget_management',
-        insights: [`Budget Health: ${analysis.budgetHealth}`, analysis.spendingRate],
-        recommendations: analysis.recommendations || [],
-        performanceScore: analysis.confidence || 0,
-        confidence: analysis.confidence || 0,
+        insights: [`Budget Health: ${(analysis as any).budgetHealth}`, (analysis as any).spendingRate],
+        recommendations: (analysis as any).recommendations || [],
+        performanceScore: (analysis as any).confidence || 0,
+        confidence: (analysis as any).confidence || 0,
         generatedAt: new Date(),
       };
 
       await aiDbService.storeCampaignAnalysis(result);
 
       const processingTime = Date.now() - startTime;
-      await this.updateAgentPerformance(AGENT_TYPES.BUDGET_MANAGER, {
+      await updateAgentPerformance(this.organizationId, AGENT_TYPES.BUDGET_MANAGER, {
         lastAnalysis: new Date(),
         processingTime,
         confidence: result.confidence,
@@ -488,7 +420,7 @@ export class IntegratedAIAgents {
             audienceAnalysis.performanceScore +
             budgetAnalysis.performanceScore
           ) / 3,
-          totalRecommendations: 
+          totalRecommendations:
             campaignAnalysis.recommendations.length +
             audienceAnalysis.recommendations.length +
             budgetAnalysis.recommendations.length +
@@ -510,48 +442,6 @@ export class IntegratedAIAgents {
   // Get Organization Analytics Dashboard
   async getAnalyticsDashboard(timeframe = '7d') {
     return await aiDbService.getAnalyticsDashboardData(this.organizationId, timeframe);
-  }
-
-  // Helper Methods
-  private parseAIResponse(content: string): any {
-    try {
-      // Extract JSON from the response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-      return {};
-    } catch (error) {
-      console.error('Error parsing AI response:', error);
-      return {};
-    }
-  }
-
-  private async updateAgentPerformance(agentType: AgentType, performance: Record<string, any>) {
-    try {
-      const agents = await aiDbService.getAIAgentsByOrganization(this.organizationId, agentType);
-      
-      if (agents.length === 0) {
-        // Create new agent if none exists
-        await aiDbService.createAIAgent({
-          name: `${agentType.replace('_', ' ').toUpperCase()} Agent`,
-          type: agentType,
-          organizationId: this.organizationId,
-          configuration: { provider: AI_PROVIDERS.OPENAI },
-        });
-      } else {
-        // Update existing agent
-        const agent = agents[0];
-        const updatedPerformance = {
-          ...(agent.performance as unknown as Record<string, any>),
-          ...performance,
-        };
-        
-        await aiDbService.updateAIAgentPerformance(agent.id, updatedPerformance);
-      }
-    } catch (error) {
-      console.error('Error updating agent performance:', error);
-    }
   }
 }
 

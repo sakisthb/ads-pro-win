@@ -21,8 +21,8 @@ interface WebSocketStatusProps {
   minimal?: boolean;
 }
 
-export const WebSocketStatus: React.FC<WebSocketStatusProps> = ({ 
-  organizationId, 
+export const WebSocketStatus: React.FC<WebSocketStatusProps> = ({
+  organizationId,
   className = "",
   showDetails = false,
   minimal = false 
@@ -39,9 +39,8 @@ export const WebSocketStatus: React.FC<WebSocketStatusProps> = ({
     ping,
     lastMessage,
     aiOperation 
-  } = useWebSocket({ 
-    organizationId, 
-    autoConnect: true 
+  } = useWebSocket({
+    autoConnect: true
   });
 
   const getStatusColor = () => {
@@ -312,8 +311,8 @@ export const WebSocketStatus: React.FC<WebSocketStatusProps> = ({
 };
 
 // Simplified status badge for use in headers/navbars
-export const WebSocketStatusBadge: React.FC<{ organizationId?: string }> = ({ organizationId }) => {
-  const { isConnected, isConnecting } = useWebSocket({ organizationId, autoConnect: true });
+export const WebSocketStatusBadge: React.FC<{ organizationId?: string }> = () => {
+  const { isConnected, isConnecting } = useWebSocket({ autoConnect: true });
   
   return (
     <Badge 

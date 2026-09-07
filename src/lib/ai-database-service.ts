@@ -180,10 +180,10 @@ export class AIAgentDatabaseService {
   }
 
   // Get campaign data with full context
-  async getCampaignWithContext(campaignId: string) {
+  async getCampaignWithContext(campaignId: string, organizationId: string) {
     try {
-      const campaign = await prisma.campaign.findUnique({
-        where: { id: campaignId },
+      const campaign = await prisma.campaign.findFirst({
+        where: { id: campaignId, organizationId },
         include: {
           organization: true,
           user: true,
@@ -248,12 +248,13 @@ export class AIAgentDatabaseService {
 
   // Update AI agent performance metrics
   async updateAIAgentPerformance(
-    agentId: string, 
+    agentId: string,
+    organizationId: string,
     performanceData: Record<string, any>
   ) {
     try {
-      const agent = await prisma.aIAgent.update({
-        where: { id: agentId },
+      const agent = await prisma.aIAgent.updateMany({
+        where: { id: agentId, organizationId },
         data: {
           performance: JSON.stringify(performanceData),
           lastRunAt: new Date(),
@@ -267,10 +268,10 @@ export class AIAgentDatabaseService {
   }
 
   // Get AI agent execution history
-  async getAIAgentHistory(agentId: string, limit = 50) {
+  async getAIAgentHistory(agentId: string, organizationId: string, limit = 50) {
     try {
-      const agent = await prisma.aIAgent.findUnique({
-        where: { id: agentId },
+      const agent = await prisma.aIAgent.findFirst({
+        where: { id: agentId, organizationId },
         include: {
           campaign: {
             include: {
@@ -487,19 +488,20 @@ export class AIAgentDatabaseService {
   }
 
   // Clean up old data
-  async cleanupOldData(daysToKeep = 90) {
+  async cleanupOldData(organizationId: string, daysToKeep = 90) {
     try {
       const cutoffDate = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000);
-      
+
       const deletedCounts = await Promise.all([
         prisma.analysis.deleteMany({
-          where: { createdAt: { lt: cutoffDate } },
+          where: { organizationId, createdAt: { lt: cutoffDate } },
         }),
         prisma.prediction.deleteMany({
-          where: { createdAt: { lt: cutoffDate } },
+          where: { organizationId, createdAt: { lt: cutoffDate } },
         }),
         prisma.optimization.deleteMany({
-          where: { 
+          where: {
+            organizationId,
             createdAt: { lt: cutoffDate },
             status: 'completed',
           },
