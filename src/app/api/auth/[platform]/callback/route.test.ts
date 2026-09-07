@@ -144,8 +144,13 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 describe("GET /api/auth/[platform]/callback", () => {
+  const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    // getOrigin() prefers NEXT_PUBLIC_SITE_URL; drop it so the origin comes
+    // from the request URL and assertions hold in any environment (CI sets it).
+    delete process.env.NEXT_PUBLIC_SITE_URL;
     mockedSafeFetch.mockResolvedValue(new Response("{}", { status: 500 }));
     mockedSafeFetchJson.mockResolvedValue({});
     process.env.FACEBOOK_APP_ID = "fb-app-id";
@@ -175,6 +180,14 @@ describe("GET /api/auth/[platform]/callback", () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    if (originalSiteUrl !== undefined) {
+      process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+    } else {
+      delete process.env.NEXT_PUBLIC_SITE_URL;
+    }
   });
 
   it("redirects to login when unauthenticated", async () => {

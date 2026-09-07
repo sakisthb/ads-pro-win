@@ -248,8 +248,13 @@ const protectedRoutes: Array<[string, () => Promise<Response>]> = [
 ];
 
 describe("connection and sync authorization boundaries", () => {
+  const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
   beforeEach(() => {
     jest.resetAllMocks();
+    // getOrigin() prefers NEXT_PUBLIC_SITE_URL; drop it so the origin comes
+    // from the request URL and assertions hold in any environment (CI sets it).
+    delete process.env.NEXT_PUBLIC_SITE_URL;
     global.fetch = mockedFetch;
     mockedGetSession.mockResolvedValue({ userId: "user-1" });
     mockedRequireOrganizationRoleForUser.mockResolvedValue(authorization);
@@ -260,6 +265,11 @@ describe("connection and sync authorization boundaries", () => {
 
   afterAll(() => {
     global.fetch = originalFetch;
+    if (originalSiteUrl !== undefined) {
+      process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+    } else {
+      delete process.env.NEXT_PUBLIC_SITE_URL;
+    }
   });
 
   it("rejects unauthenticated OAuth initiation before creating a provider redirect", async () => {

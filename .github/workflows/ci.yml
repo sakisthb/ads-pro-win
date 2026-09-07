@@ -117,8 +117,9 @@ jobs:
   build-production:
     runs-on: ubuntu-latest
     needs: [install-and-audit, typecheck]
-    env:
-      NODE_ENV: production
+    # No job-level NODE_ENV=production: it makes `npm ci` omit devDependencies
+    # (autoprefixer is one), breaking `next build`. `next build` forces
+    # NODE_ENV=production on its own.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -135,6 +136,8 @@ jobs:
   container-smoke:
     runs-on: ubuntu-latest
     needs: build-production
+    # No job-level NODE_ENV=production (see build-production); the container
+    # itself gets NODE_ENV=production via `docker run -e`.
     services:
       postgres:
         image: postgres:16-alpine
@@ -161,7 +164,6 @@ jobs:
         ports:
           - 6379:6379
     env:
-      NODE_ENV: production
       SMOKE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/adspro_smoke
     steps:
       - uses: actions/checkout@v4
