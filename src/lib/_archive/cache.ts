@@ -35,6 +35,26 @@ const CACHE_KEYS = {
 //   prefix?: string;
 // }
 
+// Scan keys matching a pattern using the non-blocking SCAN iterator.
+// `KEYS` blocks the Redis event loop on large keyspaces; SCAN walks the
+// keyspace in small batches and is safe for production use.
+async function scanKeys(pattern: string): Promise<string[]> {
+  const keys: string[] = []
+  let cursor = '0'
+  do {
+    const [nextCursor, batch] = await redis.scan(
+      cursor,
+      'MATCH',
+      pattern,
+      'COUNT',
+      100,
+    )
+    cursor = nextCursor
+    keys.push(...batch)
+  } while (cursor !== '0')
+  return keys
+}
+
 // Cache wrapper class
 class CacheManager {
   private prefix: string;
@@ -92,7 +112,7 @@ class CacheManager {
 
   async deletePattern(pattern: string): Promise<void> {
     try {
-      const keys = await redis.keys(this.getKey(pattern));
+      const keys = await scanKeys(this.getKey(pattern));
       if (keys.length > 0) {
         await redis.del(...keys);
       }

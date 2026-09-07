@@ -340,6 +340,21 @@ class MemoryManager {
   }
 }
 
+// Standalone hook for memory-efficient state via a stable ref.
+export function useOptimizedState<T>(initialValue: T) {
+  const stateRef = useRef<T>(initialValue);
+
+  const setState = (newValue: T | ((prev: T) => T)) => {
+    const value = typeof newValue === 'function'
+      ? (newValue as (prev: T) => T)(stateRef.current)
+      : newValue;
+
+    stateRef.current = value;
+  };
+
+  return [() => stateRef.current, setState] as const;
+}
+
 // React hooks for memory optimization
 export function useMemoryOptimization(options: {
   enableMonitoring?: boolean;
@@ -348,7 +363,7 @@ export function useMemoryOptimization(options: {
 } = {}) {
   const manager = MemoryManager.getInstance();
   const componentRef = useRef<string>(`Component_${Date.now()}_${Math.random()}`);
-  
+
   const {
     enableMonitoring = false,
     cleanupOnUnmount = true,
@@ -359,21 +374,6 @@ export function useMemoryOptimization(options: {
   const registerCleanup = useCallback((task: () => void) => {
     return manager.registerCleanupTask(task);
   }, [manager]);
-
-  // Memory-efficient state management
-  const createOptimizedState = useCallback(<T>(initialValue: T) => {
-    const stateRef = useRef<T>(initialValue);
-    
-    const setState = (newValue: T | ((prev: T) => T)) => {
-      const value = typeof newValue === 'function' 
-        ? (newValue as (prev: T) => T)(stateRef.current)
-        : newValue;
-      
-      stateRef.current = value;
-    };
-
-    return [() => stateRef.current, setState] as const;
-  }, []);
 
   // Track component for leak detection
   useEffect(() => {
@@ -397,7 +397,7 @@ export function useMemoryOptimization(options: {
 
   return {
     registerCleanup,
-    createOptimizedState,
+    createOptimizedState: useOptimizedState,
     getMetrics: () => manager.getMetrics(),
     triggerCleanup: () => manager.performRoutineCleanup(),
   };

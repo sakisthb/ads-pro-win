@@ -1,5 +1,15 @@
 // import { z } from 'zod';
 
+import { config } from '@/lib/config';
+import { safeFetch } from '@/lib/safe-fetch';
+import {
+  GoogleAdsAdapter,
+  MetaAdsAdapter,
+  TikTokAdsAdapter,
+  type AdAccountCredentials,
+  type PlatformAdapter,
+} from '@/lib/mcp';
+
 // API Response Types
 interface FacebookCampaign {
   id: string;
@@ -154,7 +164,7 @@ export class FacebookAPIClient extends PlatformAPIClient {
   async authenticate(): Promise<boolean> {
     try {
       // Facebook API authentication logic
-      const response = await fetch(`https://graph.facebook.com/v18.0/me?access_token=${this.credentials.accessToken}`);
+      const response = await safeFetch(`https://graph.facebook.com/v18.0/me?access_token=${this.credentials.accessToken}`);
       return response.ok;
     } catch (error) {
       console.error('Facebook authentication failed:', error);
@@ -165,7 +175,7 @@ export class FacebookAPIClient extends PlatformAPIClient {
   async getCampaigns(): Promise<CampaignData[]> {
     try {
       // Facebook API call to get campaigns
-      const response = await fetch(
+      const response = await safeFetch(
         `https://graph.facebook.com/v18.0/act_${this.credentials.accountId}/campaigns?access_token=${this.credentials.accessToken}`
       );
       const data = await response.json();
@@ -212,13 +222,17 @@ export class FacebookAPIClient extends PlatformAPIClient {
   async getCampaignMetrics(campaignId: string): Promise<CampaignData['metrics']> {
     try {
       // Facebook API call to get campaign insights
-      const response = await fetch(
+      const response = await safeFetch(
         `https://graph.facebook.com/v18.0/${campaignId}/insights?access_token=${this.credentials.accessToken}&fields=impressions,clicks,spend,actions`
       );
       const data = await response.json();
       
              const insights = data.data[0] || {};
-       const conversions = insights.actions?.find((action: unknown) => (action as { action_type: string }).action_type === 'purchase')?.value || 0;
+       const conversions = insights.actions?.find((action: { action_type?: string }) =>
+         action.action_type === 'omni_purchase' ||
+         action.action_type === 'purchase' ||
+         action.action_type === 'offsite_conversion.fb_pixel_purchase'
+       )?.value || 0;
       
       return {
         impressions: insights.impressions || 0,
@@ -250,7 +264,7 @@ export class FacebookAPIClient extends PlatformAPIClient {
   async updateCampaign(campaignId: string, updates: Partial<CampaignData>): Promise<boolean> {
     try {
       // Facebook API call to update campaign
-      const response = await fetch(
+      const response = await safeFetch(
         `https://graph.facebook.com/v18.0/${campaignId}?access_token=${this.credentials.accessToken}`,
         {
           method: 'POST',
@@ -268,7 +282,7 @@ export class FacebookAPIClient extends PlatformAPIClient {
   async createCampaign(campaign: Omit<CampaignData, 'id' | 'platformId' | 'createdAt' | 'updatedAt'>): Promise<string> {
     try {
       // Facebook API call to create campaign
-      const response = await fetch(
+      const response = await safeFetch(
         `https://graph.facebook.com/v18.0/act_${this.credentials.accountId}/campaigns?access_token=${this.credentials.accessToken}`,
         {
           method: 'POST',
@@ -293,7 +307,7 @@ export class FacebookAPIClient extends PlatformAPIClient {
   async deleteCampaign(campaignId: string): Promise<boolean> {
     try {
       // Facebook API call to delete campaign
-      const response = await fetch(
+      const response = await safeFetch(
         `https://graph.facebook.com/v18.0/${campaignId}?access_token=${this.credentials.accessToken}`,
         { method: 'DELETE' }
       );
@@ -306,7 +320,7 @@ export class FacebookAPIClient extends PlatformAPIClient {
 
   async getAccountInfo(): Promise<{ accountId: string; accountName: string }> {
     try {
-      const response = await fetch(
+      const response = await safeFetch(
         `https://graph.facebook.com/v18.0/act_${this.credentials.accountId}?access_token=${this.credentials.accessToken}&fields=name`
       );
       const data = await response.json();
@@ -326,7 +340,7 @@ export class FacebookAPIClient extends PlatformAPIClient {
   async refreshToken(): Promise<boolean> {
     try {
       // Facebook token refresh logic
-      const response = await fetch(
+      const response = await safeFetch(
         `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.FACEBOOK_APP_ID}&client_secret=${process.env.FACEBOOK_APP_SECRET}&fb_exchange_token=${this.credentials.accessToken}`
       );
       const data = await response.json();
@@ -353,7 +367,7 @@ export class GoogleAdsAPIClient extends PlatformAPIClient {
   async authenticate(): Promise<boolean> {
     try {
       // Google Ads API authentication logic
-      const response = await fetch(
+      const response = await safeFetch(
         `https://googleads.googleapis.com/v14/customers/${this.credentials.accountId}/googleAds:searchStream`,
         {
           headers: {
@@ -372,7 +386,7 @@ export class GoogleAdsAPIClient extends PlatformAPIClient {
   async getCampaigns(): Promise<CampaignData[]> {
     try {
       // Google Ads API call to get campaigns
-      const response = await fetch(
+      const response = await safeFetch(
         `https://googleads.googleapis.com/v14/customers/${this.credentials.accountId}/googleAds:searchStream`,
         {
           method: 'POST',
@@ -442,7 +456,7 @@ export class GoogleAdsAPIClient extends PlatformAPIClient {
   async getCampaignMetrics(campaignId: string): Promise<CampaignData['metrics']> {
     try {
       // Google Ads API call to get campaign metrics
-      const response = await fetch(
+      const response = await safeFetch(
         `https://googleads.googleapis.com/v14/customers/${this.credentials.accountId}/googleAds:searchStream`,
         {
           method: 'POST',
@@ -499,7 +513,7 @@ export class GoogleAdsAPIClient extends PlatformAPIClient {
   async updateCampaign(campaignId: string, updates: Partial<CampaignData>): Promise<boolean> {
     try {
       // Google Ads API call to update campaign
-      const response = await fetch(
+      const response = await safeFetch(
         `https://googleads.googleapis.com/v14/customers/${this.credentials.accountId}/campaigns:mutate`,
         {
           method: 'POST',
@@ -528,7 +542,7 @@ export class GoogleAdsAPIClient extends PlatformAPIClient {
   async createCampaign(campaign: Omit<CampaignData, 'id' | 'platformId' | 'createdAt' | 'updatedAt'>): Promise<string> {
     try {
       // Google Ads API call to create campaign
-      const response = await fetch(
+      const response = await safeFetch(
         `https://googleads.googleapis.com/v14/customers/${this.credentials.accountId}/campaigns:mutate`,
         {
           method: 'POST',
@@ -563,7 +577,7 @@ export class GoogleAdsAPIClient extends PlatformAPIClient {
   async deleteCampaign(campaignId: string): Promise<boolean> {
     try {
       // Google Ads API call to delete campaign
-      const response = await fetch(
+      const response = await safeFetch(
         `https://googleads.googleapis.com/v14/customers/${this.credentials.accountId}/campaigns:mutate`,
         {
           method: 'POST',
@@ -588,7 +602,7 @@ export class GoogleAdsAPIClient extends PlatformAPIClient {
 
   async getAccountInfo(): Promise<{ accountId: string; accountName: string }> {
     try {
-      const response = await fetch(
+      const response = await safeFetch(
         `https://googleads.googleapis.com/v14/customers/${this.credentials.accountId}?access_token=${this.credentials.accessToken}`,
         {
           headers: {
@@ -613,7 +627,7 @@ export class GoogleAdsAPIClient extends PlatformAPIClient {
   async refreshToken(): Promise<boolean> {
     try {
       // Google OAuth token refresh logic
-      const response = await fetch('https://oauth2.googleapis.com/token', {
+      const response = await safeFetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -621,7 +635,7 @@ export class GoogleAdsAPIClient extends PlatformAPIClient {
           client_id: process.env.GOOGLE_CLIENT_ID || '',
           client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
           refresh_token: this.credentials.refreshToken || '',
-        }),
+        }).toString(),
       });
       
       const data = await response.json();
@@ -642,7 +656,7 @@ export class GoogleAdsAPIClient extends PlatformAPIClient {
 // API Integration Manager
 export class APIIntegrationManager {
   private integrations: Map<string, APIIntegration> = new Map();
-  private clients: Map<string, PlatformAPIClient> = new Map();
+  private clients: Map<string, PlatformAPIClient | PlatformAdapter> = new Map();
 
   constructor() {
     this.loadIntegrations();
@@ -705,20 +719,41 @@ export class APIIntegrationManager {
     });
   }
 
-  private createClient(integration: APIIntegration): PlatformAPIClient | null {
+  private createClient(integration: APIIntegration): PlatformAPIClient | PlatformAdapter | null {
     try {
-      let client: PlatformAPIClient;
+      let client: PlatformAPIClient | PlatformAdapter;
 
-      switch (integration.platform) {
-        case PLATFORMS.FACEBOOK:
-          client = new FacebookAPIClient(integration.credentials);
-          break;
-        case PLATFORMS.GOOGLE:
-          client = new GoogleAdsAPIClient(integration.credentials);
-          break;
-        default:
-          console.error(`Unsupported platform: ${integration.platform}`);
-          return null;
+      // When the MCP feature flag is enabled, prefer the MCP adapter path over
+      // the direct REST client. The legacy clients remain the fallback when MCP
+      // is disabled.
+      if (config.features.mcpEnabled) {
+        const mcpCredentials = this.toMcpCredentials(integration);
+        switch (integration.platform) {
+          case PLATFORMS.FACEBOOK:
+            client = new MetaAdsAdapter(mcpCredentials);
+            break;
+          case PLATFORMS.GOOGLE:
+            client = new GoogleAdsAdapter(mcpCredentials);
+            break;
+          case PLATFORMS.TIKTOK:
+            client = new TikTokAdsAdapter(mcpCredentials);
+            break;
+          default:
+            console.error(`MCP adapter not available for platform: ${integration.platform}`);
+            return null;
+        }
+      } else {
+        switch (integration.platform) {
+          case PLATFORMS.FACEBOOK:
+            client = new FacebookAPIClient(integration.credentials);
+            break;
+          case PLATFORMS.GOOGLE:
+            client = new GoogleAdsAPIClient(integration.credentials);
+            break;
+          default:
+            console.error(`Unsupported platform: ${integration.platform}`);
+            return null;
+        }
       }
 
       this.clients.set(integration.id, client);
@@ -727,6 +762,53 @@ export class APIIntegrationManager {
       console.error(`Failed to create client for ${integration.platform}:`, error);
       return null;
     }
+  }
+
+  /**
+   * Translate an integration's credentials into the platform-agnostic
+   * {@link AdAccountCredentials} shape consumed by MCP adapters.
+   */
+  private toMcpCredentials(integration: APIIntegration): AdAccountCredentials {
+    let platform: AdAccountCredentials['platform'];
+    switch (integration.platform) {
+      case PLATFORMS.FACEBOOK:
+      case PLATFORMS.INSTAGRAM:
+        platform = 'meta';
+        break;
+      case PLATFORMS.GOOGLE:
+        platform = 'google';
+        break;
+      case PLATFORMS.TIKTOK:
+        platform = 'tiktok';
+        break;
+      default:
+        platform = 'meta';
+    }
+    return {
+      platform,
+      accountId: integration.credentials.accountId ?? '',
+      accessToken: integration.credentials.accessToken,
+      refreshToken: integration.credentials.refreshToken,
+    };
+  }
+
+  /**
+   * Narrow a stored client to the legacy {@link PlatformAPIClient} contract.
+   * MCP adapters do not support these REST-specific operations and will throw
+   * a descriptive error directing callers to the adapter API.
+   */
+  private assertLegacyClient(
+    client: PlatformAPIClient | PlatformAdapter | undefined | null,
+  ): PlatformAPIClient {
+    if (!client) {
+      throw new Error('Client not found');
+    }
+    if (!(client instanceof PlatformAPIClient)) {
+      throw new Error(
+        `Legacy operation not supported for MCP adapter "${client.platform}". Use the adapter's MCP methods directly.`,
+      );
+    }
+    return client;
   }
 
   async getIntegrations(organizationId: string): Promise<APIIntegration[]> {
@@ -777,11 +859,13 @@ export class APIIntegrationManager {
 
   async syncCampaigns(integrationId: string): Promise<CampaignData[]> {
     const integration = this.integrations.get(integrationId);
-    const client = this.clients.get(integrationId);
+    const storedClient = this.clients.get(integrationId);
 
-    if (!integration || !client) {
+    if (!integration || !storedClient) {
       throw new Error('Integration or client not found');
     }
+
+    const client = this.assertLegacyClient(storedClient);
 
     try {
       // Update integration status
@@ -821,46 +905,31 @@ export class APIIntegrationManager {
   }
 
   async getCampaignMetrics(integrationId: string, campaignId: string): Promise<CampaignData['metrics']> {
-    const client = this.clients.get(integrationId);
-    if (!client) {
-      throw new Error('Client not found');
-    }
+    const client = this.assertLegacyClient(this.clients.get(integrationId));
 
     return await client.getCampaignMetrics(campaignId);
   }
 
   async updateCampaign(integrationId: string, campaignId: string, updates: Partial<CampaignData>): Promise<boolean> {
-    const client = this.clients.get(integrationId);
-    if (!client) {
-      throw new Error('Client not found');
-    }
+    const client = this.assertLegacyClient(this.clients.get(integrationId));
 
     return await client.updateCampaign(campaignId, updates);
   }
 
   async createCampaign(integrationId: string, campaign: Omit<CampaignData, 'id' | 'platformId' | 'createdAt' | 'updatedAt'>): Promise<string> {
-    const client = this.clients.get(integrationId);
-    if (!client) {
-      throw new Error('Client not found');
-    }
+    const client = this.assertLegacyClient(this.clients.get(integrationId));
 
     return await client.createCampaign(campaign);
   }
 
   async deleteCampaign(integrationId: string, campaignId: string): Promise<boolean> {
-    const client = this.clients.get(integrationId);
-    if (!client) {
-      throw new Error('Client not found');
-    }
+    const client = this.assertLegacyClient(this.clients.get(integrationId));
 
     return await client.deleteCampaign(campaignId);
   }
 
   async refreshToken(integrationId: string): Promise<boolean> {
-    const client = this.clients.get(integrationId);
-    if (!client) {
-      throw new Error('Client not found');
-    }
+    const client = this.assertLegacyClient(this.clients.get(integrationId));
 
     const success = await client.refreshToken();
     
