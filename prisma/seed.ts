@@ -1,459 +1,582 @@
 import { PrismaClient } from '@prisma/client';
+import dotenv from 'dotenv';
+
+/**
+ * Demo — Primary Seed Script
+ *
+ * Provisions a complete "Demo" organization with realistic,
+ * investor-ready demo data across every Prisma model.
+ *
+ * Idempotent: all structural records use upsert (re-runnable safely);
+ * bulk inserts use createMany + skipDuplicates.
+ *
+ * Usage:  npx prisma db seed   (or)   npm run db:seed
+ * Env:    DATABASE_URL / DIRECT_DATABASE_URL (.env.local or .env)
+ */
+
+dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env' });
 
 const prisma = new PrismaClient();
 
-// Realistic test data generators
-const PLATFORMS = ['facebook', 'google', 'tiktok', 'instagram', 'linkedin'];
-const CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'completed'];
-const CAMPAIGN_TYPES = ['awareness', 'traffic', 'engagement', 'conversions', 'catalog_sales', 'store_traffic'];
-const AI_AGENT_TYPES = ['campaign_optimizer', 'audience_analyzer', 'creative_generator', 'performance_predictor'];
-const WORKFLOW_TYPES = ['automation', 'analysis', 'optimization'];
-const ANALYSIS_TYPES = ['performance', 'audience', 'competitive', 'trend'];
-const PREDICTION_TYPES = ['performance', 'audience', 'trend', 'budget'];
+// ── Stable IDs (valid UUIDv4-shaped) for idempotent upserts ──────────────────
+const ADMIN_USER_ID = '7f3a2b1c-4d5e-4f6a-8b7c-9d0e1f2a3b4c';
+const MEMBER_USER_ID = '8e4b3c2d-5e6f-4a7b-9c8d-0e1f2a3b4c5d';
 
-// Company names for organizations
-const COMPANY_NAMES = [
-  'TechFlow Marketing', 'Digital Growth Solutions', 'AdVantage Pro', 'Marketing Masters',
-  'Creative Campaigns Co', 'Performance Plus Agency', 'Smart Ads Network', 'Brand Boost Studios',
-  'Conversion Kings', 'Social Media Experts', 'E-commerce Accelerators', 'Local Business Pro'
+// ── Constants ───────────────────────────────────────────────────────────────
+const ORG_NAME = 'Demo';
+const ORG_SLUG = 'demo';
+const BRAND_NAME = 'SACOS';
+const BRAND_SLUG = 'sacos';
+
+type AdAccountDef = { platform: string; accountId: string; name: string };
+
+const AD_ACCOUNTS: AdAccountDef[] = [
+  { platform: 'meta', accountId: 'act_sacos_meta_2024', name: 'SACOS Meta Ads' },
+  { platform: 'google', accountId: 'sacos-google-2024', name: 'SACOS Google Ads' },
+  { platform: 'tiktok', accountId: 'sacos-tiktok-2024', name: 'SACOS TikTok Ads' },
 ];
 
-// Generate realistic names
-const FIRST_NAMES = ['Alex', 'Maria', 'John', 'Sofia', 'Michael', 'Elena', 'David', 'Christina', 'Nick', 'Anna'];
-const LAST_NAMES = ['Papadopoulos', 'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Martinez'];
+type CampaignDef = {
+  id: string;
+  name: string;
+  platform: string;       // campaign.platform: facebook | google | tiktok
+  adAccount: string;      // which AD_ACCOUNTS.platform it belongs to
+  status: string;
+  budget: number;
+  spentPct: number;
+  description: string;
+};
 
-function randomChoice<T>(array: T[]): T {
-  return array[Math.floor(Math.random() * array.length)];
+const CAMPAIGNS: CampaignDef[] = [
+  { id: 'sacos-camp-0', name: 'Summer Sale 2024 - Conversions', platform: 'facebook', adAccount: 'meta', status: 'active', budget: 3500, spentPct: 0.68, description: 'Conversion-optimized Meta campaign for the Summer 2024 sale across GR/CY/IT markets.' },
+  { id: 'sacos-camp-1', name: 'Brand Awareness - SACOS Premium', platform: 'facebook', adAccount: 'meta', status: 'active', budget: 2000, spentPct: 0.54, description: 'Top-of-funnel awareness campaign for the SACOS premium line with video creative.' },
+  { id: 'sacos-camp-2', name: 'Retargeting - Cart Abandoners', platform: 'facebook', adAccount: 'meta', status: 'active', budget: 1200, spentPct: 0.73, description: 'Dynamic product retargeting for 7-day cart abandoners with time-sensitive offers.' },
+  { id: 'sacos-camp-3', name: 'Search - Brand Terms', platform: 'google', adAccount: 'google', status: 'active', budget: 1800, spentPct: 0.61, description: 'Google Search defending the SACOS brand query with sitelink extensions.' },
+  { id: 'sacos-camp-4', name: 'Shopping - Full Catalog', platform: 'google', adAccount: 'google', status: 'active', budget: 4200, spentPct: 0.79, description: 'Google Shopping feed campaign for the full SACOS product catalog (Performance Max).' },
+  { id: 'sacos-camp-5', name: 'Spark Ads - UGC Collection', platform: 'tiktok', adAccount: 'tiktok', status: 'active', budget: 1500, spentPct: 0.65, description: 'TikTok Spark Ads promoting user-generated content for the Fall collection launch.' },
+  { id: 'sacos-camp-6', name: 'In-Feed - New Arrivals Fall', platform: 'tiktok', adAccount: 'tiktok', status: 'paused', budget: 900, spentPct: 0.22, description: 'In-feed TikTok campaign for Fall arrivals — paused pending creative refresh.' },
+];
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+function daysAgo(n: number): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - n);
+  return d;
+}
+function addDays(date: Date, n: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
-function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+// ── Main ────────────────────────────────────────────────────────────────────
+async function main() {
+  console.log('🚀 Starting Demo seed...\n');
 
-function randomFloat(min: number, max: number): number {
-  return Math.random() * (max - min) + min;
-}
+  // 1. Organization
+  const org = await prisma.organization.upsert({
+    where: { slug: ORG_SLUG },
+    create: {
+      name: ORG_NAME,
+      slug: ORG_SLUG,
+      plan: 'enterprise',
+      settings: { timezone: 'Europe/Athens', currency: 'EUR', language: 'en' },
+    },
+    update: { name: ORG_NAME, plan: 'enterprise' },
+  });
+  console.log(`✓ Organization: ${org.name} (id: ${org.id})`);
 
-function randomDate(start: Date, end: Date): Date {
-  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
-}
+  // 2. Users (admin + member) — using generated UUIDs, NOT the .env.local placeholder
+  const adminUser = await prisma.user.upsert({
+    where: { id: ADMIN_USER_ID },
+    create: {
+      id: ADMIN_USER_ID,
+      email: 'nikolai@sacos-marketing.com',
+      fullName: 'Nikolai Vassilakis',
+      role: 'admin',
+      isActive: true,
+      lastLoginAt: new Date(),
+      organizationId: org.id,
+    },
+    update: {
+      email: 'nikolai@sacos-marketing.com',
+      fullName: 'Nikolai Vassilakis',
+      role: 'admin',
+      isActive: true,
+      organizationId: org.id,
+    },
+  });
+  console.log(`✓ Admin user: ${adminUser.fullName} (${adminUser.email})`);
 
-// Generate realistic campaign performance data
-function generateCampaignPerformance() {
-  const impressions = randomInt(1000, 100000);
-  const clicks = randomInt(Math.floor(impressions * 0.005), Math.floor(impressions * 0.15));
-  const conversions = randomInt(0, Math.floor(clicks * 0.05));
-  const spend = randomFloat(50, 5000);
-  
-  return {
-    impressions,
-    clicks,
-    conversions,
-    spend,
-    ctr: clicks / impressions,
-    cpc: spend / clicks,
-    conversion_rate: conversions / clicks,
-    cost_per_conversion: conversions > 0 ? spend / conversions : 0,
-    roas: conversions * randomFloat(20, 150) / spend
-  };
-}
+  const memberUser = await prisma.user.upsert({
+    where: { id: MEMBER_USER_ID },
+    create: {
+      id: MEMBER_USER_ID,
+      email: 'elena@sacos-marketing.com',
+      fullName: 'Elena Papadopoulos',
+      role: 'manager',
+      isActive: true,
+      lastLoginAt: daysAgo(1),
+      organizationId: org.id,
+    },
+    update: {
+      email: 'elena@sacos-marketing.com',
+      fullName: 'Elena Papadopoulos',
+      role: 'manager',
+      isActive: true,
+      organizationId: org.id,
+    },
+  });
+  console.log(`✓ Member user: ${memberUser.fullName} (${memberUser.email})`);
 
-// Generate realistic audience targeting
-function generateTargetAudience() {
-  return {
-    age_min: randomChoice([18, 21, 25, 30, 35]),
-    age_max: randomChoice([35, 45, 55, 65]),
-    gender: randomChoice(['all', 'male', 'female']),
-    locations: randomChoice([
-      ['Greece', 'Cyprus'], 
-      ['United States'], 
-      ['United Kingdom', 'Ireland'],
-      ['Germany', 'Austria'],
-      ['Global']
-    ]),
-    interests: randomChoice([
-      ['technology', 'business', 'entrepreneurship'],
-      ['fashion', 'beauty', 'lifestyle'],
-      ['fitness', 'health', 'wellness'],
-      ['travel', 'food', 'entertainment'],
-      ['education', 'career', 'professional']
-    ]),
-    behaviors: randomChoice([
-      ['online_shoppers', 'frequent_travelers'],
-      ['business_decision_makers', 'small_business_owners'],
-      ['mobile_device_users', 'engaged_shoppers']
-    ])
-  };
-}
+  // 2b. OrganizationMemberships (admin=owner, member=member)
+  await prisma.organizationMembership.upsert({
+    where: { userId_organizationId: { userId: ADMIN_USER_ID, organizationId: org.id } },
+    create: { userId: ADMIN_USER_ID, organizationId: org.id, role: 'owner', isDefault: true },
+    update: { role: 'owner', isDefault: true },
+  });
+  await prisma.organizationMembership.upsert({
+    where: { userId_organizationId: { userId: MEMBER_USER_ID, organizationId: org.id } },
+    create: { userId: MEMBER_USER_ID, organizationId: org.id, role: 'member', isDefault: true },
+    update: { role: 'member', isDefault: true },
+  });
+  console.log(`✓ Memberships: owner + member linked`);
 
-// Generate ad creatives
-function generateAdCreatives() {
-  const numCreatives = randomInt(1, 5);
-  const creatives = [];
-  
-  for (let i = 0; i < numCreatives; i++) {
-    creatives.push({
-      id: `creative_${i + 1}`,
-      type: randomChoice(['image', 'video', 'carousel', 'collection']),
-      headline: `Amazing ${randomChoice(['Product', 'Service', 'Offer', 'Deal'])} ${randomInt(1, 100)}`,
-      description: 'Drive results with our innovative solution. Get started today!',
-      call_to_action: randomChoice(['Learn More', 'Shop Now', 'Sign Up', 'Get Quote', 'Contact Us']),
-      image_url: `https://picsum.photos/800/600?random=${randomInt(1, 1000)}`,
-      performance: {
-        impressions: randomInt(500, 50000),
-        clicks: randomInt(25, 2500),
-        ctr: randomFloat(0.5, 8.0),
-        relevance_score: randomFloat(6.0, 10.0)
-      }
+  // 3. Brand
+  const brand = await prisma.brand.upsert({
+    where: { organizationId_slug: { organizationId: org.id, slug: BRAND_SLUG } },
+    create: { name: BRAND_NAME, slug: BRAND_SLUG, organizationId: org.id, website: 'https://sacos-marketing.com' },
+    update: { name: BRAND_NAME, website: 'https://sacos-marketing.com' },
+  });
+  console.log(`✓ Brand: ${brand.name} (id: ${brand.id})`);
+
+  // 4. Ad Accounts (Meta, Google, TikTok)
+  const adAccountMap = new Map<string, string>(); // platform -> adAccountId (PK)
+  for (const def of AD_ACCOUNTS) {
+    const acct = await prisma.adAccount.upsert({
+      where: { platform_accountId: { platform: def.platform, accountId: def.accountId } },
+      create: {
+        brandId: brand.id,
+        platform: def.platform,
+        accountId: def.accountId,
+        name: def.name,
+        currency: 'EUR',
+        accessToken: 'demo-encrypted-token',
+        tokenExpiry: new Date('2030-01-01'),
+        isActive: true,
+        lastSyncAt: new Date(),
+      },
+      update: { brandId: brand.id, name: def.name, isActive: true, lastSyncAt: new Date() },
     });
+    adAccountMap.set(def.platform, acct.id);
   }
-  
-  return creatives;
-}
+  console.log(`✓ AdAccounts: ${AD_ACCOUNTS.length} created (Meta, Google, TikTok)`);
 
-// Generate AI analysis insights
-function generateAnalysisInsights() {
-  return [
+  // 5. Campaigns (7)
+  const campaignIds: string[] = [];
+  for (const c of CAMPAIGNS) {
+    const spent = round2(c.budget * c.spentPct);
+    const startDate = c.status === 'completed' ? daysAgo(75) : daysAgo(28);
+    const endDate = c.status === 'completed' ? daysAgo(4) : (c.status === 'draft' ? null : addDays(new Date(), 45));
+    const perfRoas = round2(2.2 + seededRandom(c.name.length * 7) * 2.3);
+    const perfCtr = round2(1.1 + seededRandom(c.name.length * 13) * 2.4);
+    await prisma.campaign.upsert({
+      where: { id: c.id },
+      create: {
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        platform: c.platform,
+        status: c.status,
+        budget: c.budget,
+        budgetSpent: spent,
+        startDate,
+        endDate,
+        targetAudience: {
+          ageRange: '25-45',
+          gender: 'all',
+          interests: ['premium fashion', 'luxury accessories', 'lifestyle'],
+          locations: ['Greece', 'Cyprus', 'Italy'],
+        },
+        adCreatives: [{ format: 'single_image', status: 'active' }, { format: 'carousel', status: 'active' }],
+        performance: { roas: perfRoas, ctr: perfCtr, cpa: round2(spent / (perfCtr * 10)) },
+        settings: { bidding: 'auto', optimizationGoal: 'conversions' },
+        organizationId: org.id,
+        userId: ADMIN_USER_ID,
+      },
+      update: {
+        name: c.name,
+        status: c.status,
+        budget: c.budget,
+        budgetSpent: spent,
+        description: c.description,
+      },
+    });
+    campaignIds.push(c.id);
+  }
+  console.log(`✓ Campaigns: ${CAMPAIGNS.length} created`);
+
+  // 6. DailyMetrics — 30 days × 7 campaigns = 210 rows
+  console.log('⏳ Generating DailyMetrics (30 days × 7 campaigns)...');
+  type MetricRow = {
+    date: Date;
+    platform: string;
+    adAccountId: string;
+    campaignId: string;
+    campaignName: string;
+    adGroupId: null;
+    adId: null;
+    currency: string;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    conversionValue: number;
+    cpc: number;
+    cpm: number;
+    ctr: number;
+    roas: number;
+  };
+
+  const metrics: MetricRow[] = [];
+  const platformSpendBase: Record<string, number> = { facebook: 9, google: 6, tiktok: 5 };
+  const platformCpmBase: Record<string, number> = { facebook: 6.5, google: 5.0, tiktok: 3.0 };
+  const platformCtrBase: Record<string, number> = { facebook: 0.022, google: 0.035, tiktok: 0.014 };
+  const platformConvBase: Record<string, number> = { facebook: 6, google: 4, tiktok: 3 };
+
+  for (let day = 1; day <= 30; day++) {
+    const date = daysAgo(day);
+    const dow = date.getDay();
+    const weekendBoost = dow === 0 || dow === 6 ? 1.22 : 1.0;
+    const trend = 1 + 0.08 * Math.sin((day / 30) * Math.PI * 2);
+
+    for (let ci = 0; ci < CAMPAIGNS.length; ci++) {
+      const c = CAMPAIGNS[ci];
+      const seed = day * 100 + ci * 7;
+      const r = (o: number) => seededRandom(seed + o);
+
+      if (c.status === 'draft' || c.status === 'paused') {
+        // Draft/paused campaigns contribute no spend
+        continue;
+      }
+
+      const p = c.platform; // facebook | google | tiktok
+      const baseSpend = platformSpendBase[p] + r(1) * 14;
+      const spend = round2(baseSpend * weekendBoost * trend);
+      const cpm = round2(platformCpmBase[p] + r(2) * 3);
+      const ctrVal = platformCtrBase[p] + r(3) * 0.012;
+      const impressions = Math.max(100, Math.round((spend * 1000) / cpm));
+      const clicks = Math.max(1, Math.round(impressions * ctrVal));
+      const cpc = round2(spend / clicks);
+      const conversions = Math.max(0, Math.round(platformConvBase[p] + r(4) * 9));
+      const aov = 48 + r(5) * 42; // €48–90 AOV
+      const conversionValue = round2(conversions * aov);
+      const roas = spend > 0 ? round2(conversionValue / spend) : 0;
+
+      metrics.push({
+        date,
+        platform: p === 'facebook' ? 'meta' : p, // DailyMetric.platform uses 'meta' for Facebook
+        adAccountId: adAccountMap.get(c.adAccount)!,
+        campaignId: c.id,
+        campaignName: c.name,
+        adGroupId: null,
+        adId: null,
+        currency: 'EUR',
+        spend,
+        impressions,
+        clicks,
+        conversions,
+        conversionValue,
+        cpc,
+        cpm,
+        ctr: round2(ctrVal * 100),
+        roas,
+      });
+    }
+  }
+
+  const batchSize = 200;
+  let totalMetrics = 0;
+  for (let i = 0; i < metrics.length; i += batchSize) {
+    const batch = metrics.slice(i, i + batchSize);
+    const result = await prisma.dailyMetric.createMany({ data: batch, skipDuplicates: true });
+    totalMetrics += result.count;
+  }
+  console.log(`✓ DailyMetrics: ${totalMetrics} rows inserted`);
+
+  // 7. Predictions (4 AI insights)
+  const predictions = [
     {
       type: 'performance',
-      title: 'Campaign Performance Analysis',
-      description: 'Comprehensive analysis of campaign metrics and trends',
-      recommendation: 'Increase budget by 20% for top-performing ad sets',
-      confidence: randomFloat(0.7, 0.95),
-      impact: randomChoice(['low', 'medium', 'high'])
+      title: '7-Day ROAS Forecast — Blended',
+      description: 'Predicted blended ROAS for all active campaigns over the next 7 days based on 30-day spend velocity and conversion trends.',
+      confidence: 0.89,
+      accuracy: 0.84,
+      data: { predictedRoas: 3.42, currentRoas: 3.18, expectedSpend: 4250, expectedRevenue: 14535, trend: 'upward' },
+    },
+    {
+      type: 'budget',
+      title: 'Optimal Budget Allocation — September',
+      description: 'Recommended platform budget split to maximize blended ROAS given current saturation curves.',
+      confidence: 0.92,
+      accuracy: 0.87,
+      data: { meta: 0.42, google: 0.38, tiktok: 0.20, expectedBlendedRoas: 3.65, rationale: 'tiktok_scaling_headroom' },
     },
     {
       type: 'audience',
-      title: 'Audience Optimization',
-      description: 'Analysis of audience segments and engagement patterns',
-      recommendation: 'Focus on 25-34 age group with higher conversion rates',
-      confidence: randomFloat(0.6, 0.9),
-      impact: randomChoice(['medium', 'high'])
+      title: 'Audience Fatigue Warning — Meta Retargeting',
+      description: 'Cart Abandoner audience frequency is 6.8x; CTR decline projected within 5 days if creative is not refreshed.',
+      confidence: 0.78,
+      accuracy: 0.72,
+      data: { atRiskSegments: 1, frequency: 6.8, estimatedCtrDecline: 0.18, refreshRecommendedIn: '5 days' },
     },
     {
-      type: 'creative',
-      title: 'Creative Performance',
-      description: 'Analysis of ad creative performance and engagement',
-      recommendation: 'Test new video creatives for better engagement',
-      confidence: randomFloat(0.65, 0.88),
-      impact: randomChoice(['medium', 'high'])
-    }
+      type: 'trend',
+      title: 'Fall 2024 Demand Forecast',
+      description: 'Seasonal demand lift expected across premium accessories as temperatures drop in target markets.',
+      confidence: 0.85,
+      accuracy: 0.81,
+      data: { expectedDemandLift: 0.28, topCategories: ['outerwear', 'leather goods', 'boots'], peakWeek: 'Oct 14-20' },
+    },
   ];
-}
+  for (let i = 0; i < predictions.length; i++) {
+    const p = predictions[i];
+    await prisma.prediction.upsert({
+      where: { id: `sacos-pred-${i}` },
+      create: {
+        id: `sacos-pred-${i}`,
+        type: p.type,
+        title: p.title,
+        description: p.description,
+        data: p.data,
+        confidence: p.confidence,
+        accuracy: p.accuracy,
+        organizationId: org.id,
+        campaignId: campaignIds[i % campaignIds.length],
+      },
+      update: { title: p.title, description: p.description, confidence: p.confidence, accuracy: p.accuracy, data: p.data },
+    });
+  }
+  console.log(`✓ Predictions: ${predictions.length} created`);
 
-async function main() {
-  console.log('🚀 Starting database seeding with realistic data...');
-  
-  // Clear existing data
-  console.log('🧹 Clearing existing data...');
-  await prisma.notification.deleteMany();
-  await prisma.optimization.deleteMany();
-  await prisma.prediction.deleteMany();
-  await prisma.analysis.deleteMany();
-  await prisma.workflow.deleteMany();
-  await prisma.aIAgent.deleteMany();
-  await prisma.campaign.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.organization.deleteMany();
-  
-  // Create Organizations (5-10 realistic companies)
-  console.log('🏢 Creating organizations...');
-  const organizations = [];
-  for (let i = 0; i < 8; i++) {
-    const org = await prisma.organization.create({
+  // 8. Notifications (6)
+  const notifications = [
+    { type: 'success', title: 'Campaign Hit ROAS Target', message: '"Summer Sale 2024 - Conversions" achieved 4.1x ROAS this week — exceeding the 3.5x target.', isRead: false },
+    { type: 'alert', title: 'Budget Threshold Warning', message: '"Shopping - Full Catalog" has spent 79% of its monthly budget. Consider increasing the cap.', isRead: false },
+    { type: 'info', title: 'New Prediction Available', message: 'A new 7-day ROAS forecast is available for all active campaigns. Predicted blended ROAS: 3.42x.', isRead: false },
+    { type: 'warning', title: 'Creative Performance Declining', message: 'Retargeting - Cart Abandoners CTR dropped 18% in the last 3 days. Creative refresh recommended.', isRead: false },
+    { type: 'success', title: 'Weekly Report Generated', message: 'Your weekly cross-platform performance report is ready. Blended ROAS: 3.18x, Spend: €4,820.', isRead: true },
+    { type: 'info', title: 'Sync Completed', message: 'Google Ads metrics sync completed successfully. 30 days of data refreshed.', isRead: true },
+  ];
+  for (let i = 0; i < notifications.length; i++) {
+    const n = notifications[i];
+    await prisma.notification.upsert({
+      where: { id: `sacos-notif-${i}` },
+      create: { id: `sacos-notif-${i}`, type: n.type, title: n.title, message: n.message, isRead: n.isRead, data: {}, organizationId: org.id },
+      update: { title: n.title, message: n.message, isRead: n.isRead },
+    });
+  }
+  console.log(`✓ Notifications: ${notifications.length} created`);
+
+  // 9. Workflows (2)
+  const workflows = [
+    {
+      name: 'Daily Budget Rebalancer',
+      type: 'optimization',
+      status: 'active',
+      description: 'Automatically shifts budget from underperforming to top campaigns daily at 6 AM (Europe/Athens).',
+      configuration: { trigger: 'schedule', timeOfDay: '06:00', minRoasThreshold: 2.0, maxShiftPct: 0.15 },
+      schedule: { cron: '0 6 * * *', timezone: 'Europe/Athens' },
+    },
+    {
+      name: 'Weekly Performance Report',
+      type: 'analysis',
+      status: 'active',
+      description: 'Generates a comprehensive weekly cross-platform performance analysis every Monday at 9 AM.',
+      configuration: { metrics: ['roas', 'cpa', 'ctr', 'conversions'], recipients: ['nikolai@sacos-marketing.com'] },
+      schedule: { cron: '0 9 * * 1', timezone: 'Europe/Athens' },
+    },
+  ];
+  for (let i = 0; i < workflows.length; i++) {
+    const w = workflows[i];
+    await prisma.workflow.upsert({
+      where: { id: `sacos-wf-${i}` },
+      create: {
+        id: `sacos-wf-${i}`,
+        name: w.name,
+        type: w.type,
+        status: w.status,
+        description: w.description,
+        configuration: w.configuration,
+        schedule: w.schedule,
+        lastRunAt: daysAgo(i + 1),
+        nextRunAt: addDays(new Date(), i + 1),
+        organizationId: org.id,
+      },
+      update: { name: w.name, status: w.status, description: w.description, configuration: w.configuration },
+    });
+  }
+  console.log(`✓ Workflows: ${workflows.length} created`);
+
+  // 10. WooCommerce Orders (4)
+  const wooOrders = [
+    {
+      orderId: 2001,
+      orderNumber: 'SACOS-2001',
+      status: 'completed',
+      dateCreated: daysAgo(2),
+      grossSales: 248.0,
+      discounts: 24.8,
+      refunds: 0,
+      netSales: 223.2,
+      shipping: 5.9,
+      tax: 53.57,
+      costOfGoods: 86.8,
+      grossProfit: 136.4,
+      isNewCustomer: true,
+      customerEmail: 'maria.k@example.com',
+      source: 'facebook',
+      medium: 'cpc',
+      campaign: 'summer_sale_2024',
+    },
+    {
+      orderId: 2002,
+      orderNumber: 'SACOS-2002',
+      status: 'completed',
+      dateCreated: daysAgo(5),
+      grossSales: 379.0,
+      discounts: 0,
+      refunds: 0,
+      netSales: 379.0,
+      shipping: 0,
+      tax: 90.96,
+      costOfGoods: 151.6,
+      grossProfit: 227.4,
+      isNewCustomer: false,
+      customerEmail: 'george.p@example.com',
+      source: 'google',
+      medium: 'cpc',
+      campaign: 'shopping_full_catalog',
+    },
+    {
+      orderId: 2003,
+      orderNumber: 'SACOS-2003',
+      status: 'processing',
+      dateCreated: daysAgo(1),
+      grossSales: 156.0,
+      discounts: 15.6,
+      refunds: 0,
+      netSales: 140.4,
+      shipping: 4.9,
+      tax: 33.7,
+      costOfGoods: 54.6,
+      grossProfit: 85.8,
+      isNewCustomer: true,
+      customerEmail: 'sofia.l@example.com',
+      source: 'tiktok',
+      medium: 'cpc',
+      campaign: 'spark_ads_ugc',
+    },
+    {
+      orderId: 2004,
+      orderNumber: 'SACOS-2004',
+      status: 'refunded',
+      dateCreated: daysAgo(8),
+      grossSales: 92.0,
+      discounts: 0,
+      refunds: 73.6,
+      netSales: 18.4,
+      shipping: 4.9,
+      tax: 4.42,
+      costOfGoods: 32.2,
+      grossProfit: -13.8,
+      isNewCustomer: true,
+      customerEmail: 'nikos.d@example.com',
+      source: 'facebook',
+      medium: 'cpc',
+      campaign: 'retargeting_cart_abandoners',
+    },
+  ];
+  for (const o of wooOrders) {
+    await prisma.wooOrder.upsert({
+      where: { brandId_orderId: { brandId: brand.id, orderId: o.orderId } },
+      create: { brandId: brand.id, ...o },
+      update: { status: o.status, grossSales: o.grossSales, netSales: o.netSales, grossProfit: o.grossProfit },
+    });
+  }
+  console.log(`✓ WooOrders: ${wooOrders.length} created`);
+
+  // 11. WooCommerce Products (4)
+  const wooProducts = [
+    { productId: 3001, sku: 'SAC-LCB-01', name: 'Premium Leather Crossbody Bag', price: 129.0, costOfGoods: 52.0, stockQty: 42, stockStatus: 'instock', isAdvertised: true },
+    { productId: 3002, sku: 'SAC-CWT-02', name: 'Cashmere Blend Scarf', price: 79.0, costOfGoods: 28.0, stockQty: 65, stockStatus: 'instock', isAdvertised: true },
+    { productId: 3003, sku: 'SAC-MWG-03', name: 'Minimalist Gold Watch', price: 189.0, costOfGoods: 75.0, stockQty: 12, stockStatus: 'instock', isAdvertised: true },
+    { productId: 3004, sku: 'SAC-SAB-04', name: 'Suede Ankle Boots', price: 159.0, costOfGoods: 64.0, stockQty: 0, stockStatus: 'outofstock', isAdvertised: false },
+  ];
+  for (const p of wooProducts) {
+    await prisma.wooProduct.upsert({
+      where: { brandId_productId: { brandId: brand.id, productId: p.productId } },
+      create: { brandId: brand.id, ...p, lastSyncAt: new Date() },
+      update: { name: p.name, price: p.price, stockQty: p.stockQty, stockStatus: p.stockStatus, isAdvertised: p.isAdvertised, lastSyncAt: new Date() },
+    });
+  }
+  console.log(`✓ WooProducts: ${wooProducts.length} created`);
+
+  // 12. Sync Jobs (3)
+  const syncJobs = [
+    { type: 'metrics', platform: 'meta', recordsProcessed: 210, adAccountKey: 'meta' },
+    { type: 'metrics', platform: 'google', recordsProcessed: 210, adAccountKey: 'google' },
+    { type: 'metrics', platform: 'tiktok', recordsProcessed: 180, adAccountKey: 'tiktok' },
+  ];
+  for (let i = 0; i < syncJobs.length; i++) {
+    const s = syncJobs[i];
+    const startedAt = daysAgo(i + 1);
+    startedAt.setHours(2 + i * 3, 15);
+    const completedAt = new Date(startedAt.getTime() + (45 + i * 20) * 1000);
+    await prisma.syncJob.create({
       data: {
-        name: COMPANY_NAMES[i],
-        slug: COMPANY_NAMES[i].toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        plan: randomChoice(['free', 'basic', 'professional', 'enterprise']),
-        settings: JSON.stringify({
-          timezone: 'Europe/Athens',
-          currency: 'EUR',
-          language: 'en',
-          notifications: {
-            email: true,
-            slack: false,
-            webhook: false
-          },
-          ai_settings: {
-            auto_optimization: true,
-            predictive_analytics: true,
-            automated_reporting: true
-          }
-        })
-      }
-    });
-    organizations.push(org);
+        adAccountId: adAccountMap.get(s.adAccountKey)!,
+        brandId: brand.id,
+        type: s.type,
+        platform: s.platform,
+        status: 'completed',
+        startedAt,
+        completedAt,
+        recordsProcessed: s.recordsProcessed,
+      },
+    }).catch(() => { /* sync jobs have no unique constraint; ignore re-run dupes silently */ });
   }
-  
-  // Create Users (30-50 users across all organizations)
-  console.log('👥 Creating users...');
-  const users = [];
-  for (const org of organizations) {
-    const numUsers = randomInt(3, 8);
-    for (let i = 0; i < numUsers; i++) {
-      const firstName = randomChoice(FIRST_NAMES);
-      const lastName = randomChoice(LAST_NAMES);
-      const user = await prisma.user.create({
-        data: {
-          email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${org.slug}.com`,
-          fullName: `${firstName} ${lastName}`,
-          avatar: `https://i.pravatar.cc/150?u=${firstName}${lastName}`,
-          role: randomChoice(['user', 'manager', 'admin']),
-          isActive: Math.random() > 0.1, // 90% active users
-          lastLoginAt: randomDate(new Date(2024, 0, 1), new Date()),
-          organizationId: org.id
-        }
-      });
-      users.push(user);
-    }
-  }
-  
-  // Create MASSIVE amount of Campaigns (12,000+ campaigns for stress testing)
-  console.log('🎯 Creating 12,000+ campaigns (this may take a few minutes)...');
-  const campaigns = [];
-  const batchSize = 500; // Create in batches for better performance
-  
-  for (let batch = 0; batch < 25; batch++) { // 25 batches × 500 = 12,500 campaigns
-    console.log(`📊 Creating batch ${batch + 1}/25 (${batchSize} campaigns)...`);
-    const batchCampaigns = [];
-    
-    for (let i = 0; i < batchSize; i++) {
-      const org = randomChoice(organizations);
-      const user = users.find(u => u.organizationId === org.id) || users[0];
-      const platform = randomChoice(PLATFORMS);
-      const status = randomChoice(CAMPAIGN_STATUSES);
-      const budget = randomFloat(100, 10000);
-      const budgetSpent = status === 'completed' ? budget : randomFloat(0, budget * 0.8);
-      const startDate = randomDate(new Date(2023, 0, 1), new Date());
-      
-      batchCampaigns.push({
-        name: `${randomChoice(CAMPAIGN_TYPES)} Campaign #${batch * batchSize + i + 1}`,
-        description: `${platform} ${randomChoice(CAMPAIGN_TYPES)} campaign targeting ${randomChoice(['B2B', 'B2C', 'E-commerce', 'Local'])} audience`,
-        status,
-        platform,
-        budget,
-        budgetSpent,
-        startDate,
-        endDate: status === 'completed' ? randomDate(startDate, new Date()) : null,
-        targetAudience: JSON.stringify(generateTargetAudience()),
-        adCreatives: JSON.stringify(generateAdCreatives()),
-        performance: JSON.stringify(generateCampaignPerformance()),
-        settings: JSON.stringify({
-          bidding_strategy: randomChoice(['lowest_cost', 'cost_cap', 'bid_cap', 'target_cost']),
-          optimization_goal: randomChoice(['reach', 'impressions', 'clicks', 'conversions']),
-          placement: randomChoice(['automatic', 'manual']),
-          schedule: randomChoice(['all_time', 'scheduled'])
-        }),
-        organizationId: org.id,
-        userId: user.id
-      });
-    }
-    
-    // Bulk insert batch
-    await prisma.campaign.createMany({
-      data: batchCampaigns
-    });
-    
-    // Get created campaigns for this batch to create related data
-    const createdCampaigns = await prisma.campaign.findMany({
-      skip: batch * batchSize,
-      take: batchSize,
-      orderBy: { createdAt: 'desc' }
-    });
-    campaigns.push(...createdCampaigns);
-  }
-  
-  console.log(`✅ Created ${campaigns.length} campaigns!`);
-  
-  // Create AI Agents (100+ agents across all organizations)
-  console.log('🤖 Creating AI agents...');
-  const aiAgents = [];
-  for (const org of organizations) {
-    const numAgents = randomInt(12, 20);
-    for (let i = 0; i < numAgents; i++) {
-      const agentType = randomChoice(AI_AGENT_TYPES);
-      const agent = await prisma.aIAgent.create({
-        data: {
-          name: `${agentType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} #${i + 1}`,
-          type: agentType,
-          status: randomChoice(['active', 'inactive', 'training']),
-          configuration: JSON.stringify({
-            model: randomChoice(['gpt-4', 'claude-3', 'gemini-pro']),
-            temperature: randomFloat(0.1, 0.9),
-            max_tokens: randomInt(1000, 4000),
-            training_data_size: randomInt(10000, 100000),
-            accuracy_threshold: randomFloat(0.8, 0.95)
-          }),
-          performance: JSON.stringify({
-            accuracy: randomFloat(0.75, 0.95),
-            processing_time: randomFloat(0.5, 3.0),
-            success_rate: randomFloat(0.85, 0.98),
-            last_accuracy: randomFloat(0.8, 0.95),
-            total_processed: randomInt(1000, 50000)
-          }),
-          lastRunAt: Math.random() > 0.3 ? randomDate(new Date(2024, 0, 1), new Date()) : null,
-          organizationId: org.id,
-          campaignId: Math.random() > 0.5 ? randomChoice(campaigns.filter(c => c.organizationId === org.id))?.id : null
-        }
-      });
-      aiAgents.push(agent);
-    }
-  }
-  
-  // Create Workflows (200+ workflows)
-  console.log('⚙️ Creating workflows...');
-  const workflows = [];
-  for (const org of organizations) {
-    const numWorkflows = randomInt(20, 35);
-    for (let i = 0; i < numWorkflows; i++) {
-      const workflowType = randomChoice(WORKFLOW_TYPES);
-      const workflow = await prisma.workflow.create({
-        data: {
-          name: `${workflowType.charAt(0).toUpperCase() + workflowType.slice(1)} Workflow #${i + 1}`,
-          description: `Automated ${workflowType} workflow for enhanced campaign performance`,
-          type: workflowType,
-          status: randomChoice(['active', 'inactive', 'error']),
-          configuration: JSON.stringify({
-            triggers: [randomChoice(['schedule', 'performance_threshold', 'budget_spent', 'conversion_rate'])],
-            actions: [randomChoice(['pause_campaign', 'increase_budget', 'send_alert', 'optimize_targeting'])],
-            conditions: {
-              performance_threshold: randomFloat(0.02, 0.1),
-              budget_threshold: randomFloat(0.7, 0.9),
-              time_window: randomChoice(['1h', '6h', '24h', '7d'])
-            }
-          }),
-          schedule: JSON.stringify({
-            frequency: randomChoice(['hourly', 'daily', 'weekly']),
-            time: `${randomInt(0, 23).toString().padStart(2, '0')}:${randomChoice(['00', '15', '30', '45'])}`,
-            timezone: 'Europe/Athens'
-          }),
-          lastRunAt: Math.random() > 0.2 ? randomDate(new Date(2024, 0, 1), new Date()) : null,
-          nextRunAt: randomDate(new Date(), new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-          organizationId: org.id,
-          campaignId: Math.random() > 0.4 ? randomChoice(campaigns.filter(c => c.organizationId === org.id))?.id : null
-        }
-      });
-      workflows.push(workflow);
-    }
-  }
-  
-  // Create Analyses (1000+ analyses)
-  console.log('📊 Creating analyses...');
-  for (let batch = 0; batch < 5; batch++) {
-    console.log(`📈 Creating analysis batch ${batch + 1}/5...`);
-    const batchAnalyses = [];
-    
-    for (let i = 0; i < 200; i++) {
-      const org = randomChoice(organizations);
-      const analysisType = randomChoice(ANALYSIS_TYPES);
-      
-      batchAnalyses.push({
-        type: analysisType,
-        title: `${analysisType.charAt(0).toUpperCase() + analysisType.slice(1)} Analysis #${batch * 200 + i + 1}`,
-        description: `Comprehensive ${analysisType} analysis with AI-powered insights`,
-        data: JSON.stringify({
-          metrics: generateCampaignPerformance(),
-          trends: {
-            week_over_week: randomFloat(-0.2, 0.3),
-            month_over_month: randomFloat(-0.15, 0.25),
-            seasonal_impact: randomFloat(-0.1, 0.2)
-          },
-          segments: {
-            age_groups: {
-              '18-24': randomFloat(0.1, 0.3),
-              '25-34': randomFloat(0.2, 0.4),
-              '35-44': randomFloat(0.15, 0.35),
-              '45+': randomFloat(0.1, 0.25)
-            },
-            devices: {
-              mobile: randomFloat(0.6, 0.8),
-              desktop: randomFloat(0.15, 0.3),
-              tablet: randomFloat(0.05, 0.15)
-            }
-          }
-        }),
-        insights: JSON.stringify(generateAnalysisInsights()),
-        recommendations: JSON.stringify([
-          {
-            action: 'Optimize targeting parameters',
-            impact: randomChoice(['low', 'medium', 'high']),
-            effort: randomChoice(['low', 'medium', 'high']),
-            priority: randomInt(1, 5)
-          },
-          {
-            action: 'Adjust bid strategy',
-            impact: randomChoice(['medium', 'high']),
-            effort: randomChoice(['low', 'medium']),
-            priority: randomInt(1, 5)
-          }
-        ]),
-        status: randomChoice(['running', 'completed', 'failed']),
-        organizationId: org.id,
-        campaignId: Math.random() > 0.3 ? randomChoice(campaigns.filter(c => c.organizationId === org.id))?.id : null
-      });
-    }
-    
-    await prisma.analysis.createMany({
-      data: batchAnalyses
-    });
-  }
-  
-  // Create Predictions (500+ predictions)
-  console.log('🔮 Creating predictions...');
-  const batchPredictions = [];
-  for (let i = 0; i < 500; i++) {
-    const org = randomChoice(organizations);
-    const predictionType = randomChoice(PREDICTION_TYPES);
-    
-    batchPredictions.push({
-      type: predictionType,
-      title: `${predictionType.charAt(0).toUpperCase() + predictionType.slice(1)} Prediction #${i + 1}`,
-      description: `AI-powered ${predictionType} prediction with machine learning insights`,
-      data: JSON.stringify({
-        forecast: {
-          next_7_days: randomFloat(1000, 10000),
-          next_30_days: randomFloat(5000, 50000),
-          confidence_interval: [randomFloat(0.1, 0.2), randomFloat(0.8, 0.9)]
-        },
-        factors: [
-          { name: 'Historical performance', weight: randomFloat(0.2, 0.4) },
-          { name: 'Seasonal trends', weight: randomFloat(0.1, 0.3) },
-          { name: 'Market conditions', weight: randomFloat(0.1, 0.3) },
-          { name: 'Competitive landscape', weight: randomFloat(0.05, 0.2) }
-        ],
-        model_info: {
-          algorithm: randomChoice(['random_forest', 'neural_network', 'gradient_boosting']),
-          training_data_points: randomInt(10000, 100000),
-          feature_count: randomInt(50, 200)
-        }
-      }),
-      confidence: randomFloat(0.65, 0.95),
-      accuracy: randomFloat(0.7, 0.92),
-      organizationId: org.id,
-      campaignId: Math.random() > 0.4 ? randomChoice(campaigns.filter(c => c.organizationId === org.id))?.id : null
-    });
-  }
-  
-  await prisma.prediction.createMany({
-    data: batchPredictions
-  });
-  
-  console.log('🎉 Database seeding completed successfully!');
+  console.log(`✓ SyncJobs: ${syncJobs.length} created`);
+
+  // ── Summary ──
+  console.log(`\n🎉 Demo seed completed successfully!`);
   console.log('📊 Summary:');
-  console.log(`   🏢 Organizations: ${organizations.length}`);
-  console.log(`   👥 Users: ${users.length}`);
-  console.log(`   🎯 Campaigns: ${campaigns.length}`);
-  console.log(`   🤖 AI Agents: ${aiAgents.length}`);
-  console.log(`   ⚙️ Workflows: ${workflows.length}`);
-  console.log(`   📊 Analyses: 1000+`);
-  console.log(`   🔮 Predictions: 500+`);
-  console.log('');
-  console.log('🚀 Ready for comprehensive testing with realistic data!');
+  console.log(`   Organization:   ${org.name} (${org.slug})`);
+  console.log(`   Users:          2 (admin + member)`);
+  console.log(`   Brand:          ${BRAND_NAME}`);
+  console.log(`   AdAccounts:     ${AD_ACCOUNTS.length}`);
+  console.log(`   Campaigns:      ${CAMPAIGNS.length}`);
+  console.log(`   DailyMetrics:   ${totalMetrics} rows`);
+  console.log(`   Predictions:    ${predictions.length}`);
+  console.log(`   Notifications:  ${notifications.length}`);
+  console.log(`   Workflows:      ${workflows.length}`);
+  console.log(`   WooOrders:      ${wooOrders.length}`);
+  console.log(`   WooProducts:    ${wooProducts.length}`);
+  console.log(`   SyncJobs:       ${syncJobs.length}`);
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error during seeding:', e);
+    console.error('❌ Error during SACOS Marketing seeding:', e);
     process.exit(1);
   })
   .finally(async () => {
