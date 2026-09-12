@@ -73,6 +73,7 @@ import {
   FiveClockStrip,
   OperatorBlockerBoard,
 } from "@/components/dashboard/operator-board";
+import { GrowthCenterDesk } from "@/components/dashboard/growth-center-desk";
 import {
   DateRangePicker,
   isoDaysAgo,
@@ -756,7 +757,7 @@ function PlatformChart({ data }: { data: PlatformSlice[] }) {
 export function DashboardClient() {
   const { format: fmtCurrency, symbol, currency } = useCurrency();
   const { brands, brandId, setBrandId, isLoading: brandsLoading } = useActiveBrand();
-  const { org } = useActiveOrg();
+  const { org, isDemo } = useActiveOrg();
   const { market, setDesks } = useActiveMarket();
   const shopQuery = withMarketQuery(brandId, market);
   // Date range picker state — defaults to "last 30 days", set post-mount so
@@ -861,6 +862,10 @@ export function DashboardClient() {
   });
   const syncStatusQuery = api.syncStatus.getStatus.useQuery(
     brandId ? { brandId } : {},
+  );
+  const growthDeskQuery = api.growth.desk.useQuery(
+    { brandId },
+    { enabled: Boolean(brandId) && !isDemo, retry: false },
   );
   const audience = api.marketing.getAudienceBreakdown.useQuery(
     { startDate: start, endDate: end, ...shopQuery },
@@ -1534,6 +1539,11 @@ export function DashboardClient() {
             <FiveClockStrip clocks={operatorClocks} ready={deskReady} />
           </AnimatedSection>
         )}
+        {growthDeskQuery.data?.status === "linked" ? (
+          <AnimatedSection variant="fadeInUp" delay={0.085}>
+            <GrowthCenterDesk desk={growthDeskQuery.data} />
+          </AnimatedSection>
+        ) : null}
         {!showEmpty && merPayload?.markets ? (
           <AnimatedSection variant="fadeInUp" delay={0.085}>
             <MarketSplitStrip
