@@ -7,7 +7,9 @@ Ads Pro Enterprise is a Next.js SaaS application for performance marketing teams
 ## Core domain concepts
 
 - **Organization** — the top-level tenant. Billing, team membership, and connected platforms are scoped to an organization.
-- **User** — a person who belongs to an Organization. Authentication is handled by Clerk.
+- **User** — a person who belongs to an Organization. Authentication is handled by Supabase Auth.
+- **Brand** — a shop inside an Organization. `website` / hostname is the join key to SACOS Growth Center.
+- **Growth Center desk** — Ads Pro surface for catalog counts of a mapped brand. Catalog writes stay in SACOS Growth Center (a separate application). See `docs/adr/0001-growth-center-desk.md`.
 - **Campaign** — a paid advertising campaign imported from or planned for an ad platform.
 - **AI Agent** — a specialized assistant that analyzes data and produces insights, predictions, or optimization suggestions.
 - **Insight** — an AI-generated observation about campaigns, with severity, confidence, evidence, and a recommended action.
@@ -31,6 +33,6 @@ Ads Pro Enterprise is a Next.js SaaS application for performance marketing teams
 - Next.js 15 App Router with React Server Components where appropriate.
 - tRPC for type-safe API routes.
 - Prisma ORM with Supabase PostgreSQL.
-- Clerk for authentication and authorization.
+- Supabase Auth for authentication and authorization.
 - AI providers: OpenAI, Anthropic, Google.
 - Read-only ad platform integrations in the MVP.

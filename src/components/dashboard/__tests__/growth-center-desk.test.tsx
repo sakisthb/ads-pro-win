@@ -27,6 +27,7 @@ describe("GrowthCenterDesk", () => {
       "http://127.0.0.1:18806/?site=bagtobag_com_gr",
     );
     expect(screen.getByText(/bagtobag.com.gr/i)).toBeInTheDocument();
+    expect(screen.queryByText(/MFA/i)).not.toBeInTheDocument();
     expect(screen.queryByText("0")).not.toBeInTheDocument();
     expect(screen.queryByText("2,753")).not.toBeInTheDocument();
   });
@@ -71,6 +72,8 @@ describe("GrowthCenterDesk", () => {
     expect(screen.getByText("12")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("32")).toBeInTheDocument();
+    expect(screen.getByText("Sep 11, 2026")).toBeInTheDocument();
+    expect(screen.queryByText(/MFA/i)).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /image issues/i }),
     ).toHaveAttribute(

@@ -9,6 +9,7 @@ import {
   parseGrowthCenterFacts,
   loadGrowthDesk,
   growthCenterHref,
+  formatGrowthAcceptedAt,
 } from "@/lib/growth-center";
 import { resolveBrandWebsite } from "@/lib/site-seo";
 
@@ -53,6 +54,16 @@ describe("parseGrowthCenterOrigin", () => {
     expect(parseGrowthCenterOrigin("http://example.com")).toBeNull();
     expect(parseGrowthCenterOrigin("javascript:alert(1)")).toBeNull();
     expect(parseGrowthCenterOrigin("")).toBeNull();
+  });
+});
+
+describe("formatGrowthAcceptedAt", () => {
+  it("formats a SACOS timestamp in UTC without inventing a batch", () => {
+    expect(formatGrowthAcceptedAt("2026-09-11T13:51:16.848213+00:00")).toBe(
+      "Sep 11, 2026",
+    );
+    expect(formatGrowthAcceptedAt(null)).toBeNull();
+    expect(formatGrowthAcceptedAt("not-a-date")).toBeNull();
   });
 });
 

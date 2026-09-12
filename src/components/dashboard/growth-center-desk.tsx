@@ -2,12 +2,19 @@
 
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { growthCenterHref, type GrowthDesk } from "@/lib/growth-center";
+import {
+  formatGrowthAcceptedAt,
+  growthCenterHref,
+  type GrowthDesk,
+} from "@/lib/growth-center";
 
 export function GrowthCenterDesk({ desk }: { desk: GrowthDesk | undefined }) {
   if (!desk || desk.status !== "linked") return null;
   const facts = desk.catalogFacts;
   const home = growthCenterHref(desk.origin, desk.siteId) || desk.href;
+  const acceptedAt = facts?.lastAccepted
+    ? formatGrowthAcceptedAt(facts.lastAccepted.at)
+    : null;
 
   return (
     <div className="rounded-2xl border border-emerald-500/20 bg-white/5 p-5 backdrop-blur-xl">
@@ -15,7 +22,7 @@ export function GrowthCenterDesk({ desk }: { desk: GrowthDesk | undefined }) {
         <div>
           <h2 className="text-sm font-semibold text-white">Growth Center</h2>
           <p className="text-xs text-white/40">
-            Catalog desk for {desk.hostname}. Not a sixth clock. MFA stays there.
+            Catalog desk for {desk.hostname}. Not a sixth clock.
           </p>
         </div>
         <Link
@@ -68,15 +75,22 @@ export function GrowthCenterDesk({ desk }: { desk: GrowthDesk | undefined }) {
             </dt>
             <dd className="mt-1 text-lg font-semibold text-white">
               {facts.lastAccepted ? (
-                <Link
-                  href={growthCenterHref(desk.origin, desk.siteId, "pilot")}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Open last accepted in Growth Center"
-                  className="hover:text-emerald-200"
-                >
-                  {facts.lastAccepted.appliedProducts}
-                </Link>
+                <div>
+                  <Link
+                    href={growthCenterHref(desk.origin, desk.siteId, "pilot")}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Open last accepted in Growth Center"
+                    className="hover:text-emerald-200"
+                  >
+                    {facts.lastAccepted.appliedProducts}
+                  </Link>
+                  {acceptedAt ? (
+                    <p className="mt-0.5 text-[10px] font-medium text-white/40">
+                      {acceptedAt}
+                    </p>
+                  ) : null}
+                </div>
               ) : (
                 <span className="text-sm font-medium text-white/60">None yet</span>
               )}

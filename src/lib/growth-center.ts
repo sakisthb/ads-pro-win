@@ -80,6 +80,18 @@ export function growthCenterOriginFromEnv(
   return null;
 }
 
+export function formatGrowthAcceptedAt(at: string | null): string | null {
+  if (!at) return null;
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export function growthCenterHref(
   origin: string,
   siteId: string,
