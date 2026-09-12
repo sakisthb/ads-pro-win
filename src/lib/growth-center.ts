@@ -80,6 +80,25 @@ export function growthCenterOriginFromEnv(
   return null;
 }
 
+export function growthCenterHref(
+  origin: string,
+  siteId: string,
+  view?: "images" | "products" | "pilot" | string,
+): string {
+  const parsed = parseGrowthCenterOrigin(origin);
+  if (!parsed) return "";
+  if (!/^[a-z0-9_]{1,80}$/.test(siteId)) return `${parsed}/`;
+  const url = new URL("/", parsed);
+  url.searchParams.set("site", siteId);
+  if (view === "images" || view === "products") {
+    url.searchParams.set("view", view);
+  } else if (view === "pilot") {
+    url.searchParams.set("view", "products");
+    url.searchParams.set("pilot", "1");
+  }
+  return url.toString();
+}
+
 export function resolveGrowthCenterDesk(args: {
   organizationSlug: string;
   website: string | null | undefined;
@@ -96,7 +115,7 @@ export function resolveGrowthCenterDesk(args: {
     hostname,
     siteId,
     origin,
-    href: `${origin}/`,
+    href: growthCenterHref(origin, siteId),
     catalogFacts: null,
   };
 }

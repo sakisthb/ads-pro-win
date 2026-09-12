@@ -22,7 +22,10 @@ describe("GrowthCenterDesk", () => {
     };
     render(<GrowthCenterDesk desk={desk} />);
     const link = screen.getByRole("link", { name: /open growth center/i });
-    expect(link).toHaveAttribute("href", "http://127.0.0.1:18806/");
+    expect(link).toHaveAttribute(
+      "href",
+      "http://127.0.0.1:18806/?site=bagtobag_com_gr",
+    );
     expect(screen.getByText(/bagtobag.com.gr/i)).toBeInTheDocument();
     expect(screen.queryByText("0")).not.toBeInTheDocument();
     expect(screen.queryByText("2,753")).not.toBeInTheDocument();
@@ -68,6 +71,24 @@ describe("GrowthCenterDesk", () => {
     expect(screen.getByText("12")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("32")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /image issues/i }),
+    ).toHaveAttribute(
+      "href",
+      "http://127.0.0.1:18806/?site=bagtobag_com_gr&view=images",
+    );
+    expect(
+      screen.getByRole("link", { name: /pending drafts/i }),
+    ).toHaveAttribute(
+      "href",
+      "http://127.0.0.1:18806/?site=bagtobag_com_gr&view=products",
+    );
+    expect(
+      screen.getByRole("link", { name: /last accepted/i }),
+    ).toHaveAttribute(
+      "href",
+      "http://127.0.0.1:18806/?site=bagtobag_com_gr&view=products&pilot=1",
+    );
     expect(
       screen.queryByText(/does not copy those numbers/i),
     ).not.toBeInTheDocument();

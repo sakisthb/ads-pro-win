@@ -8,6 +8,7 @@ import {
   resolveGrowthCenterDesk,
   parseGrowthCenterFacts,
   loadGrowthDesk,
+  growthCenterHref,
 } from "@/lib/growth-center";
 import { resolveBrandWebsite } from "@/lib/site-seo";
 
@@ -69,7 +70,7 @@ describe("resolveGrowthCenterDesk", () => {
       hostname: "bagtobag.com.gr",
       siteId: "bagtobag_com_gr",
       origin,
-      href: "http://127.0.0.1:18806/",
+      href: "http://127.0.0.1:18806/?site=bagtobag_com_gr",
       catalogFacts: null,
     });
   });
@@ -109,6 +110,35 @@ describe("resolveGrowthCenterDesk", () => {
       status: "linked",
       siteId: "bagtobag_com_gr",
     });
+  });
+});
+
+describe("growthCenterHref", () => {
+  const origin = "http://127.0.0.1:18806";
+
+  it("opens the BagToBag workspace, not a raw origin", () => {
+    expect(growthCenterHref(origin, "bagtobag_com_gr")).toBe(
+      "http://127.0.0.1:18806/?site=bagtobag_com_gr",
+    );
+  });
+
+  it("opens image issues, drafts, and last accepted as views", () => {
+    expect(growthCenterHref(origin, "bagtobag_com_gr", "images")).toBe(
+      "http://127.0.0.1:18806/?site=bagtobag_com_gr&view=images",
+    );
+    expect(growthCenterHref(origin, "bagtobag_com_gr", "products")).toBe(
+      "http://127.0.0.1:18806/?site=bagtobag_com_gr&view=products",
+    );
+    expect(growthCenterHref(origin, "bagtobag_com_gr", "pilot")).toBe(
+      "http://127.0.0.1:18806/?site=bagtobag_com_gr&view=products&pilot=1",
+    );
+  });
+
+  it("drops junk site ids and views instead of stuffing them into the URL", () => {
+    expect(growthCenterHref(origin, "../etc")).toBe("http://127.0.0.1:18806/");
+    expect(growthCenterHref(origin, "bagtobag_com_gr", "javascript:alert(1)" as never)).toBe(
+      "http://127.0.0.1:18806/?site=bagtobag_com_gr",
+    );
   });
 });
 

@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import type { GrowthDesk } from "@/lib/growth-center";
+import { growthCenterHref, type GrowthDesk } from "@/lib/growth-center";
 
 export function GrowthCenterDesk({ desk }: { desk: GrowthDesk | undefined }) {
   if (!desk || desk.status !== "linked") return null;
   const facts = desk.catalogFacts;
+  const home = growthCenterHref(desk.origin, desk.siteId) || desk.href;
 
   return (
     <div className="rounded-2xl border border-emerald-500/20 bg-white/5 p-5 backdrop-blur-xl">
@@ -18,7 +19,7 @@ export function GrowthCenterDesk({ desk }: { desk: GrowthDesk | undefined }) {
           </p>
         </div>
         <Link
-          href={desk.href}
+          href={home}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 hover:text-emerald-200"
@@ -34,7 +35,15 @@ export function GrowthCenterDesk({ desk }: { desk: GrowthDesk | undefined }) {
               Image issues
             </dt>
             <dd className="mt-1 text-lg font-semibold text-white">
-              {facts.imageIssues}
+              <Link
+                href={growthCenterHref(desk.origin, desk.siteId, "images")}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open image issues in Growth Center"
+                className="hover:text-emerald-200"
+              >
+                {facts.imageIssues}
+              </Link>
             </dd>
           </div>
           <div>
@@ -42,7 +51,15 @@ export function GrowthCenterDesk({ desk }: { desk: GrowthDesk | undefined }) {
               Pending drafts
             </dt>
             <dd className="mt-1 text-lg font-semibold text-white">
-              {facts.pendingDrafts}
+              <Link
+                href={growthCenterHref(desk.origin, desk.siteId, "products")}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open pending drafts in Growth Center"
+                className="hover:text-emerald-200"
+              >
+                {facts.pendingDrafts}
+              </Link>
             </dd>
           </div>
           <div>
@@ -51,7 +68,15 @@ export function GrowthCenterDesk({ desk }: { desk: GrowthDesk | undefined }) {
             </dt>
             <dd className="mt-1 text-lg font-semibold text-white">
               {facts.lastAccepted ? (
-                facts.lastAccepted.appliedProducts
+                <Link
+                  href={growthCenterHref(desk.origin, desk.siteId, "pilot")}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Open last accepted in Growth Center"
+                  className="hover:text-emerald-200"
+                >
+                  {facts.lastAccepted.appliedProducts}
+                </Link>
               ) : (
                 <span className="text-sm font-medium text-white/60">None yet</span>
               )}
