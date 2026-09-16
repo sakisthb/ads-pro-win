@@ -154,7 +154,9 @@ export function MetaOperatorDesk({ campaignId, brandId, onClose }: Props) {
   const pages = assetsQuery.data?.pages ?? tree?.pages ?? [];
   const customAudiences = assetsQuery.data?.customAudiences ?? tree?.customAudiences ?? [];
   const valueRules = assetsQuery.data?.valueRules ?? tree?.valueRules ?? [];
-  const writeBlocked = metaWriteBlockedReason(tree?.permissions ?? []);
+  const writeBlocked =
+    (tree as { writeBlockedReason?: string | null } | undefined)?.writeBlockedReason ??
+    metaWriteBlockedReason(tree?.permissions ?? []);
   const selectedAdSet = adSets.find((row) => row.id === selected?.id && selected.type === "adset")
     ?? adSets.find((row) => row.ads.some((ad) => ad.id === selected?.id));
   const selectedAd = adSets.flatMap((row) => row.ads).find((ad) => ad.id === selected?.id);
@@ -292,7 +294,7 @@ export function MetaOperatorDesk({ campaignId, brandId, onClose }: Props) {
               )}
               <label className="mb-2 flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70">
                 <input type="checkbox" checked={confirmLive} onChange={(e) => setConfirmLive(e.target.checked)} className="mt-0.5" />
-                Confirm before setting any object Active.
+                Confirm live Meta write (required for Active / Paused / Archive status changes). Never silent auto-writes.
               </label>
               <label className="mb-4 flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70">
                 <input type="checkbox" checked={confirmReset} onChange={(e) => setConfirmReset(e.target.checked)} className="mt-0.5" />
@@ -456,10 +458,12 @@ function TreeRow({
 function RenameRow({
   value,
   pending,
+  confirmLive,
   onSave,
 }: {
   value: string;
   pending: boolean;
+  confirmLive: boolean;
   onSave: (name: string) => void;
 }) {
   const [name, setName] = useState(value);
@@ -470,7 +474,13 @@ function RenameRow({
       <button
         type="button"
         disabled={pending || !name.trim()}
-        onClick={() => onSave(name.trim())}
+        onClick={() => {
+          if (!confirmLive) {
+            toast.error("Check Confirm live Meta write before renaming.");
+            return;
+          }
+          onSave(name.trim());
+        }}
         className="rounded-lg border border-white/10 px-3 text-xs text-white disabled:opacity-40"
       >
         Rename
@@ -495,7 +505,7 @@ function StatusButtons({
         disabled={pending}
         onClick={() => {
           if (!confirmLive) {
-            toast.error("Check Confirm before setting any object Active.");
+            toast.error("Check Confirm live Meta write before changing status.");
             return;
           }
           onStatus("ACTIVE");
@@ -504,10 +514,32 @@ function StatusButtons({
       >
         <Play className="h-3 w-3" /> Active
       </button>
-      <button type="button" disabled={pending} onClick={() => onStatus("PAUSED")} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-yellow-300 hover:bg-white/5 disabled:opacity-40">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          if (!confirmLive) {
+            toast.error("Check Confirm live Meta write before changing status.");
+            return;
+          }
+          onStatus("PAUSED");
+        }}
+        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-yellow-300 hover:bg-white/5 disabled:opacity-40"
+      >
         <Pause className="h-3 w-3" /> Paused
       </button>
-      <button type="button" disabled={pending} onClick={() => onStatus("ARCHIVED")} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/50 hover:bg-white/5 disabled:opacity-40">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          if (!confirmLive) {
+            toast.error("Check Confirm live Meta write before changing status.");
+            return;
+          }
+          onStatus("ARCHIVED");
+        }}
+        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/50 hover:bg-white/5 disabled:opacity-40"
+      >
         <Archive className="h-3 w-3" /> Archive
       </button>
     </div>
@@ -569,7 +601,7 @@ function CampaignPanel({
   return (
     <div className="space-y-6">
       <StatusButtons onStatus={onStatus} pending={pending} confirmLive={confirmLive} />
-      <RenameRow value={tree.campaign.name} pending={pending} onSave={onRename} />
+      <RenameRow value={tree.campaign.name} pending={pending} confirmLive={confirmLive} onSave={onRename} />
       <div className="rounded-2xl border border-white/10 p-4">
         <h3 className="text-sm font-semibold text-white">Special ad categories</h3>
         <p className="mt-1 text-xs text-white/45">
@@ -648,7 +680,13 @@ function CampaignPanel({
           <button
             type="button"
             disabled={pending || !canSaveBudget}
-            onClick={() => onBudget(Number(amount), kind)}
+            onClick={() => {
+              if (!confirmLive) {
+                toast.error("Check Confirm live Meta write before changing budget.");
+                return;
+              }
+              onBudget(Number(amount), kind);
+            }}
             className="rounded-lg bg-blue-500 px-4 text-xs font-semibold text-white disabled:opacity-40"
           >
             Save {kind}
@@ -805,7 +843,7 @@ function AdSetPanel({
   return (
     <div className="space-y-6">
       <StatusButtons onStatus={onStatus} pending={pending} confirmLive={confirmLive} />
-      <RenameRow value={adSet.name} pending={pending} onSave={onRename} />
+      <RenameRow value={adSet.name} pending={pending} confirmLive={confirmLive} onSave={onRename} />
       {formatMetaRecommendations(adSet.recommendations).map((row) => (
         <p key={row} className="text-xs text-amber-200">{row}</p>
       ))}
@@ -819,7 +857,20 @@ function AdSetPanel({
           <h3 className="text-sm font-semibold text-white">Ad set budget</h3>
           <div className="mt-3 flex gap-2">
             <input className={inputClass} value={budget} onChange={(e) => setBudget(e.target.value)} />
-            <button type="button" disabled={pending} onClick={() => onBudget(Number(budget), adSet.lifetimeBudget ? "lifetime" : "daily")} className="rounded-lg bg-blue-500 px-3 text-xs font-semibold text-white disabled:opacity-40">Save</button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                if (!confirmLive) {
+                  toast.error("Check Confirm live Meta write before changing budget.");
+                  return;
+                }
+                onBudget(Number(budget), adSet.lifetimeBudget ? "lifetime" : "daily");
+              }}
+              className="rounded-lg bg-blue-500 px-3 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              Save
+            </button>
           </div>
         </div>
         <div className="rounded-2xl border border-white/10 p-4">
@@ -1198,7 +1249,7 @@ function AdPanel({
   return (
     <div className="space-y-6">
       <StatusButtons onStatus={onStatus} pending={pending} confirmLive={confirmLive} />
-      <RenameRow value={ad.name} pending={pending} onSave={onRename} />
+      <RenameRow value={ad.name} pending={pending} confirmLive={confirmLive} onSave={onRename} />
       {ad.previewLink && (
         <a href={ad.previewLink} target="_blank" rel="noreferrer" className="text-xs text-blue-300 hover:underline">Open Meta preview</a>
       )}

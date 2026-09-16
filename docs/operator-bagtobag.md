@@ -1,8 +1,8 @@
 # BagToBag operator truth
 
-Last updated: 2026-09-16 (drafts: operator said do not work on them). Athanasios is CEO/operator. New chats in this repo must read this file with `CONTEXT.md` and `docs/adr/0001-growth-center-desk.md`.
+Last updated: 2026-09-16 (Meta write v1 authorized by operator). Athanasios is CEO/operator. New chats in this repo must read this file with `CONTEXT.md`, `docs/adr/0001-growth-center-desk.md`, and `docs/adr/0002-meta-write-desk.md`.
 
-This is working memory for the catalog desk. It is not a live WordPress dump and not permission to write production.
+This is working memory for the catalog desk. It is not a live WordPress dump and not permission to write production WordPress.
 
 ## Two applications, one brand
 
@@ -10,8 +10,19 @@ This is working memory for the catalog desk. It is not a live WordPress dump and
 - SACOS Growth Center (`http://127.0.0.1:18806`) — catalog truth, drafts, WordPress write gates. Auth: `sacos_owner` (local staging password-only; hosted MFA stays).
 - Join: Ads Pro `Brand.website` `bagtobag.com.gr` → SACOS `site_id` `bagtobag_com_gr`.
 - Do not merge repos, Prisma, Django, or user tables. Do not iframe Growth Center. Do not reverse-proxy SACOS through Ads Pro. Operator owns DNS for the two future production hostnames.
-- Ads Pro MVP ads stay read-only. Ads Pro session does not unlock catalog surgery or WordPress writes.
+- **Meta writes (authorized 2026-09-16):** Ads Pro may edit existing Meta campaigns / ad sets / ads for BagToBag (status, budget, rename) after Meta reconnect with `ads_management`. Writes are confirmed in UI and audited in `metaWriteLog`. See ADR 0002. Other ad platforms stay read-only unless a later ADR opens them. Ads Pro session still does **not** unlock catalog surgery or WordPress writes.
 - Ads Pro Growth Center desk [PR #2](https://github.com/sakisthb/ads-pro-win/pull/2) is **merged** to `main`. Branch `feat/growth-center-desk` is historical — new work from `main` via small PRs.
+
+## Meta write desk (operator, 2026-09-16)
+
+Authorized for BagToBag paid Meta account **BTB - B2C** via Ads Pro Meta operator desk.
+
+1. Workspace: BagToBag (not Demo) at `http://127.0.0.1:3000`.
+2. **Connections → Meta Ads → Reconnect** and approve **`ads_management`** (keep `ads_read`).
+3. Campaigns → Synced Campaigns → **Edit on Meta** on a campaign → check **Confirm live Meta write** → Pause / rename / Save budget.
+4. Confirm a new row appears in the desk write log (`metaWriteLog`).
+
+Out of scope still: create campaign/adset/ad, creative upload, catalog/WP, sibio.
 
 ## Three places that are easy to confuse
 
