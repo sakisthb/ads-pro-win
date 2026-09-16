@@ -1,6 +1,5 @@
 'use client'
 
-import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -21,6 +20,7 @@ import { useChromeLocale } from '@/components/providers/chrome-locale';
 import { useCurrency } from '@/components/providers/currency';
 import { api } from '@/components/providers/trpc-provider';
 import { useActiveOrg } from '@/hooks/use-active-org';
+import { useHasMounted } from '@/hooks/use-has-mounted';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,8 +40,7 @@ export function ProfessionalNavbar({ email }: ProfessionalNavbarProps) {
   const { locale, setLocale, t } = useChromeLocale();
   const { currency } = useCurrency();
   const { org, isDemo } = useActiveOrg();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useHasMounted();
   const unreadQuery = api.alerts.unreadCount.useQuery(undefined, {
     retry: false,
     refetchInterval: 60_000,
@@ -147,48 +146,66 @@ export function ProfessionalNavbar({ email }: ProfessionalNavbarProps) {
             )}
           </button>
 
-          {/* User menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500/80 to-blue-500/80 text-xs font-bold text-white transition-transform hover:scale-105 focus:outline-none">
-                {initials}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              sideOffset={8}
-              className="w-56 border border-white/10 bg-gray-900/95 backdrop-blur-xl text-white"
+          {/* User menu — mount Radix only after hydration.
+              OrgSwitcher above may SSR as Skeleton (no Popover useId) then
+              hydrate with Popover/Dialog, which shifts later Radix ids and
+              causes a mismatch on this DropdownMenuTrigger. */}
+          {mounted ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Account menu"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500/80 to-blue-500/80 text-xs font-bold text-white transition-transform hover:scale-105 focus:outline-none"
+                >
+                  {initials}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className="w-56 border border-white/10 bg-gray-900/95 backdrop-blur-xl text-white"
+              >
+                <DropdownMenuLabel>
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium text-white">{email ?? 'User'}</p>
+                    <p className="text-xs text-white/50 capitalize">
+                      {isDemo ? "Demo workspace" : `${org?.plan ?? "free"} plan`}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem
+                  onClick={() => router.push('/profile')}
+                  className="text-white/80 focus:text-white focus:bg-white/10 cursor-pointer"
+                >
+                  <User className="mr-2 h-4 w-4" /> Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push('/settings')}
+                  className="text-white/80 focus:text-white focus:bg-white/10 cursor-pointer"
+                >
+                  <Settings className="mr-2 h-4 w-4" /> Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="text-red-400 focus:text-red-300 focus:bg-red-500/10 cursor-pointer"
+                >
+                  <LogOut className="mr-2 h-4 w-4" /> Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <button
+              type="button"
+              aria-label="Account menu"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500/80 to-blue-500/80 text-xs font-bold text-white transition-transform hover:scale-105 focus:outline-none"
+              disabled
             >
-              <DropdownMenuLabel>
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium text-white">{email ?? 'User'}</p>
-                  <p className="text-xs text-white/50 capitalize">
-                    {isDemo ? "Demo workspace" : `${org?.plan ?? "free"} plan`}
-                  </p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-white/10" />
-              <DropdownMenuItem
-                onClick={() => router.push('/profile')}
-                className="text-white/80 focus:text-white focus:bg-white/10 cursor-pointer"
-              >
-                <User className="mr-2 h-4 w-4" /> Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => router.push('/settings')}
-                className="text-white/80 focus:text-white focus:bg-white/10 cursor-pointer"
-              >
-                <Settings className="mr-2 h-4 w-4" /> Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-white/10" />
-              <DropdownMenuItem
-                onClick={handleLogout}
-                className="text-red-400 focus:text-red-300 focus:bg-red-500/10 cursor-pointer"
-              >
-                <LogOut className="mr-2 h-4 w-4" /> Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              {initials}
+            </button>
+          )}
         </div>
       </div>
     </nav>
