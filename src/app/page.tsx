@@ -598,7 +598,7 @@ export default function HomePage() {
             <p>&copy; {new Date().getFullYear()} Ads Pro Digital. All rights reserved.</p>
             <div className="flex gap-4">
               <a href={BRAND.privacyPath} className="hover:text-gray-400 transition-colors">Privacy</a>
-              <a href="#" className="hover:text-gray-400 transition-colors">Terms</a>
+              <a href={BRAND.termsPath} className="hover:text-gray-400 transition-colors">Terms</a>
               <a href="#" className="hover:text-gray-400 transition-colors">Cookies</a>
             </div>
           </div>

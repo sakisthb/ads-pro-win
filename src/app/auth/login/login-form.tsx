@@ -192,6 +192,13 @@ export default function LoginForm() {
         >
           Προσωπικά δεδομένα / GDPR
         </Link>
+        {" · "}
+        <Link
+          href={BRAND.termsPath}
+          className="transition-colors hover:text-white/55"
+        >
+          Όροι χρήσης
+        </Link>
       </p>
     </motion.div>
   );

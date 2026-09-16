@@ -21,6 +21,7 @@ const PUBLIC_PAGE_PATHS = [
   "/gdpr",
   "/privacy",
   "/prosopika-dedomena-gdpr",
+  "/terms",
 ];
 
 // Files served from /public. Next.js exposes them at the root (not /public/...),

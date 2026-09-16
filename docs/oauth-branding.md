@@ -4,12 +4,18 @@ Canonical privacy / GDPR page for this product:
 
 **https://adpd.gr/gdpr**
 
-Do **not** use the BagToBag WordPress shop GDPR page in Ads Pro Digital OAuth, consent screens, or in-app links. That policy is for the shop, not this product. Do not use `apdm.gr`.
+Canonical Terms of Use page for this product:
 
-Permanent aliases (308) to the canonical path:
+**https://adpd.gr/terms**
+
+Do **not** use the BagToBag WordPress shop GDPR or Terms pages in Ads Pro Digital OAuth, consent screens, or in-app links. Those policies are for the shop, not this product. Do not use `apdm.gr`.
+
+Permanent aliases (308) to the canonical privacy path:
 
 - `https://adpd.gr/privacy`
 - `https://adpd.gr/prosopika-dedomena-gdpr`
+
+The Terms of Use path is **https://adpd.gr/terms** only. There is no `/oroi-chrisis` alias.
 
 ## Google Auth Platform (Branding)
 
@@ -20,9 +26,10 @@ Project that owns the Ads Pro Digital web client (`fashion-models` / `gen-lang-c
 | App name | Ads Pro Digital |
 | Application home page | `https://adpd.gr/` |
 | Privacy policy URL | `https://adpd.gr/gdpr` |
+| Terms of Service URL | `https://adpd.gr/terms` |
 | Authorized domain | `adpd.gr` |
 
-Homepage (`https://adpd.gr/`) must keep a Privacy link to the same canonical URL as the consent screen.
+Homepage (`https://adpd.gr/`) must keep Privacy and Terms links to the same canonical URLs as the consent screen.
 
 ## Meta (Settings → Basic)
 
@@ -31,6 +38,7 @@ App **Ads-pro-Marketing** (`1087703937174339`):
 | Field | Value |
 | --- | --- |
 | Privacy Policy URL | `https://adpd.gr/gdpr` |
+| Terms of Service URL | `https://adpd.gr/terms` |
 | Site URL | `https://adpd.gr/` |
 | App Domains | `adpd.gr` (plus `localhost` for local HTTPS) |
 
