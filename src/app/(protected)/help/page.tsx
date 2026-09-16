@@ -135,7 +135,7 @@ const LIVE_FAQ: FAQItem[] = [
   {
     question: "How do I connect Google, TikTok, or WooCommerce?",
     answer:
-      "Same Connections page. Google Ads, Analytics, Search Console, and TikTok use OAuth. Google Ads Connect also needs GOOGLE_ADS_DEVELOPER_TOKEN (OAuth can reuse the Analytics client). WooCommerce uses the store URL plus REST consumer key and secret — there is no Ads Pro Digital WordPress plugin. Store API calls must use the apex host, never a language subdomain (example: shop.com, not en.shop.com).",
+      "Same Connections page. Google Ads, Analytics, Search Console, and TikTok use OAuth. Google Ads Connect needs the OAuth client (can reuse Analytics). Developer-token is optional after 10 Sep 2026. WooCommerce uses the store URL plus REST consumer key and secret — there is no Ads Pro Digital WordPress plugin. Store API calls must use the apex host, never a language subdomain (example: shop.com, not en.shop.com).",
     category: "platforms",
   },
   {
@@ -219,7 +219,7 @@ const LIVE_FAQ: FAQItem[] = [
   {
     question: "Why is data empty or stale?",
     answer:
-      "Check Connections for token expiry, then Sync Now. Widen the date range. Woo orders need a successful store sync. Pixel purchases without Woo orders cannot produce MER. Google Connect 503 means GOOGLE_ADS_DEVELOPER_TOKEN is missing — apply on an MCC at ads.google.com/aw/apicenter. OAuth can reuse GOOGLE_ANALYTICS_CLIENT_*.",
+      "Check Connections for token expiry, then Sync Now. Widen the date range. Woo orders need a successful store sync. Pixel purchases without Woo orders cannot produce MER. Google Connect 503 means the OAuth client is missing — reuse GOOGLE_ANALYTICS_CLIENT_*. Explorer can Sync production; Basic is a Cloud Console quota upgrade, not Ads API Center.",
     category: "platforms",
   },
   {
@@ -291,7 +291,7 @@ const LIVE_GUIDES: PlatformGuide[] = [
     time: "~3 min",
     steps: [
       "Open Connections → Google Ads → Connect",
-      "If Connect 503s, add GOOGLE_ADS_DEVELOPER_TOKEN from ads.google.com/aw/apicenter (MCC)",
+      "If Connect 503s, add GOOGLE_ADS_CLIENT_ID/SECRET or reuse GOOGLE_ANALYTICS_CLIENT_*",
       "Pick the customer / MCC account",
       "Sync before expecting Search or PMax rows",
     ],

@@ -63,8 +63,11 @@ function request(platform: string, query = ""): Request {
 }
 
 describe("GET /api/auth/[platform]", () => {
+  const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
   beforeEach(() => {
     jest.resetAllMocks();
+    delete process.env.NEXT_PUBLIC_SITE_URL;
     process.env.FACEBOOK_APP_ID = "fb-app-id";
     process.env.FACEBOOK_APP_SECRET = "fb-app-secret";
     process.env.GOOGLE_ADS_CLIENT_ID = "ga-client-id";
@@ -77,6 +80,11 @@ describe("GET /api/auth/[platform]", () => {
     });
     mockedRequireOrganizationRoleForUser.mockResolvedValue(authz());
     mockedPrisma.oAuthTransaction.create.mockResolvedValue({ id: "tx-1" } as never);
+  });
+
+  afterEach(() => {
+    if (originalSiteUrl == null) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
   });
 
   it("returns 404 for an unknown platform", async () => {
@@ -113,6 +121,31 @@ describe("GET /api/auth/[platform]", () => {
     const body = await response.json();
     expect(body.error).toMatch(/Meta Ads is not configured/);
     expect(mockedPrisma.oAuthTransaction.create).not.toHaveBeenCalled();
+  });
+
+  it("starts Google Ads OAuth without a developer token", async () => {
+    delete process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+
+    const response = await startOAuth(request("google-ads"), {
+      params: Promise.resolve({ platform: "google-ads" }),
+    });
+
+    expect(response.status).toBe(307);
+  });
+
+  it("uses https://localhost for Meta redirect_uri from loopback HTTP", async () => {
+    const req = new Request("http://127.0.0.1:3000/api/auth/meta", {
+      headers: { host: "127.0.0.1:3000" },
+    });
+    const response = await startOAuth(req, {
+      params: Promise.resolve({ platform: "meta" }),
+    });
+
+    expect(response.status).toBe(307);
+    const url = new URL(response.headers.get("Location") ?? "");
+    expect(url.searchParams.get("redirect_uri")).toBe(
+      "https://localhost:3000/api/auth/meta/callback",
+    );
   });
 
   it("creates a transaction and redirects to Meta with an opaque state", async () => {

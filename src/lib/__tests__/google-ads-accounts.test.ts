@@ -4,6 +4,7 @@
 
 import {
   formatGoogleAdsApiError,
+  googleAdsHeaders,
   googleAdsPendingAccountId,
   googleAdsSearchStreamUrl,
   googleAdsStoredAccountId,
@@ -23,7 +24,8 @@ describe("Google Ads API errors", () => {
         details: [{ errors: [{ errorCode: { authorizationError: "DEVELOPER_TOKEN_NOT_APPROVED" }, message: "The developer token is only approved for use with test accounts." }] }],
       },
     }]);
-    expect(formatGoogleAdsApiError(403, body)).toMatch(/Basic Access/i);
+    expect(formatGoogleAdsApiError(403, body)).toMatch(/Cloud Console/i);
+    expect(formatGoogleAdsApiError(403, body)).not.toMatch(/API Center/i);
   });
 });
 
@@ -60,10 +62,13 @@ describe("Google Ads picker", () => {
     expect(chosen?.id).toBe("2");
   });
 
-  it("points at Ads API Center when the developer token is missing", () => {
-    expect(
-      formatGoogleAdsApiError(403, JSON.stringify({ error: { message: "Developer token is not set" } })),
-    ).toMatch(/GOOGLE_ADS_DEVELOPER_TOKEN/);
+  it("does not send operators to Ads API Center for a missing developer token", () => {
+    const message = formatGoogleAdsApiError(
+      403,
+      JSON.stringify({ error: { message: "Developer token is not set" } }),
+    );
+    expect(message).toMatch(/Cloud Console|optional/i);
+    expect(message).not.toMatch(/API Center/i);
   });
 
   it("maps HTML 404 from the wrong REST path to an operator message", () => {
@@ -81,6 +86,46 @@ describe("Google Ads HTTP helpers", () => {
   afterEach(() => {
     if (original == null) delete process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
     else process.env.GOOGLE_ADS_DEVELOPER_TOKEN = original;
+  });
+
+  it("builds googleAdsHeaders without a developer token", () => {
+    delete process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    const headers = googleAdsHeaders("tok");
+    expect(headers.Authorization).toBe("Bearer tok");
+    expect(headers["developer-token"]).toBeUndefined();
+  });
+
+  it("includes developer-token only when it is set", () => {
+    process.env.GOOGLE_ADS_DEVELOPER_TOKEN = "dev-token";
+    expect(googleAdsHeaders("tok")["developer-token"]).toBe("dev-token");
+  });
+
+  it("lists accessible customers without a developer token", async () => {
+    delete process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    const fetchImpl = jest.fn(async (url: string) => {
+      const href = String(url);
+      if (href.endsWith("customers:listAccessibleCustomers")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ resourceNames: ["customers/7488715250"] }),
+        };
+      }
+      return {
+        ok: false,
+        status: 403,
+        text: async () => JSON.stringify({ error: { message: "permission" } }),
+      };
+    }) as unknown as typeof fetch;
+
+    const customers = await listGoogleAdsCustomers("tok", fetchImpl);
+    expect(customers).toEqual([
+      expect.objectContaining({ id: "7488715250" }),
+    ]);
+    const headers = (fetchImpl.mock.calls[0]?.[1] as RequestInit | undefined)?.headers as
+      | Record<string, string>
+      | undefined;
+    expect(headers?.["developer-token"]).toBeUndefined();
   });
 
   it("expands an MCC into named client accounts", async () => {

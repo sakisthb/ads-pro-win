@@ -347,7 +347,7 @@ export function deriveStoreInsights(args: {
     insights.push({
       id: "google-ads-no-spend",
       title: "Google Ads is connected, spend is empty",
-      description: `OAuth is on and this window has €0 Google Ads DailyMetric.${tillBit}${organicBit} Pixel ROAS stays Meta-only until Sync Now writes google rows. If Connections says the developer token is test-only, apply for Basic Access in Ads API Center.`,
+      description: `OAuth is on and this window has €0 Google Ads DailyMetric.${tillBit}${organicBit} Pixel ROAS stays Meta-only until Sync Now writes google rows. Explorer can Sync production; Basic is a Cloud Console quota upgrade.`,
       impact: "high",
       actionLabel: "Connections",
       href: "/connections?connect=google-ads",
@@ -905,7 +905,7 @@ export function buildMissingPlatformRecs(
         id: "google-ads-no-spend",
         title: "Google Ads has no spend rows",
         description:
-          "OAuth is connected and DailyMetric google is €0. Woo last-click Google is till. Pixel ROAS stays Meta-only until Sync Now writes rows. A test-only developer token needs Basic Access in Ads API Center.",
+          "OAuth is connected and DailyMetric google is €0. Woo last-click Google is till. Pixel ROAS stays Meta-only until Sync Now writes rows. Explorer can Sync production; Basic is quota-only in Cloud Console.",
         impact: "high",
         actionLabel: "Connections",
         href: "/connections?connect=google-ads",

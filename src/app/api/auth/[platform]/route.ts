@@ -3,6 +3,7 @@ import {
   buildOAuthUrl,
   getOrigin,
   googleOAuthOrigin,
+  metaOAuthOrigin,
   isOAuthPlatform,
   isPlatformConfigured,
   platformNotConfiguredMessage,
@@ -79,7 +80,9 @@ export async function GET(
     platform === "google-analytics" ||
     platform === "google-search-console"
       ? googleOAuthOrigin(request)
-      : getOrigin(request);
+      : platform === "meta"
+        ? metaOAuthOrigin(request)
+        : getOrigin(request);
 
   let rawState: string;
   let codeChallenge: string | undefined;

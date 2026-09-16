@@ -29,7 +29,8 @@ describe("tracking ops playbook", () => {
     expect(ads.title).toMatch(/spend sync/i);
     expect(ads.doNot).toMatch(/MCC/);
     expect(ads.verify).toMatch(/Sync Now/);
-    expect(ads.steps.join(" ")).toMatch(/Basic Access/);
+    expect(ads.steps.join(" ")).toMatch(/Explorer|Basic Access/);
+    expect(ads.steps.join(" ")).not.toMatch(/aw\/apicenter/);
     expect(ads.verify).toMatch(/0 records/);
   });
 });
