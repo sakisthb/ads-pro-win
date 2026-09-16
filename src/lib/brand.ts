@@ -2,6 +2,8 @@ export const BRAND = {
   name: "Ads Pro Digital",
   domain: "adpd.gr",
   siteUrl: "https://adpd.gr",
+  privacyPath: "/prosopika-dedomena-gdpr",
+  privacyUrl: "https://adpd.gr/prosopika-dedomena-gdpr",
   ink: "#0A0A0A",
   charcoal: "#121417",
   paper: "#FFFFFF",

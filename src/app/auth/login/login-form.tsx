@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Loader2, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { BRAND } from "@/lib/brand";
 import {
   authProvidersUrl,
   isEmailAuthEnabled,
@@ -183,6 +184,14 @@ export default function LoginForm() {
 
       <p className="mt-6 text-center text-xs text-white/30">
         Protected by Supabase Auth · http-only cookies
+      </p>
+      <p className="mt-3 text-center text-xs text-white/30">
+        <Link
+          href={BRAND.privacyPath}
+          className="transition-colors hover:text-white/55"
+        >
+          Προσωπικά δεδομένα / GDPR
+        </Link>
       </p>
     </motion.div>
   );

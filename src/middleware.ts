@@ -12,7 +12,14 @@ import { createServerClient } from "@supabase/ssr";
 // Every other non-API page is treated as protected, so the redirect covers
 // the entire `(protected)` and `(chat)` route groups without per-route
 // enumeration — new protected routes are guarded automatically.
-const PUBLIC_PAGE_PATHS = ["/", "/auth/login", "/auth/signup", "/auth/callback"];
+const PUBLIC_PAGE_PATHS = [
+  "/",
+  "/auth/login",
+  "/auth/signup",
+  "/auth/callback",
+  "/prosopika-dedomena-gdpr",
+  "/privacy",
+];
 
 // Files served from /public. Next.js exposes them at the root (not /public/...),
 // so they must skip the login wall or chrome logos 307 to /auth/login.

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { mapAuthError } from "@/lib/supabase/auth-errors";
+import { BRAND } from "@/lib/brand";
 
 /**
  * Supabase email + password signup with a confirm-password field.
@@ -240,6 +241,14 @@ export default function SignupPage() {
             className="font-medium text-white/80 transition-colors hover:text-white"
           >
             Log in
+          </Link>
+        </p>
+        <p className="mt-4 text-center text-xs text-white/30">
+          <Link
+            href={BRAND.privacyPath}
+            className="transition-colors hover:text-white/55"
+          >
+            Προσωπικά δεδομένα / GDPR
           </Link>
         </p>
       </div>

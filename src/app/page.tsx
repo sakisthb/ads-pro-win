@@ -8,6 +8,7 @@ import {
   Rocket, Play, ChevronRight, Mail,
 } from 'lucide-react'
 import { BrandLockup } from '@/components/brand/brand-lockup'
+import { BRAND } from '@/lib/brand'
 import { useRouter } from 'next/navigation'
 import { AnimatedCounter } from '@/components/ui/animated-counter'
 import { AnimatedSection, StaggerContainer } from '@/components/ui/animated-section'
@@ -596,9 +597,9 @@ export default function HomePage() {
           <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-600">
             <p>&copy; {new Date().getFullYear()} Ads Pro Digital. All rights reserved.</p>
             <div className="flex gap-4">
-              {['Privacy', 'Terms', 'Cookies'].map((l) => (
-                <a key={l} href="#" className="hover:text-gray-400 transition-colors">{l}</a>
-              ))}
+              <a href={BRAND.privacyPath} className="hover:text-gray-400 transition-colors">Privacy</a>
+              <a href="#" className="hover:text-gray-400 transition-colors">Terms</a>
+              <a href="#" className="hover:text-gray-400 transition-colors">Cookies</a>
             </div>
           </div>
         </div>

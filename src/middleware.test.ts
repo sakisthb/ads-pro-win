@@ -259,3 +259,26 @@ describe("middleware public brand assets", () => {
     expect(response.headers.get("Location")).toContain("redirect=%2Fdashboard");
   });
 });
+
+describe("middleware public GDPR page", () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-test-key";
+    mockAnonymousSession();
+  });
+
+  it("lets anonymous visitors read /prosopika-dedomena-gdpr", async () => {
+    const response = await middleware(buildRequest("/prosopika-dedomena-gdpr"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+  });
+
+  it("lets anonymous visitors hit /privacy so the canonical alias can run", async () => {
+    const response = await middleware(buildRequest("/privacy"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+  });
+});
