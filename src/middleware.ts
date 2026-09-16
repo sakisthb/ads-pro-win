@@ -12,7 +12,14 @@ import { createServerClient } from "@supabase/ssr";
 // Every other non-API page is treated as protected, so the redirect covers
 // the entire `(protected)` and `(chat)` route groups without per-route
 // enumeration — new protected routes are guarded automatically.
-const PUBLIC_PAGE_PATHS = ["/", "/auth/login", "/auth/signup", "/auth/callback"];
+const PUBLIC_PAGE_PATHS = [
+  "/",
+  "/auth/login",
+  "/auth/signup",
+  "/auth/callback",
+  "/prosopika-dedomena-gdpr",
+  "/privacy",
+];
 
 // Auth pages that bounce already-signed-in users to the dashboard.
 const AUTH_REDIRECT_PATHS = ["/auth/login", "/auth/signup"];

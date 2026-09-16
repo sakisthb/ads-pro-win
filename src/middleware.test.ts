@@ -38,7 +38,15 @@ function buildRequest(
     body?: string;
   } = {},
 ): NextRequest {
-  const url = new URL(pathname, "http://localhost:3000");
+  const url = Object.assign(new URL(pathname, "http://localhost:3000"), {
+    clone() {
+      return Object.assign(new URL(this.toString()), {
+        clone() {
+          return this;
+        },
+      });
+    },
+  });
   const headers = new Headers(opts.headers ?? {});
   if (opts.body && !headers.has("content-length")) {
     headers.set("content-length", String(Buffer.byteLength(opts.body)));
@@ -51,6 +59,9 @@ function buildRequest(
   Object.defineProperty(request, "nextUrl", {
     value: url,
     writable: false,
+  });
+  Object.defineProperty(request, "cookies", {
+    value: { getAll: () => [] },
   });
   return request;
 }
@@ -207,5 +218,38 @@ describe("middleware rate limiting", () => {
     expect(response.status).toBe(200);
     expect(mockedFetch).not.toHaveBeenCalled();
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+  });
+});
+
+describe("middleware public GDPR page", () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+    mockedCreateServerClient.mockReturnValue({
+      auth: { getUser: mockedGetUser },
+    });
+    mockedGetUser.mockResolvedValue({ data: { user: null } });
+  });
+
+  it("lets anonymous visitors read /prosopika-dedomena-gdpr", async () => {
+    const response = await middleware(buildRequest("/prosopika-dedomena-gdpr"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+  });
+
+  it("lets anonymous visitors hit /privacy so the canonical alias can run", async () => {
+    const response = await middleware(buildRequest("/privacy"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+  });
+
+  it("still sends anonymous visitors from /dashboard to login", async () => {
+    const response = await middleware(buildRequest("/dashboard"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("Location")).toContain("/auth/login");
   });
 });

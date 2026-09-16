@@ -104,6 +104,16 @@ const nextConfig = {
     return config;
   },
 
+  async redirects() {
+    return [
+      {
+        source: '/privacy',
+        destination: '/prosopika-dedomena-gdpr',
+        permanent: true,
+      },
+    ]
+  },
+
   // Headers for security and performance
   async headers() {
     return [
