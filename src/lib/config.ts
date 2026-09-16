@@ -1,8 +1,9 @@
 import { env } from '@/env';
+import { BRAND } from '@/lib/brand';
 
 export const config = {
   app: {
-    name: 'Ads Pro Enterprise',
+    name: BRAND.name,
     version: '1.0.0',
     environment: env.NODE_ENV,
     isDevelopment: env.NODE_ENV === 'development',

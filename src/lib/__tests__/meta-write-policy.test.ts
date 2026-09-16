@@ -67,7 +67,7 @@ describe("Meta write policy v1", () => {
     });
   });
 
-  it("states catalog and WordPress stay locked from the Ads Pro session", () => {
+  it("states catalog and WordPress stay locked from the Ads Pro Digital session", () => {
     const summary = metaWritePolicySummary();
     expect(summary.metaWriteAuthorized).toBe(true);
     expect(summary.requiredOAuthScopes).toEqual(

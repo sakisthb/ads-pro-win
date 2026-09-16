@@ -57,7 +57,7 @@ const DashboardContent = React.memo(() => {
                 <BarChart3 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <CardTitle className="text-2xl">Ads Pro Enterprise Dashboard</CardTitle>
+                <CardTitle className="text-2xl">Ads Pro Digital Dashboard</CardTitle>
                 <CardDescription>
                   Real-time campaign analytics with AI-powered insights
                 </CardDescription>

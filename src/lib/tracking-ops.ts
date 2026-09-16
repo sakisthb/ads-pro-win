@@ -1,5 +1,5 @@
 /**
- * Store-side tracking playbook. Ads Pro reads pixel / till / GA4 — it cannot
+ * Store-side tracking playbook. Ads Pro Digital reads pixel / till / GA4 — it cannot
  * replace Events Manager, DebugView, or Woo tax settings.
  */
 
@@ -93,7 +93,7 @@ export const TRACKING_WORKSTREAMS: TrackingWorkstream[] = [
   {
     id: "google-ads-api",
     title: "Google Ads spend sync",
-    owner: "Ads Pro Connections + MCC",
+    owner: "Ads Pro Digital Connections + MCC",
     gap: "Woo last-click Google is till, not spend. Pixel ROAS stays Meta-only until DailyMetric google rows exist.",
     doNot: "Do not treat Woo last-click Google or GA4 Organic Search as Google Ads spend. Do not pick an MCC as the spend account.",
     steps: [
@@ -119,14 +119,14 @@ export const TRACKING_WORKSTREAMS: TrackingWorkstream[] = [
     id: "woo-vat",
     title: "Woo REST tax is 0",
     owner: "WooCommerce → Settings → Tax",
-    gap: "If total_tax and cart_tax are 0, Ads Pro Net ex VAT equals store net. That is the store, not a display bug.",
-    doNot: "Do not invent 24% ΦΠΑ in Ads Pro. Enable tax in Woo so REST returns it.",
+    gap: "If total_tax and cart_tax are 0, Ads Pro Digital Net ex VAT equals store net. That is the store, not a display bug.",
+    doNot: "Do not invent 24% ΦΠΑ in Ads Pro Digital. Enable tax in Woo so REST returns it.",
     steps: [
       "WooCommerce → Settings → General → Enable taxes. Tax → Standard rates → GR 24% (and reduced if you sell those SKUs).",
       "Prices inclusive of tax if that is how the catalog is entered. Place a test order and confirm total_tax > 0 in REST (cart_tax + shipping_tax if total_tax is empty).",
       "Re-sync Woo in Connections. Net ex VAT and merExVat then subtract real ΦΠΑ.",
     ],
-    verify: "A new paid order in Ads Pro Customers / MER strip shows tax > 0. Historical rows stay 0 until re-synced after tax was on.",
+    verify: "A new paid order in Ads Pro Digital Customers / MER strip shows tax > 0. Historical rows stay 0 until re-synced after tax was on.",
     docs: [
       {
         label: "Woo Orders REST tax fields",

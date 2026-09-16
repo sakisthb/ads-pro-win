@@ -119,7 +119,7 @@ export function ExportToolbar({ data }: { data: ExportToolbarData }) {
   // Org name for the PDF header (cached by React Query — same key the org
   // switcher uses). Falls back silently when no org is active.
   const orgQuery = api.organizations.getCurrent.useQuery();
-  const orgName = orgQuery.data?.name ?? "Ads Pro";
+  const orgName = orgQuery.data?.name ?? "Ads Pro Digital";
   const emailStart = data.blendedPerf?.startDate ?? "";
   const emailEnd = data.blendedPerf?.endDate ?? "";
   const emailQuery = api.emailCampaigns.getEmailMetrics.useQuery(

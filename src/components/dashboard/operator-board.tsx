@@ -73,7 +73,7 @@ export function OperatorBlockerBoard({
         <div>
           <h2 className="text-sm font-semibold text-white">Open blockers</h2>
           <p className="text-xs text-white/40">
-            Shop-side jobs. Ads Pro reads the clocks — it does not fire CAPI, tax, or Google Ads tokens.
+            Shop-side jobs. Ads Pro Digital reads the clocks — it does not fire CAPI, tax, or Google Ads tokens.
           </p>
         </div>
       </div>

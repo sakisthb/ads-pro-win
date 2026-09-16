@@ -35,8 +35,8 @@ export function ProtectedLayout({ children, email, isLoading = false }: Protecte
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
-          <p className="text-sm text-white/60">Loading Ads Pro Enterprise…</p>
+          <Loader2 className="h-8 w-8 animate-spin text-white/70" />
+          <p className="text-sm text-white/60">Loading Ads Pro Digital…</p>
         </div>
       </div>
     );
@@ -49,8 +49,8 @@ export function ProtectedLayout({ children, email, isLoading = false }: Protecte
     <div className="relative min-h-screen w-full bg-gray-950 text-white">
       {/* Ambient background orbs */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-24 left-1/3 h-72 w-72 rounded-full bg-purple-700/10 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-blue-700/10 blur-3xl" />
+        <div className="absolute -top-24 left-1/3 h-72 w-72 rounded-full bg-white/[0.03] blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-white/[0.02] blur-3xl" />
       </div>
 
       {/* Fixed sidebar */}

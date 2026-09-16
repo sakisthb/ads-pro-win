@@ -1,6 +1,6 @@
 /**
  * Documentation System
- * Comprehensive documentation and training materials for Ads Pro Enterprise
+ * Comprehensive documentation and training materials for Ads Pro Digital
  * 
  * Features:
  * - User guides and tutorials
@@ -229,7 +229,7 @@ export class DocumentationSystem {
       tags: guide.tags,
       lastUpdated: new Date(),
       version: '1.0.0',
-      author: 'Ads Pro Enterprise Team'
+      author: 'Ads Pro Digital Team'
     };
     
     this.sections.set(section.id, section);
@@ -249,7 +249,7 @@ export class DocumentationSystem {
       tags: [doc.method, doc.endpoint],
       lastUpdated: new Date(),
       version: doc.version,
-      author: 'Ads Pro Enterprise Team'
+      author: 'Ads Pro Digital Team'
     };
     
     this.sections.set(section.id, section);
@@ -269,7 +269,7 @@ export class DocumentationSystem {
       tags: [guide.category, guide.severity],
       lastUpdated: new Date(),
       version: '1.0.0',
-      author: 'Ads Pro Enterprise Team'
+      author: 'Ads Pro Digital Team'
     };
     
     this.sections.set(section.id, section);
@@ -289,7 +289,7 @@ export class DocumentationSystem {
       tags: [practice.category, practice.importance],
       lastUpdated: new Date(),
       version: '1.0.0',
-      author: 'Ads Pro Enterprise Team'
+      author: 'Ads Pro Digital Team'
     };
     
     this.sections.set(section.id, section);
@@ -309,7 +309,7 @@ export class DocumentationSystem {
       tags: [material.type, material.difficulty],
       lastUpdated: new Date(),
       version: '1.0.0',
-      author: 'Ads Pro Enterprise Team'
+      author: 'Ads Pro Digital Team'
     };
     
     this.sections.set(section.id, section);
@@ -715,7 +715,7 @@ export class DocumentationSystem {
     await this.createTrainingMaterial({
       id: 'api-training',
       title: 'API Integration Training',
-      description: 'Learn how to integrate with Ads Pro Enterprise APIs',
+      description: 'Learn how to integrate with Ads Pro Digital APIs',
       type: 'interactive',
       duration: 60,
       difficulty: 'intermediate',

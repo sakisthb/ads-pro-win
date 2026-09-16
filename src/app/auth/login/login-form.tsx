@@ -74,11 +74,11 @@ export default function LoginForm() {
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 shadow-2xl backdrop-blur-xl">
         {/* Heading */}
         <div className="mb-8">
-          <h1 className="bg-gradient-to-r from-white via-purple-200 to-blue-200 bg-clip-text text-3xl font-bold text-transparent">
+          <h1 className="text-3xl font-semibold tracking-tight text-white">
             Welcome back
           </h1>
           <p className="mt-2 text-sm text-white/50">
-            Sign in to your Ads Pro command center.
+            Sign in to Ads Pro Digital.
           </p>
         </div>
 
@@ -124,7 +124,7 @@ export default function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-3 text-sm text-white placeholder:text-white/30 transition-colors focus:border-purple-400/50 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-3 text-sm text-white placeholder:text-white/30 transition-colors focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/15"
               />
             </div>
           </div>
@@ -147,7 +147,7 @@ export default function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-3 text-sm text-white placeholder:text-white/30 transition-colors focus:border-purple-400/50 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-3 text-sm text-white placeholder:text-white/30 transition-colors focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/15"
               />
             </div>
           </div>
@@ -156,7 +156,7 @@ export default function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="group mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition-all hover:from-purple-400 hover:to-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="group mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-semibold text-[#0A0A0A] transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -174,7 +174,7 @@ export default function LoginForm() {
           Don&apos;t have an account?{" "}
           <Link
             href="/auth/signup"
-            className="font-medium text-purple-300 transition-colors hover:text-purple-200"
+            className="font-medium text-white/80 transition-colors hover:text-white"
           >
             Sign up
           </Link>

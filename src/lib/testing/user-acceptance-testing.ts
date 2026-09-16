@@ -1,6 +1,6 @@
 /**
  * User Acceptance Testing Framework
- * Comprehensive UAT system for Ads Pro Enterprise
+ * Comprehensive UAT system for Ads Pro Digital
  * 
  * Features:
  * - Test scenario management

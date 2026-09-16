@@ -5,31 +5,11 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TRPCReactProvider } from "@/components/providers/trpc-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { CurrencyProvider } from "@/components/providers/currency";
+import { brandMetadata } from "@/lib/brand";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: "Ads Pro Enterprise - Advanced Attribution Analytics",
-  description: "Performance digital marketing platform with advanced attribution analytics and cross-channel reporting that drives real results.",
-  keywords: "attribution analytics, digital marketing, cross-channel reporting, marketing automation, ROI tracking",
-  authors: [{ name: "Ads Pro Enterprise" }],
-  openGraph: {
-    title: "Ads Pro Enterprise - Advanced Attribution Analytics",
-    description: "Performance digital marketing platform with advanced attribution analytics and cross-channel reporting that drives real results.",
-    type: "website",
-    url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
-    siteName: "Ads Pro Enterprise",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Ads Pro Enterprise - Advanced Attribution Analytics",
-    description: "Performance digital marketing platform with advanced attribution analytics and cross-channel reporting that drives real results.",
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-};
+export const metadata: Metadata = brandMetadata();
 
 export default function RootLayout({
   children,

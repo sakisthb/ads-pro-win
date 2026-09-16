@@ -33,7 +33,7 @@ export function DevAuthProvider({ children }: DevAuthProviderProps) {
   const authState: DevAuthContextType = {
     user: isDevelopment ? {
       id: 'dev-user-1',
-      email: 'developer@adspro.com',
+      email: 'operator@adpd.gr',
       firstName: 'Dev',
       lastName: 'User',
     } : null,

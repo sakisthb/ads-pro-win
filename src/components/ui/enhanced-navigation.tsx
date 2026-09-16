@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, ChevronDown, Search, Bell, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { BrandLockup } from '@/components/brand/brand-lockup'
 import { useTheme } from 'next-themes'
 import { GradientButton } from './gradient-button'
 import { EnhancedBadge } from './enhanced-badge'
@@ -90,12 +91,10 @@ export const EnhancedNavigation: React.FC<EnhancedNavigationProps> = ({
             variants={itemVariants}
             className="flex items-center space-x-2"
           >
-            <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">A</span>
+            <div className="w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center">
+              <BrandLockup variant="mark" invert={false} className="h-6 w-6" />
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              Ads Pro
-            </span>
+            <BrandLockup invert={false} className="h-6 max-w-[180px] dark:invert" />
           </motion.div>
 
           {/* Desktop Navigation */}

@@ -1,5 +1,6 @@
 {
   "name": "ads-pro-enterprise",
+  "description": "Ads Pro Digital — performance marketing desk",
   "version": "0.1.0",
   "private": true,
   "scripts": {

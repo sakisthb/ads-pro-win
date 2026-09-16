@@ -135,7 +135,7 @@ const LIVE_FAQ: FAQItem[] = [
   {
     question: "How do I connect Google, TikTok, or WooCommerce?",
     answer:
-      "Same Connections page. Google Ads, Analytics, Search Console, and TikTok use OAuth. Google Ads Connect also needs GOOGLE_ADS_DEVELOPER_TOKEN (OAuth can reuse the Analytics client). WooCommerce uses the store URL plus REST consumer key and secret — there is no Ads Pro WordPress plugin. Store API calls must use the apex host, never a language subdomain (example: shop.com, not en.shop.com).",
+      "Same Connections page. Google Ads, Analytics, Search Console, and TikTok use OAuth. Google Ads Connect also needs GOOGLE_ADS_DEVELOPER_TOKEN (OAuth can reuse the Analytics client). WooCommerce uses the store URL plus REST consumer key and secret — there is no Ads Pro Digital WordPress plugin. Store API calls must use the apex host, never a language subdomain (example: shop.com, not en.shop.com).",
     category: "platforms",
   },
   {
@@ -189,7 +189,7 @@ const LIVE_FAQ: FAQItem[] = [
   {
     question: "Why are pixel purchases fewer than store orders?",
     answer:
-      "Ads Pro reads both. Closing the gap is a store-side Meta job: one CAPI stack (Facebook for WooCommerce or PixelYourSite or sGTM — not two), Woo order id as event_id on Pixel and CAPI, hashed email/phone, unhashed fbp/fbc/IP/UA. Events Manager EMQ ≥ 6, aim 8+ on Purchase, dedup ≥90%. Funnel purchases are pixel, not till. GA4 ecommerce is a third clock — do not add them.",
+      "Ads Pro Digital reads both. Closing the gap is a store-side Meta job: one CAPI stack (Facebook for WooCommerce or PixelYourSite or sGTM — not two), Woo order id as event_id on Pixel and CAPI, hashed email/phone, unhashed fbp/fbc/IP/UA. Events Manager EMQ ≥ 6, aim 8+ on Purchase, dedup ≥90%. Funnel purchases are pixel, not till. GA4 ecommerce is a third clock — do not add them.",
     category: "platforms",
   },
   {
@@ -207,7 +207,7 @@ const LIVE_FAQ: FAQItem[] = [
   {
     question: "Why is Net ex VAT the same as store net?",
     answer:
-      "Woo REST total_tax and cart_tax are 0 on those orders. Enable WooCommerce taxes (Greece 24% standard if that is the catalog) and re-sync. Ads Pro will not invent ΦΠΑ.",
+      "Woo REST total_tax and cart_tax are 0 on those orders. Enable WooCommerce taxes (Greece 24% standard if that is the catalog) and re-sync. Ads Pro Digital will not invent ΦΠΑ.",
     category: "analytics",
   },
   {
@@ -393,7 +393,7 @@ const PLATFORM_GUIDES: PlatformGuide[] = [
     platform: "WooCommerce",
     time: "~5 min",
     steps: [
-      "Install the Ads Pro plugin on your store",
+      "Install the Ads Pro Digital plugin on your store",
       "Generate REST API keys with read access",
       "Paste the keys plus store URL to sync your catalog",
     ],
@@ -529,7 +529,7 @@ export default function HelpPage() {
         <div className="space-y-3">
           <h2 className="text-lg font-semibold text-white">Store tracking playbook</h2>
           <p className="text-sm text-zinc-400">
-            Ads Pro cannot fire CAPI or Measurement Protocol. These five jobs live on the shop and Google Cloud.
+            Ads Pro Digital cannot fire CAPI or Measurement Protocol. These five jobs live on the shop and Google Cloud.
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             {TRACKING_WORKSTREAMS.map((w) => (
@@ -819,7 +819,7 @@ export default function HelpPage() {
                   {
                     icon: Mail,
                     title: "Email Support",
-                    detail: "support@adspro.com",
+                    detail: "hello@adpd.gr",
                     note: "Replies within 2 hours",
                     href: null as string | null,
                     gradient: "from-blue-500 to-blue-600",
@@ -827,7 +827,7 @@ export default function HelpPage() {
                   {
                     icon: BookOpen,
                     title: "Documentation",
-                    detail: "docs.adspro.com",
+                    detail: "adpd.gr",
                     note: "Guides, API reference, recipes",
                     href: null,
                     gradient: "from-emerald-500 to-emerald-600",
@@ -835,7 +835,7 @@ export default function HelpPage() {
                   {
                     icon: Video,
                     title: "Video Tutorials",
-                    detail: "youtube.com/@adspro",
+                    detail: "adpd.gr",
                     note: "Deep dives and walkthroughs",
                     href: null,
                     gradient: "from-red-500 to-red-600",

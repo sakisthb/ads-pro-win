@@ -1,4 +1,4 @@
-// Authentication helpers for Ads Pro Enterprise
+// Authentication helpers for Ads Pro Digital
 // Supabase Auth (replaces Clerk)
 
 import { createClient } from '@/lib/supabase/server'

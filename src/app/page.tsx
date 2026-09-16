@@ -3,10 +3,11 @@
 import React, { useState, useRef } from 'react'
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
 import {
-  ArrowRight, CheckCircle, Star, Zap, Shield, Globe,
-  TrendingUp, BarChart3, Brain, Target, Sparkles,
+  ArrowRight, CheckCircle, Star, Shield, Globe,
+  TrendingUp, BarChart3, Brain, Target,
   Rocket, Play, ChevronRight, Mail,
 } from 'lucide-react'
+import { BrandLockup } from '@/components/brand/brand-lockup'
 import { useRouter } from 'next/navigation'
 import { AnimatedCounter } from '@/components/ui/animated-counter'
 import { AnimatedSection, StaggerContainer } from '@/components/ui/animated-section'
@@ -24,10 +25,10 @@ const PARTICLES = Array.from({ length: 35 }, (_, i) => ({
 }))
 
 const ORBS = [
-  { cx: '15%', cy: '20%', r: 220, from: 'from-blue-500/30', to: 'to-purple-500/30', dur: 18 },
-  { cx: '75%', cy: '35%', r: 280, from: 'from-pink-500/25', to: 'to-orange-500/25', dur: 22 },
-  { cx: '50%', cy: '70%', r: 200, from: 'from-cyan-500/20', to: 'to-blue-500/20', dur: 16 },
-  { cx: '85%', cy: '80%', r: 180, from: 'from-purple-500/20', to: 'to-pink-500/20', dur: 20 },
+  { cx: '15%', cy: '20%', r: 220, from: 'from-white/10', to: 'to-white/[0.03]', dur: 18 },
+  { cx: '75%', cy: '35%', r: 280, from: 'from-white/10', to: 'to-white/[0.04]', dur: 22 },
+  { cx: '50%', cy: '70%', r: 200, from: 'from-white/[0.06]', to: 'to-transparent', dur: 16 },
+  { cx: '85%', cy: '80%', r: 180, from: 'from-white/[0.05]', to: 'to-transparent', dur: 20 },
 ]
 
 const STATS = [
@@ -78,7 +79,7 @@ const PLATFORMS = [
 
 const TESTIMONIALS = [
   {
-    quote: 'Ads Pro transformed how we allocate budget. ROI jumped 340% in six months.',
+    quote: 'Ads Pro Digital transformed how we allocate budget. ROI jumped 340% in six months.',
     name: 'Maria K.',
     role: 'CMO, TechVentures',
     stars: 5,
@@ -198,7 +199,7 @@ export default function HomePage() {
 
         {/* Parallax layer 3 — fast (radial glow) */}
         <motion.div style={{ y: yFast }} className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-radial from-purple-500/15 via-transparent to-transparent blur-2xl" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-radial from-white/10 via-transparent to-transparent blur-2xl" />
         </motion.div>
 
         {/* Content */}
@@ -207,10 +208,10 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7 }}
-            className="inline-flex items-center gap-2 mb-8 px-5 py-2 rounded-full border border-purple-500/30 bg-purple-500/10 backdrop-blur-sm"
+            className="inline-flex items-center gap-2 mb-8 px-5 py-2 rounded-full border border-white/15 bg-white/5 backdrop-blur-sm"
           >
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <span className="text-sm font-medium text-purple-300">AI-Powered Marketing Intelligence</span>
+            <BrandLockup variant="mark" className="h-4 w-4 max-w-none" />
+            <span className="text-sm font-medium tracking-[0.18em] uppercase text-white/70">Ads Pro Digital</span>
           </motion.div>
 
           <motion.h1
@@ -219,11 +220,11 @@ export default function HomePage() {
             transition={{ duration: 0.8, delay: 0.15 }}
             className="text-5xl sm:text-6xl md:text-7xl font-black leading-[1.1] mb-8 tracking-tight"
           >
-            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <span className="text-white">
               Stop Guessing.
             </span>
             <br />
-            <span className="text-white">Start Scaling.</span>
+            <span className="text-white/80 font-light">Start Scaling.</span>
           </motion.h1>
 
           <motion.p
@@ -244,12 +245,12 @@ export default function HomePage() {
           >
             <button
               onClick={() => router.push('/auth/signup')}
-              className="group relative px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 font-semibold text-lg shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-shadow duration-500 hover:scale-105 active:scale-[0.98]">
+              className="group relative px-8 py-4 rounded-xl bg-white text-[#0A0A0A] font-semibold text-lg hover:bg-white/90 transition-colors duration-300 active:scale-[0.98]">
               <span className="flex items-center gap-2">
                 Get Started Free <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </span>
             </button>
-            <button className="group px-8 py-4 rounded-xl border border-gray-700 hover:border-purple-500/50 font-semibold text-lg text-gray-300 hover:text-white hover:bg-purple-500/10 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-500">
+            <button className="group px-8 py-4 rounded-xl border border-white/20 hover:border-white/40 font-semibold text-lg text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-300">
               <span className="flex items-center gap-2">
                 <Play className="w-5 h-5" /> Watch Demo
               </span>
@@ -412,7 +413,7 @@ export default function HomePage() {
           <h2 className="text-4xl sm:text-5xl font-bold mb-4">
             <span className="bg-gradient-to-r from-orange-400 to-pink-400 bg-clip-text text-transparent">Before vs After</span>
           </h2>
-          <p className="text-gray-400 text-lg max-w-xl mx-auto">See how Ads Pro transforms scattered data into unified intelligence.</p>
+          <p className="text-gray-400 text-lg max-w-xl mx-auto">See how Ads Pro Digital transforms scattered data into unified intelligence.</p>
         </AnimatedSection>
 
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
@@ -514,7 +515,7 @@ export default function HomePage() {
           <h2 className="text-4xl sm:text-5xl font-bold mb-4">
             <span className="bg-gradient-to-r from-green-400 to-cyan-400 bg-clip-text text-transparent">Trusted by Growth Leaders</span>
           </h2>
-          <p className="text-gray-400 text-lg max-w-xl mx-auto">Hear from teams that transformed their marketing with Ads Pro.</p>
+          <p className="text-gray-400 text-lg max-w-xl mx-auto">Hear from teams that transformed their marketing with Ads Pro Digital.</p>
         </AnimatedSection>
 
         <StaggerContainer className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
@@ -553,10 +554,7 @@ export default function HomePage() {
             {/* Brand + newsletter */}
             <div className="md:col-span-2">
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-lg font-bold">Ads Pro</span>
+                <BrandLockup className="h-8 max-w-[240px]" />
               </div>
               <p className="text-gray-500 text-sm mb-6 max-w-sm">
                 AI-powered marketing analytics that shows you exactly where to invest your next euro.
@@ -565,11 +563,11 @@ export default function HomePage() {
                 <input
                   type="email"
                   placeholder="you@company.com"
-                  className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/30 transition-colors"
                 />
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 text-sm font-semibold hover:shadow-lg hover:shadow-purple-500/20 transition-shadow"
+                  className="px-5 py-2.5 rounded-lg bg-white text-[#0A0A0A] text-sm font-semibold hover:bg-white/90 transition-colors"
                 >
                   <Mail className="w-4 h-4" />
                 </button>
@@ -596,7 +594,7 @@ export default function HomePage() {
           </div>
 
           <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-600">
-            <p>&copy; {new Date().getFullYear()} Ads Pro. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} Ads Pro Digital. All rights reserved.</p>
             <div className="flex gap-4">
               {['Privacy', 'Terms', 'Cookies'].map((l) => (
                 <a key={l} href="#" className="hover:text-gray-400 transition-colors">{l}</a>

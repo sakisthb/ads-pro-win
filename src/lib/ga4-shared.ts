@@ -32,7 +32,7 @@ export function isGa4GenerativeChannel(channel: string | null | undefined): bool
   );
 }
 
-/** GA4 paid default channels — still not Ads Pro DailyMetric spend. */
+/** GA4 paid default channels — still not Ads Pro Digital DailyMetric spend. */
 export function isGa4PaidChannel(channel: string | null | undefined): boolean {
   const t = (channel ?? "").trim().toLowerCase();
   if (!t) return false;

@@ -1,4 +1,4 @@
-// Database Configuration for Ads Pro Enterprise
+// Database Configuration for Ads Pro Digital
 // AI-Powered Marketing Intelligence Platform
 
 import { PrismaClient } from "@prisma/client";

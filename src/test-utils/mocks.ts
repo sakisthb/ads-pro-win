@@ -1,4 +1,4 @@
-// Mock definitions for Ads Pro Enterprise tests
+// Mock definitions for Ads Pro Digital tests
 
 import { jest } from '@jest/globals'
 

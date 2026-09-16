@@ -26,7 +26,7 @@ import { useTheme } from "@/components/providers/theme-provider";
 const DEMO_USER = {
   firstName: "Athanasios",
   lastName: "Vlachos",
-  email: "athanasios@adspro.com",
+  email: "operator@adpd.gr",
   phone: "+30 694 123 4567",
   company: "Ads Pro Digital",
   title: "Founder & CEO",

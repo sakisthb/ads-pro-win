@@ -1,6 +1,8 @@
-# 🚀 Ads Pro Enterprise
+# Ads Pro Digital
 
-**AI-Powered Marketing Intelligence Platform**
+Performance marketing desk for paid ads, store till, and attribution.
+
+Production hostname: [https://adpd.gr](https://adpd.gr) (Docker + Caddy). Local: `http://127.0.0.1:3000`.
 
 A comprehensive marketing intelligence platform that leverages AI to optimize advertising campaigns across multiple platforms including Facebook, Google, TikTok, Instagram, and LinkedIn.
 
@@ -182,9 +184,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- **Documentation**: [docs.adspro.com](https://docs.adspro.com)
+- **Site**: [https://adpd.gr](https://adpd.gr)
 - **Issues**: [GitHub Issues](https://github.com/sakisthb/ads-pro-win/issues)
-- **Discord**: [Join our community](https://discord.gg/adspro)
 
 ## 🎯 Roadmap
 
@@ -198,5 +199,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built with ❤️ by the Ads Pro Enterprise Team**
+**Built with ❤️ by the Ads Pro Digital Team**
 # Force deployment

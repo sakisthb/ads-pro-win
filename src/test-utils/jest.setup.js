@@ -1,4 +1,4 @@
-// Jest setup file for Ads Pro Enterprise Testing
+// Jest setup file for Ads Pro Digital Testing
 // This file runs before each test file
 
 import '@testing-library/jest-dom'

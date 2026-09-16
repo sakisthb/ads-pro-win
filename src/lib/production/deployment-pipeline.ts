@@ -1,6 +1,6 @@
 /**
  * Deployment Pipeline System
- * Comprehensive CI/CD pipeline for Ads Pro Enterprise
+ * Comprehensive CI/CD pipeline for Ads Pro Digital
  * 
  * Features:
  * - CI/CD configuration

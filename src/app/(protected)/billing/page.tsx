@@ -161,7 +161,7 @@ export default function BillingPage() {
             Billing
           </h1>
           <p className="text-lg text-zinc-400">
-            Workspace usage for this org. Invoices and checkout are not in Ads Pro.
+            Workspace usage for this org. Invoices and checkout are not in Ads Pro Digital.
           </p>
         </motion.div>
 
@@ -672,7 +672,7 @@ export default function BillingPage() {
 
             <p className="mt-4 text-xs text-zinc-500">
               Invoices are generated automatically on the 1st of each billing cycle and emailed to
-              billing@adspro.com.
+              hello@adpd.gr.
             </p>
           </Card>
         </motion.div>

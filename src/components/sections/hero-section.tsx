@@ -93,7 +93,7 @@ export const HeroSection: React.FC = () => {
           className="mb-6"
         >
           <EnhancedBadge variant="gradient" size="lg" className="text-sm">
-            🚀 Ads Pro Enterprise - Performance Digital Marketing Platform
+            🚀 Ads Pro Digital - Performance Digital Marketing Platform
           </EnhancedBadge>
         </motion.div>
 

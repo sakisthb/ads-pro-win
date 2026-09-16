@@ -1,7 +1,7 @@
 # AI Features Setup Guide
-## Ads Pro Enterprise - AI-Powered Campaign Workspace
+## Ads Pro Digital - AI-Powered Campaign Workspace
 
-This guide explains how to set up and run the AI-powered features in Ads Pro Enterprise, including real-time WebSocket integration and comprehensive AI tools.
+This guide explains how to set up and run the AI-powered features in Ads Pro Digital, including real-time WebSocket integration and comprehensive AI tools.
 
 ## 🚀 Quick Start
 

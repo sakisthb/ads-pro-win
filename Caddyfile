@@ -1,4 +1,4 @@
-# Ads Pro public hostname only. Growth Center uses its own domain and process.
+# Ads Pro Digital public hostname only. Growth Center uses its own domain and process.
 {$DOMAIN:localhost} {
   reverse_proxy web:3000
 

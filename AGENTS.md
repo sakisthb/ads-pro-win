@@ -1,4 +1,4 @@
-# Ads Pro Enterprise — Agent Operating Contract
+# Ads Pro Digital — Agent Operating Contract
 
 ## Agent skills
 

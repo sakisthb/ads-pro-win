@@ -1,7 +1,7 @@
 /**
- * Ads Pro ↔ SACOS Growth Center join.
+ * Ads Pro Digital ↔ SACOS Growth Center join.
  *
- * Ads Pro owns the brand shell. Growth Center stays the catalog system of
+ * Ads Pro Digital owns the brand shell. Growth Center stays the catalog system of
  * record. This module maps a brand website to a SACOS site and a click-through
  * origin. It never invents catalog counts.
  */
@@ -194,7 +194,7 @@ export function assertHostedGrowthDeskEnv(args: {
     return {
       ok: false,
       error:
-        "SACOS_GROWTH_ORIGIN must be the HTTPS Growth Center domain, not Ads Pro and not 127.0.0.1",
+        "SACOS_GROWTH_ORIGIN must be the HTTPS Growth Center domain, not Ads Pro Digital and not 127.0.0.1",
     };
   }
   if (!parseGrowthDeskToken(args.token)) {

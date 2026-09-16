@@ -47,7 +47,7 @@ interface OnboardingTourProps {
 const tourSteps: TourStep[] = [
   {
     id: "welcome",
-    title: "Welcome to Ads Pro Enterprise!",
+    title: "Welcome to Ads Pro Digital!",
     description: "Let's take a quick tour of your new AI-powered marketing platform",
     content: "This comprehensive platform provides enterprise-grade advertising analytics, AI-powered insights, and automated optimization tools. We'll guide you through the key features to get you started.",
     position: "center",
@@ -129,7 +129,7 @@ const tourSteps: TourStep[] = [
     id: "completion",
     title: "You're All Set!",
     description: "Start exploring your new marketing intelligence platform",
-    content: "You now know the key features of Ads Pro Enterprise. Remember to use Ctrl+K for quick navigation, check notifications regularly, and leverage AI insights for better performance.",
+    content: "You now know the key features of Ads Pro Digital. Remember to use Ctrl+K for quick navigation, check notifications regularly, and leverage AI insights for better performance.",
     position: "center",
     icon: CheckCircle,
     category: "navigation"

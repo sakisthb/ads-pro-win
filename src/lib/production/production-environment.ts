@@ -1,6 +1,6 @@
 /**
  * Production Environment Setup & Configuration
- * Comprehensive production infrastructure for Ads Pro Enterprise
+ * Comprehensive production infrastructure for Ads Pro Digital
  * 
  * Features:
  * - Infrastructure configuration
@@ -956,7 +956,7 @@ export function useProductionEnvironment(config: ProductionConfig) {
 export const productionEnvironment = new ProductionEnvironment({
   environment: 'production',
   region: 'us-east-1',
-  domain: 'ads-pro-enterprise.com',
+  domain: 'adpd.gr',
   sslEnabled: true,
   cdnEnabled: true,
   monitoringEnabled: true,

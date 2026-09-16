@@ -1,4 +1,4 @@
-// tRPC Server Configuration for Ads Pro Enterprise
+// tRPC Server Configuration for Ads Pro Digital
 // AI-Powered Marketing Intelligence Platform
 
 import { initTRPC, TRPCError } from "@trpc/server";

@@ -857,7 +857,7 @@ export default function ConnectionsPage() {
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-purple-300/80">Store ops</p>
             <h2 className="mt-1 text-base font-semibold text-white">CAPI, GA4, Unassigned, Google Ads token, Woo VAT</h2>
             <p className="mt-1 max-w-2xl text-xs text-white/45">
-              Ads Pro reads the five clocks. Closing the gaps is on the shop. Full steps on Help.
+              Ads Pro Digital reads the five clocks. Closing the gaps is on the shop. Full steps on Help.
             </p>
           </div>
           <Link
@@ -1398,7 +1398,7 @@ function PlatformCredentialForms({ def, woo, oc, apiKeyForm }: { def: PlatformDe
               <Field id="woo-key" label="Consumer Key" type="text" value={woo.key} onChange={woo.setKey} placeholder="ck_••••••••••••••••" />
               <Field id="woo-secret" label="Consumer Secret" type="password" value={woo.secret} onChange={woo.setSecret} placeholder="cs_••••••••••••••••" />
               <p className="text-[11px] leading-relaxed text-white/40">
-                Ads Pro calls <span className="text-white/55">/wp-json/wc/v3/</span> from the server.
+                Ads Pro Digital calls <span className="text-white/55">/wp-json/wc/v3/</span> from the server.
                 Cloudflare Bot Fight or “I&apos;m Under Attack” will block that even with a valid key — skip those checks for that path.
               </p>
               {woo.error && (

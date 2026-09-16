@@ -1,6 +1,6 @@
 /**
  * Monitoring & Alerting System
- * Comprehensive monitoring and alerting for Ads Pro Enterprise
+ * Comprehensive monitoring and alerting for Ads Pro Digital
  * 
  * Features:
  * - Real-time monitoring

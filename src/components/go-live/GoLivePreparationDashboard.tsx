@@ -1,6 +1,6 @@
 /**
  * Go-Live Preparation Dashboard
- * Ads Pro Enterprise - Production Launch Management
+ * Ads Pro Digital - Production Launch Management
  * 
  * This component provides a comprehensive interface for managing
  * go-live preparation, checklist tracking, and rollback procedures.

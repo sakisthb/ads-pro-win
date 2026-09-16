@@ -66,6 +66,17 @@ jest.mock("@/components/providers/trpc-provider", () => ({
 
 const useHasMountedMock = useHasMounted as jest.MockedFunction<typeof useHasMounted>;
 
+describe("ProfessionalNavbar brand chrome", () => {
+  it("renders the Ads Pro Digital wordmark instead of purple-gradient text", () => {
+    useHasMountedMock.mockReturnValue(true);
+    render(<ProfessionalNavbar email="kate@example.com" />);
+
+    const logo = screen.getByRole("img", { name: /ads pro digital/i });
+    expect(logo).toHaveAttribute("src", "/adpd-logo-wordmark.png");
+    expect(screen.queryByText(/^Ads Pro Digital$/)).not.toBeInTheDocument();
+  });
+});
+
 describe("ProfessionalNavbar user menu hydration", () => {
   it("renders a non-Radix avatar button before hydration completes", () => {
     useHasMountedMock.mockReturnValue(false);

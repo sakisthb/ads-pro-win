@@ -1,6 +1,6 @@
 /**
  * Training Materials System
- * Comprehensive training and learning management for Ads Pro Enterprise
+ * Comprehensive training and learning management for Ads Pro Digital
  * 
  * Features:
  * - Interactive courses
@@ -481,7 +481,7 @@ ${this.generateRecommendations(userId)}
     await this.createCourse({
       id: 'api-integration',
       title: 'API Integration Workshop',
-      description: 'Hands-on workshop for integrating with Ads Pro Enterprise APIs',
+      description: 'Hands-on workshop for integrating with Ads Pro Digital APIs',
       category: 'intermediate',
       duration: 120,
       modules: [

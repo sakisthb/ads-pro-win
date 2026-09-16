@@ -1,4 +1,4 @@
-# TDD Workflow for Ads Pro Enterprise
+# TDD Workflow for Ads Pro Digital
 
 ## When to use
 
