@@ -328,3 +328,19 @@ describe("middleware public GDPR page", () => {
     },
   );
 });
+
+describe("middleware public Terms of Use page", () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-test-key";
+    mockAnonymousSession();
+  });
+
+  it("lets anonymous visitors hit /terms", async () => {
+    const response = await middleware(buildRequest("/terms"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+  });
+});

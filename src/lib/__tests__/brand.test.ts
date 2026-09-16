@@ -78,6 +78,14 @@ describe("Ads Pro Digital brand", () => {
     expect(BRAND.privacyUrl).not.toMatch(/prosopika-dedomena-gdpr/);
   });
 
+  it("publishes one canonical Terms of Use URL on adpd.gr", () => {
+    expect(BRAND.termsPath).toBe("/terms");
+    expect(BRAND.termsUrl).toBe("https://adpd.gr/terms");
+    expect(BRAND.termsUrl).toBe(`${BRAND.siteUrl}${BRAND.termsPath}`);
+    expect(BRAND.termsUrl).not.toMatch(/bagtobag\.com\.gr/i);
+    expect(BRAND.termsUrl).not.toMatch(/oroi-chrisis/);
+  });
+
   it("documents the canonical privacy URL for Google/Meta consent, never BagToBag WP GDPR", () => {
     const forbidden = "bagtobag.com.gr/prosopika-dedomena-gdpr";
     const docs = [
@@ -100,19 +108,24 @@ describe("Ads Pro Digital brand", () => {
     for (const file of app) {
       expect(`${file.rel}: ${file.text}`).not.toMatch(forbidden);
       expect(file.text).toMatch(/privacyPath|privacyUrl|\/gdpr/);
+      expect(file.text).toMatch(/termsPath|termsUrl|\/terms/);
     }
     for (const file of docs) {
       expect(file.text).toContain("https://adpd.gr/gdpr");
+      expect(file.text).toContain("https://adpd.gr/terms");
       expect(file.text).not.toMatch(
         /(?:href|url|URL)\s*[:=].*bagtobag\.com\.gr\/prosopika-dedomena-gdpr/i,
       );
       expect(file.text).not.toMatch(
         /Privacy [Pp]olicy URL \| `https:\/\/adpd\.gr\/prosopika-dedomena-gdpr`/,
       );
+      expect(file.text).not.toMatch(/bagtobag\.com\.gr\/oroi-chrisis/i);
     }
 
     const home = app.find((f) => f.rel === "src/app/page.tsx")!.text;
     expect(home).not.toMatch(/href="#"[^>]*>Privacy</);
+    expect(home).not.toMatch(/href="#"[^>]*>Terms</);
+    expect(home).toMatch(/termsPath|termsUrl|\/terms/);
   });
 
   it("permanently aliases old privacy paths to /gdpr", async () => {

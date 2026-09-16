@@ -4,6 +4,8 @@ export const BRAND = {
   siteUrl: "https://adpd.gr",
   privacyPath: "/gdpr",
   privacyUrl: "https://adpd.gr/gdpr",
+  termsPath: "/terms",
+  termsUrl: "https://adpd.gr/terms",
   ink: "#0A0A0A",
   charcoal: "#121417",
   paper: "#FFFFFF",
