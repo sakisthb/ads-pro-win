@@ -20,6 +20,6 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ProsopikaDedomenaPage() {
+export default function GdprPage() {
   return <PrivacyPolicy />;
 }

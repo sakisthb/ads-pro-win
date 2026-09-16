@@ -268,17 +268,13 @@ describe("middleware public GDPR page", () => {
     mockAnonymousSession();
   });
 
-  it("lets anonymous visitors read /prosopika-dedomena-gdpr", async () => {
-    const response = await middleware(buildRequest("/prosopika-dedomena-gdpr"));
+  it.each(["/gdpr", "/privacy", "/prosopika-dedomena-gdpr"])(
+    "lets anonymous visitors hit %s",
+    async (pathname) => {
+      const response = await middleware(buildRequest(pathname));
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Location")).toBeNull();
-  });
-
-  it("lets anonymous visitors hit /privacy so the canonical alias can run", async () => {
-    const response = await middleware(buildRequest("/privacy"));
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Location")).toBeNull();
-  });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Location")).toBeNull();
+    },
+  );
 });
