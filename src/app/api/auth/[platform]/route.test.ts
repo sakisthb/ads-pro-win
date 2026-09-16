@@ -63,8 +63,11 @@ function request(platform: string, query = ""): Request {
 }
 
 describe("GET /api/auth/[platform]", () => {
+  const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
   beforeEach(() => {
     jest.resetAllMocks();
+    delete process.env.NEXT_PUBLIC_SITE_URL;
     process.env.FACEBOOK_APP_ID = "fb-app-id";
     process.env.FACEBOOK_APP_SECRET = "fb-app-secret";
     process.env.GOOGLE_ADS_CLIENT_ID = "ga-client-id";
@@ -77,6 +80,11 @@ describe("GET /api/auth/[platform]", () => {
     });
     mockedRequireOrganizationRoleForUser.mockResolvedValue(authz());
     mockedPrisma.oAuthTransaction.create.mockResolvedValue({ id: "tx-1" } as never);
+  });
+
+  afterEach(() => {
+    if (originalSiteUrl == null) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
   });
 
   it("returns 404 for an unknown platform", async () => {
