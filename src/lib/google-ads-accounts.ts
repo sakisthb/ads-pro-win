@@ -4,7 +4,8 @@
  * listAccessibleCustomers returns resource names only. Names come from a
  * follow-up GAQL search; MCC trees expand via customer_client.
  * Scope: https://www.googleapis.com/auth/adwords
- * Every call also needs GOOGLE_ADS_DEVELOPER_TOKEN.
+ * `developer-token` is optional after 10 Sep 2026 (access level lives on the
+ * Cloud project). Send it only when GOOGLE_ADS_DEVELOPER_TOKEN is set.
  */
 
 import { safeFetch } from "@/lib/safe-fetch";
@@ -108,16 +109,16 @@ export function formatGoogleAdsApiError(status: number, body: string): string {
     haystack.includes("only approved for use with test accounts") ||
     haystack.includes("apply for basic")
   ) {
-    return "This developer token is test-only. Apply for Basic Access in Google Ads API Center, then Sync Now.";
+    return "Google Ads API access looks test-only. Upgrade Explorer/Basic on the Google Ads API Overview in Cloud Console, then Sync Now.";
   }
   if (haystack.includes("developer token") || haystack.includes("developer-token")) {
-    return "Add GOOGLE_ADS_DEVELOPER_TOKEN to .env.local (Ads API Center), then reconnect Google Ads.";
+    return "Google Ads developer-token is optional after 10 Sep 2026. Check Explorer/Basic on the Google Ads API Overview in Cloud Console, then Sync Now.";
   }
   if (haystack.includes("has not been used") || haystack.includes("is disabled") || haystack.includes("access not configured")) {
     return "Enable Google Ads API in this Google Cloud project, then retry.";
   }
   if (haystack.includes("not approved") || (haystack.includes("test account") && haystack.includes("only"))) {
-    return "This developer token is test-only. Use a test Ads account, or apply for basic access in Ads API Center.";
+    return "Google Ads API access looks test-only. Use a test account, or upgrade Explorer/Basic in Cloud Console.";
   }
   if (haystack.includes("insufficient") || haystack.includes("permission") || status === 403) {
     return "This Google account cannot read that Ads customer. Pick another account or reconnect.";
@@ -140,13 +141,14 @@ export function preferGoogleAdsCustomer(
   return pool.length === 1 ? pool[0]! : null;
 }
 
-function googleAdsHeaders(accessToken: string, loginCustomerId?: string | null): Record<string, string> {
+export function googleAdsHeaders(accessToken: string, loginCustomerId?: string | null): Record<string, string> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
     Accept: "application/json",
-    "developer-token": (process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "").trim(),
   };
+  const token = (process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "").trim();
+  if (token) headers["developer-token"] = token;
   const login = (loginCustomerId ?? "").replace(/-/g, "").trim();
   if (/^\d{6,}$/.test(login)) headers["login-customer-id"] = login;
   return headers;
@@ -285,10 +287,6 @@ export async function listGoogleAdsCustomers(
   accessToken: string,
   fetchImpl: typeof fetch = safeFetch as unknown as typeof fetch,
 ): Promise<GoogleAdsCustomer[]> {
-  const token = (process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "").trim();
-  if (!token) {
-    throw new Error("Add GOOGLE_ADS_DEVELOPER_TOKEN to .env.local (Ads API Center), then reconnect Google Ads.");
-  }
   const res = await fetchImpl(googleAdsListAccessibleUrl(), {
     method: "GET",
     headers: googleAdsHeaders(accessToken),

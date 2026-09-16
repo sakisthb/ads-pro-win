@@ -219,7 +219,7 @@ function oauthEnvHint(id: PlatformId): string {
     return "Add TIKTOK_APP_ID and TIKTOK_APP_SECRET to .env.local. TikTok uses portal/auth (app_id) and returns auth_code.";
   }
   if (id === "google-ads") {
-    return "Add GOOGLE_ADS_DEVELOPER_TOKEN to .env.local (OAuth can reuse GOOGLE_ANALYTICS_CLIENT_*).";
+    return "Add GOOGLE_ADS_CLIENT_ID / SECRET to .env.local (or reuse GOOGLE_ANALYTICS_CLIENT_*). Developer-token is optional.";
   }
   if (id === "meta") {
     return "Add FACEBOOK_APP_ID and FACEBOOK_APP_SECRET to .env.local.";
@@ -1335,16 +1335,16 @@ function GoogleAdsAccountPanel({
       <p className="mt-1 text-[11px] leading-relaxed text-white/45">
         Pick the spend account for this shop, not the MCC. Switching here mixes another brand&apos;s spend into Pixel ROAS.
         Spend appears on Dashboard only after Sync Now writes DailyMetric google rows. Woo last-click Google is till.
-        If the last sync says the developer token is test-only, apply for{" "}
+        Explorer already covers production reporting. Basic is a quota upgrade via{" "}
         <a
-          href="https://ads.google.com/aw/apicenter"
+          href="https://console.cloud.google.com/google/ads-apis/overview"
           target="_blank"
           rel="noopener noreferrer"
           className="text-yellow-200/90 underline decoration-yellow-200/30 underline-offset-2 hover:text-yellow-100"
         >
-          Basic Access in Ads API Center
+          Google Ads API Overview in Cloud Console
         </a>
-        .
+        — do not use Ads API Center.
       </p>
       {query.isLoading ? (
         <p className="mt-2 flex items-center gap-2 text-xs text-white/50">
@@ -1354,7 +1354,7 @@ function GoogleAdsAccountPanel({
         <p className="mt-2 text-xs text-red-200">{query.error.message}</p>
       ) : customers.length === 0 ? (
         <p className="mt-2 text-xs text-white/55">
-          No Google Ads customers on this login. If Sync Now says the developer token is test-only, apply for Basic Access in Ads API Center.
+          No Google Ads customers on this login. Explorer can Sync production accounts; Basic is quota-only via Cloud Console Ads API Overview.
         </p>
       ) : (
         <div className="mt-2 flex flex-wrap items-center gap-2">

@@ -115,6 +115,31 @@ describe("GET /api/auth/[platform]", () => {
     expect(mockedPrisma.oAuthTransaction.create).not.toHaveBeenCalled();
   });
 
+  it("starts Google Ads OAuth without a developer token", async () => {
+    delete process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+
+    const response = await startOAuth(request("google-ads"), {
+      params: Promise.resolve({ platform: "google-ads" }),
+    });
+
+    expect(response.status).toBe(307);
+  });
+
+  it("uses https://localhost for Meta redirect_uri from loopback HTTP", async () => {
+    const req = new Request("http://127.0.0.1:3000/api/auth/meta", {
+      headers: { host: "127.0.0.1:3000" },
+    });
+    const response = await startOAuth(req, {
+      params: Promise.resolve({ platform: "meta" }),
+    });
+
+    expect(response.status).toBe(307);
+    const url = new URL(response.headers.get("Location") ?? "");
+    expect(url.searchParams.get("redirect_uri")).toBe(
+      "https://localhost:3000/api/auth/meta/callback",
+    );
+  });
+
   it("creates a transaction and redirects to Meta with an opaque state", async () => {
     const response = await startOAuth(
       request("meta", "?return=/onboarding&brand=brand-1"),
