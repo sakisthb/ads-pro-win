@@ -38,3 +38,4 @@ Ads Pro Enterprise is a Next.js SaaS application for performance marketing teams
 - Supabase Auth for authentication and authorization.
 - AI providers: OpenAI, Anthropic, Google.
 - Read-only ad platform integrations in the MVP.
+- **Deploy:** Docker + Caddy only (`docker-compose.production.yml`, `deploy.sh` / `deploy.ps1`). **Vercel is finished — never deploy there again.** Ignore leftover GitHub “Vercel” status checks; they are not part of CI.

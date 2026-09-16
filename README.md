@@ -32,13 +32,13 @@ A comprehensive marketing intelligence platform that leverages AI to optimize ad
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 14+, React 19, TypeScript
+- **Frontend**: Next.js 15, React, TypeScript
 - **Backend**: tRPC, Prisma ORM
 - **Database**: PostgreSQL (Supabase)
-- **Authentication**: Clerk
+- **Authentication**: Supabase Auth
 - **AI Providers**: OpenAI, Anthropic, Google AI
 - **Caching**: Redis
-- **Deployment**: Vercel
+- **Deployment**: Docker + Caddy only (not Vercel)
 - **UI**: Tailwind CSS, ShadCN UI
 
 ## 🚀 Quick Start
@@ -103,25 +103,15 @@ REDIS_DB="0"
 
 ## 📦 Deployment
 
-### Vercel Deployment
+**Vercel is retired. Do not use it.** Production is Docker + Caddy.
 
 ```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy to Vercel
-vercel --prod
+# From a host with .env created from .env.production.example
+./deploy.sh
+# Windows: .\deploy.ps1
 ```
 
-### Docker Deployment
-
-```bash
-# Build Docker image
-docker build -t ads-pro-enterprise .
-
-# Run container
-docker run -p 3000:3000 ads-pro-enterprise
-```
+Stack: `docker-compose.production.yml` (web, worker, redis, caddy). See `DEPLOYMENT_STRATEGY.md`.
 
 ## 🏗️ Project Structure
 

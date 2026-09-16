@@ -26,4 +26,4 @@ Two applications, one brand cockpit.
 - Do not merge Django into Next.js, Prisma schemas, or user tables.
 - Do not iframe Growth Center.
 - Ads Pro MVP ad connectors stay read-only. Write gates stay on SACOS.
-- Disconnecting Vercel (or any Ads Pro host) does not change this join.
+- Ads Pro production host is Docker + Caddy only. **Vercel is retired** — do not redeploy there. Changing or removing leftover Vercel GitHub checks does not change the Ads Pro ↔ Growth Center join.

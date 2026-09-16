@@ -7,5 +7,6 @@
   "failureCount": 23,
   "successRate": "28.13",
   "finalValidation": false,
-  "deploymentUrl": "https://ads-pro-enterprise.vercel.app"
+  "deploymentUrl": "http://127.0.0.1:3000",
+  "deploymentNote": "Vercel retired 2026-09-16; Docker+Caddy only"
 }

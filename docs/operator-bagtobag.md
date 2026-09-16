@@ -73,3 +73,4 @@ Later sequence exists only as backlog, not as permission: test1 native executor;
 - No treating test1 as the BagToBag shop.
 - No treating local Growth Center replace as a production publish.
 - No draft/copy work unless the operator asks.
+- **No Vercel.** Ads Pro ships on Docker + Caddy only. Never run `vercel`, never treat the leftover GitHub Vercel check as CI.
