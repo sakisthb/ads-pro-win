@@ -32,6 +32,7 @@ import {
   type BidStrategy,
   type SignificantEditKind,
 } from "@/lib/meta/operator-logic";
+import { resolveMetaWriteGate } from "@/lib/meta/write-policy";
 import { mapMetaCampaignStatus } from "@/lib/meta/actions";
 
 const campaignIdSchema = z.object({
@@ -43,15 +44,6 @@ const campaignIdSchema = z.object({
 const confirmSchema = z.object({
   confirmLearningReset: z.boolean().optional(),
 });
-
-function assertNotDemoOrg(slug: string) {
-  if (slug === "demo") {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Switch out of the Demo workspace to edit live Meta ads.",
-    });
-  }
-}
 
 function asTrpc(error: unknown): never {
   const message = error instanceof Error ? error.message : String(error);
@@ -65,7 +57,6 @@ async function resolveMetaWriter(
   ctx: { prisma: typeof import("@/lib/db").prisma; organizationId: string; organization: { slug: string } },
   input: { brandId?: string; adAccountId?: string },
 ) {
-  assertNotDemoOrg(ctx.organization.slug);
   const resolved = await resolveLaunchAccount(
     ctx.prisma,
     ctx.organizationId,
@@ -80,11 +71,24 @@ async function resolveMetaWriter(
     });
   }
   const granted = await getMetaGrantedPermissions(resolved.accessToken);
-  if (!granted.includes("ads_management")) {
+  let brandWebsite: string | null = null;
+  if (input.brandId) {
+    const brand = await ctx.prisma.brand.findFirst({
+      where: { id: input.brandId, organizationId: ctx.organizationId },
+      select: { website: true },
+    });
+    brandWebsite = brand?.website ?? null;
+  }
+  const gate = resolveMetaWriteGate({
+    organizationSlug: ctx.organization.slug,
+    grantedScopes: granted,
+    operatorAuthorizedMetaWrite: true,
+    brandWebsite,
+  });
+  if (!gate.allowed) {
     throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message:
-        "Meta is still on a read-only token. Reconnect Meta on Connections and approve ads_management.",
+      code: gate.reason?.includes("Demo") ? "FORBIDDEN" : "PRECONDITION_FAILED",
+      message: gate.reason ?? "Meta write blocked.",
     });
   }
   return { ...resolved, granted };
@@ -150,10 +154,25 @@ export const metaOpsRouter = createTRPCRouter({
       getMetaGrantedPermissions(resolved.accessToken),
       fetchMetaOperatorTree(resolved.accessToken, input.campaignId),
     ]);
-    const canWrite = granted.includes("ads_management");
+    let brandWebsite: string | null = null;
+    if (input.brandId) {
+      const brand = await ctx.prisma.brand.findFirst({
+        where: { id: input.brandId, organizationId: ctx.organizationId },
+        select: { website: true },
+      });
+      brandWebsite = brand?.website ?? null;
+    }
+    const gate = resolveMetaWriteGate({
+      organizationSlug: ctx.organization.slug,
+      grantedScopes: granted,
+      operatorAuthorizedMetaWrite: true,
+      brandWebsite,
+    });
+    const canWrite = gate.allowed;
     return {
       ...tree,
       canWrite,
+      writeBlockedReason: gate.reason,
       permissions: granted,
       pages: [] as Awaited<ReturnType<typeof listMetaPages>>,
       customAudiences: [] as Awaited<ReturnType<typeof listMetaCustomAudiences>>,

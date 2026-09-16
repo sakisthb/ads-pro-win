@@ -457,7 +457,7 @@ export default function CampaignsPage() {
             <div>
               <h2 className="text-sm font-semibold text-white">Synced Campaigns (Meta)</h2>
               <p className="mt-0.5 text-xs text-white/40">
-                Campaign objects + daily insights. Open Edit on Meta for campaign, ad set, and ad writes.
+                Campaign objects + daily insights. Open Edit on Meta for status, budget, and rename (needs ads_management).
               </p>
             </div>
             <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-400">

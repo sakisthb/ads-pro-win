@@ -85,6 +85,19 @@ export function metaWriteBlockedReason(granted: string[]): string | null {
   return `This Meta token cannot write ads (granted: ${listed}). Reconnect Meta on Connections and approve ads_management.`;
 }
 
+/** Prefer resolveMetaWriteGate when org/demo context is available. */
+export function metaWriteBlockedReasonDetailed(opts: {
+  granted: string[];
+  organizationSlug?: string;
+  serverReason?: string | null;
+}): string | null {
+  if (opts.serverReason) return opts.serverReason;
+  if (opts.organizationSlug === "demo") {
+    return "Switch out of the Demo workspace to edit live Meta ads.";
+  }
+  return metaWriteBlockedReason(opts.granted);
+}
+
 export function resolveBudgetEditTarget(snap: BudgetSnapshot): BudgetEditTarget {
   if (snap.campaignDailyCents && snap.campaignDailyCents > 0) {
     return {

@@ -26,4 +26,4 @@ Respond to Athanasios in Greek. Keep product, engineering, and ads terminology i
 
 - Never commit `.env` files, Firebase exports, Supabase credential docs, or generated runtime data.
 - Adopt code from reference repos by hand in small pieces with tests, not by bulk merge.
-- Keep ad platform integrations read-only in the MVP.
+- Meta Ads writes are operator-authorized (ADR 0002): require `ads_management`, confirm in UI, audit `metaWriteLog`. Other ad platforms stay read-only unless a later ADR opens them. Catalog/WP writes stay in SACOS Growth Center.
