@@ -81,14 +81,35 @@ export async function GET(
       ? googleOAuthOrigin(request)
       : getOrigin(request);
 
-  const { rawState, codeChallenge, codeChallengeMethod } =
-    await createOAuthTransaction(prisma, {
+  let rawState: string;
+  let codeChallenge: string | undefined;
+  let codeChallengeMethod: string | undefined;
+  try {
+    const transaction = await createOAuthTransaction(prisma, {
       platform,
       userId: session.userId,
       organizationId: authorization.organizationId,
       brandId,
       returnPath: url.searchParams.get("return"),
     });
+    rawState = transaction.rawState;
+    codeChallenge = transaction.codeChallenge;
+    codeChallengeMethod = transaction.codeChallengeMethod;
+  } catch (error) {
+    logSecurityEvent("oauth_failure", "error", {
+      code: "oauth_transaction_persist_failed",
+      platform,
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    return NextResponse.json(
+      {
+        error:
+          "OAuth could not start because the database is missing oauth_transactions (or the write failed). " +
+          "Run `npx prisma migrate deploy` against this DATABASE_URL, then retry Connect.",
+      },
+      { status: 503 },
+    );
+  }
 
   const authUrl = buildOAuthUrl(platform, origin, {
     state: rawState,
