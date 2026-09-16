@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { ensureUserMemberships } from "@/lib/org-bootstrap";
 import { activeOrgCookieOptions } from "@/lib/active-org";
+import { getOrigin } from "@/lib/public-origin";
 
 /**
  * Supabase email-confirmation / OAuth callback handler.
@@ -11,7 +12,8 @@ import { activeOrgCookieOptions } from "@/lib/active-org";
  * and finally redirects to the dashboard.
  */
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = getOrigin(request);
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/dashboard";
 

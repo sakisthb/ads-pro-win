@@ -47,6 +47,7 @@ export const env = createEnv({
         message: "INTERNAL_RATE_LIMIT_SECRET is required in production and must be at least 32 characters",
       })
       .optional(),
+    INTERNAL_RATE_LIMIT_ORIGIN: z.string().url().optional(),
     RATE_LIMIT_ENABLED: z
       .enum(["true", "false"])
       .default("true"),
@@ -107,6 +108,7 @@ export const env = createEnv({
     REDIS_DB: process.env.REDIS_DB,
     TRUSTED_PROXY_HOPS: process.env.TRUSTED_PROXY_HOPS,
     INTERNAL_RATE_LIMIT_SECRET: process.env.INTERNAL_RATE_LIMIT_SECRET,
+    INTERNAL_RATE_LIMIT_ORIGIN: process.env.INTERNAL_RATE_LIMIT_ORIGIN,
     RATE_LIMIT_ENABLED: process.env.RATE_LIMIT_ENABLED,
     META_MCP_URL: process.env.META_MCP_URL,
     TIKTOK_MCP_URL: process.env.TIKTOK_MCP_URL,

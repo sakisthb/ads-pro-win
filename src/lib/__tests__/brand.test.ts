@@ -52,6 +52,9 @@ describe("Ads Pro Digital brand", () => {
     expect(example).toMatch(/NEXT_PUBLIC_SITE_URL=https:\/\/adpd\.gr/);
     expect(production).toMatch(/^DOMAIN=adpd\.gr$/m);
     expect(production).toMatch(/NEXT_PUBLIC_SITE_URL=https:\/\/adpd\.gr/);
+    expect(production).toMatch(
+      /INTERNAL_RATE_LIMIT_ORIGIN=http:\/\/127\.0\.0\.1:3000/,
+    );
     expect(example).not.toMatch(/apdm\.gr/);
     expect(production).not.toMatch(/apdm\.gr/);
   });

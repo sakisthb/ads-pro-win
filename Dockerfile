@@ -23,6 +23,7 @@ COPY . .
 ARG NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder-anon-key
 ARG NEXT_PUBLIC_SITE_URL=https://build.placeholder.invalid
+ARG INTERNAL_RATE_LIMIT_ORIGIN=http://127.0.0.1:3000
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
     NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
@@ -34,6 +35,7 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     REDIS_PASSWORD=build-placeholder-redis-password \
     REDIS_DB=0 \
     INTERNAL_RATE_LIMIT_SECRET=build-placeholder-secret-must-be-at-least-32-chars \
+    INTERNAL_RATE_LIMIT_ORIGIN=$INTERNAL_RATE_LIMIT_ORIGIN \
     TRUSTED_PROXY_HOPS=1 \
     RATE_LIMIT_ENABLED=false
 RUN npx prisma generate
@@ -73,7 +75,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 USER nextjs
 EXPOSE 3000
-ENV PORT=3000 HOSTNAME=0.0.0.0
+ENV PORT=3000 HOSTNAME=0.0.0.0 INTERNAL_RATE_LIMIT_ORIGIN=http://127.0.0.1:3000
 # 127.0.0.1, not localhost: Alpine resolves localhost to ::1 first, but the
 # standalone server binds IPv4 0.0.0.0, so a localhost probe is refused.
 HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1:3000/api/health?probe=live || exit 1
