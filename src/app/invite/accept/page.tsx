@@ -8,7 +8,7 @@ import { Mail, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 function AcceptInvitationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? "";
+  const token = searchParams?.get("token") ?? "";
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

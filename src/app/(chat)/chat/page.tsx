@@ -823,7 +823,7 @@ export default function ChatPage() {
   }, [isSending, messages, userId, persistRemote, activeSessionId, supabase]);
 
   useEffect(() => {
-    const ask = searchParams.get("ask")?.trim();
+    const ask = searchParams?.get("ask")?.trim();
     if (!ask || consumedAsk.current || isLoading || isSending) return;
     consumedAsk.current = true;
     void sendMessage(ask);

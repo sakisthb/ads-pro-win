@@ -29,10 +29,10 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [emailDisabled, setEmailDisabled] = useState(false);
   const [error, setError] = useState<string | null>(
-    searchParams.get("error"),
+    searchParams?.get("error") ?? null,
   );
 
-  const redirectTarget = safeAppPath(searchParams.get("redirect"));
+  const redirectTarget = safeAppPath(searchParams?.get("redirect"));
 
   useEffect(() => {
     let cancelled = false;

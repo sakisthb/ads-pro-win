@@ -138,7 +138,7 @@ function Badge({ text, color }: { text: string; color: 'green' | 'purple' | 'red
 /* ------------------------------------------------------------------ */
 
 export function AppSidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { t } = useChromeLocale();
   const unreadQuery = api.alerts.unreadCount.useQuery(undefined, {
     retry: false,
