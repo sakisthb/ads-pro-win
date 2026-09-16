@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack --port 3000",
+    "dev:https": "next dev --turbopack --experimental-https --port 3000",
     "dev:ws": "concurrently \"npm run dev\" \"npm run ws:dev\"",
     "ws:dev": "nodemon scripts/start-websocket-server.js",
     "ws:start": "node scripts/start-websocket-server.js",

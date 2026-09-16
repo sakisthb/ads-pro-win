@@ -97,17 +97,17 @@ export const TRACKING_WORKSTREAMS: TrackingWorkstream[] = [
     gap: "Woo last-click Google is till, not spend. Pixel ROAS stays Meta-only until DailyMetric google rows exist.",
     doNot: "Do not treat Woo last-click Google or GA4 Organic Search as Google Ads spend. Do not pick an MCC as the spend account.",
     steps: [
-      "Developer token lives in Ads API Center on an MCC: https://ads.google.com/aw/apicenter. OAuth can reuse GOOGLE_ANALYTICS_CLIENT_*.",
+      "OAuth client can reuse GOOGLE_ANALYTICS_CLIENT_*. Developer-token is optional after 10 Sep 2026; access level lives on the Cloud project.",
       "Google Cloud: enable Google Ads API. Redirect {SITE_URL}/api/auth/google-ads/callback. Scope https://www.googleapis.com/auth/adwords.",
       "On Connections pick the BAGTOBAG spend account (not the MCC). Switching shops here mixes another brand's spend into Pixel ROAS.",
       "Optional GOOGLE_ADS_LOGIN_CUSTOMER_ID = MCC digits when the spend account is under a manager. Then Sync Now until DailyMetric google rows appear.",
-      "If Sync Now says the developer token is test-only, apply for Basic Access in Ads API Center — OAuth connected with 0 rows is not Google Ads spend.",
+      "Explorer already allows production reporting. Basic Access is a quota upgrade on the Google Ads API Overview in Cloud Console — not Ads API Center.",
     ],
     verify: "Connections → Google Ads → Sync Now writes campaign rows. Reports paid spend includes Google, not only Meta. A failed sync with 0 records is not Woo last-click Google.",
     docs: [
       {
-        label: "Google Ads API developer token",
-        href: "https://developers.google.com/google-ads/api/docs/get-started/dev-token",
+        label: "Google Ads API access levels",
+        href: "https://developers.google.com/google-ads/api/docs/api-policy/access-levels",
       },
       {
         label: "Search & SearchStream REST",

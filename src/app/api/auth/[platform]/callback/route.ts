@@ -7,6 +7,7 @@ import {
   getClientSecret,
   getOrigin,
   googleOAuthOrigin,
+  metaOAuthOrigin,
   oauthAuthorizationCode,
 } from "@/lib/oauth/platforms";
 import {
@@ -276,7 +277,9 @@ export async function GET(
     platform === "google-analytics" ||
     platform === "google-search-console"
       ? googleOAuthOrigin(request)
-      : origin;
+      : platform === "meta"
+        ? metaOAuthOrigin(request)
+        : origin;
   const { searchParams } = new URL(request.url);
 
   // 1. Validate the platform slug.
@@ -479,9 +482,8 @@ export async function GET(
     }
 
     // Google / TikTok: resolve the REAL ad account id via the provider API.
-    // On failure (or when the Google developer token is absent) we persist a
-    // pending placeholder ("") — the sync route refuses to fetch metrics for
-    // such accounts until setup is completed via re-connect.
+    // On failure we persist a pending placeholder — the sync route refuses
+    // to fetch metrics until the operator picks a customer and Syncs.
     let discoveredAccountId: string | null = null;
     let discoveredName: string | null = null;
     if (platform === "tiktok") {

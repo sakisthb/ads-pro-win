@@ -172,6 +172,25 @@ export function toGoogleOAuthOrigin(origin: string): string {
   }
 }
 
+/**
+ * Meta Enforce HTTPS rejects plain HTTP and `127.0.0.1`. Local OAuth must
+ * always present `https://localhost` as redirect_uri, matching
+ * `next dev --experimental-https`.
+ */
+export function toMetaOAuthOrigin(origin: string): string {
+  const normalized = normalizePublicOrigin(origin);
+  try {
+    const url = new URL(normalized);
+    if (isLoopbackHostname(url.hostname) || isListenAllHostname(url.hostname)) {
+      url.hostname = "localhost";
+      url.protocol = "https:";
+    }
+    return url.origin;
+  } catch {
+    return normalized;
+  }
+}
+
 function requestOrigin(request: Request): string {
   const url = new URL(request.url);
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
@@ -197,6 +216,11 @@ export function getOrigin(request: Request): string {
 /** Origin Google will accept for Ads / GA4 / Search Console OAuth. */
 export function googleOAuthOrigin(request: Request): string {
   return toGoogleOAuthOrigin(getOrigin(request));
+}
+
+/** Origin Meta will accept for Facebook Login (HTTPS localhost on loopback). */
+export function metaOAuthOrigin(request: Request): string {
+  return toMetaOAuthOrigin(getOrigin(request));
 }
 
 function envTrim(name: string): string {
@@ -285,13 +309,10 @@ export function missingPlatformConfig(platform: OAuthPlatform): string[] {
     if (!envTrim(cfg.clientIdEnv)) missing.push(cfg.clientIdEnv);
     if (!envTrim(cfg.clientSecretEnv)) missing.push(cfg.clientSecretEnv);
   }
-  if (platform === "google-ads" && !envTrim("GOOGLE_ADS_DEVELOPER_TOKEN")) {
-    missing.push("GOOGLE_ADS_DEVELOPER_TOKEN");
-  }
   return missing;
 }
 
-/** True when the OAuth client (and Google Ads developer token) env vars are set. */
+/** True when the OAuth client env vars are set. */
 export function isPlatformConfigured(platform: OAuthPlatform): boolean {
   return missingPlatformConfig(platform).length === 0;
 }
@@ -302,7 +323,7 @@ export function platformNotConfiguredMessage(platform: OAuthPlatform): string {
   if (platform === "google-ads") {
     return (
       `Google Ads is not wired. Add ${names} to .env.local ` +
-      `(OAuth client can reuse GOOGLE_ANALYTICS_CLIENT_* ; Ads API still needs a developer token from https://ads.google.com/aw/apicenter on an MCC). ` +
+      `(OAuth client can reuse GOOGLE_ANALYTICS_CLIENT_*; developer-token is optional after 10 Sep 2026). ` +
       `Woo last-click Google demand is already on Attribution — spend still needs this connect.`
     );
   }

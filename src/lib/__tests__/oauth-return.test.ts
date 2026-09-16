@@ -11,6 +11,8 @@ import {
   googleOAuthOrigin,
   normalizePublicOrigin,
   toGoogleOAuthOrigin,
+  toMetaOAuthOrigin,
+  metaOAuthOrigin,
 } from "@/lib/oauth/platforms";
 import { META_GRAPH_VERSION } from "@/lib/meta/actions";
 
@@ -112,15 +114,12 @@ describe("Google Ads env contract", () => {
     }
   });
 
-  it("requires OAuth client plus developer token", () => {
+  it("requires OAuth client only — developer token is optional", () => {
     process.env.GOOGLE_ADS_CLIENT_ID = "id";
-    expect(missingPlatformConfig("google-ads")).toEqual([
-      "GOOGLE_ADS_CLIENT_SECRET",
-      "GOOGLE_ADS_DEVELOPER_TOKEN",
-    ]);
+    expect(missingPlatformConfig("google-ads")).toEqual(["GOOGLE_ADS_CLIENT_SECRET"]);
     expect(platformNotConfiguredMessage("google-ads")).toMatch(/GOOGLE_ADS_CLIENT_SECRET/);
+    expect(platformNotConfiguredMessage("google-ads")).not.toMatch(/apicenter/i);
     process.env.GOOGLE_ADS_CLIENT_SECRET = "secret";
-    process.env.GOOGLE_ADS_DEVELOPER_TOKEN = "dev";
     expect(missingPlatformConfig("google-ads")).toEqual([]);
   });
 
@@ -128,8 +127,6 @@ describe("Google Ads env contract", () => {
     process.env.GOOGLE_ANALYTICS_CLIENT_ID = "ga-id";
     process.env.GOOGLE_ANALYTICS_CLIENT_SECRET = "ga-secret";
     expect(missingPlatformConfig("google-search-console")).toEqual([]);
-    expect(missingPlatformConfig("google-ads")).toEqual(["GOOGLE_ADS_DEVELOPER_TOKEN"]);
-    process.env.GOOGLE_ADS_DEVELOPER_TOKEN = "dev";
     expect(missingPlatformConfig("google-ads")).toEqual([]);
   });
 
@@ -176,5 +173,33 @@ describe("Google OAuth origin", () => {
     expect(toGoogleOAuthOrigin("https://ads.example.com")).toBe("https://ads.example.com");
     expect(toGoogleOAuthOrigin("http://127.0.0.1:3000")).toBe("http://127.0.0.1:3000");
     expect(toGoogleOAuthOrigin("http://localhost:3000")).toBe("http://localhost:3000");
+  });
+});
+
+describe("Meta OAuth origin", () => {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
+  afterEach(() => {
+    if (siteUrl == null) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = siteUrl;
+  });
+
+  it("maps loopback IPs to https://localhost", () => {
+    expect(toMetaOAuthOrigin("http://127.0.0.1:3000")).toBe("https://localhost:3000");
+    expect(toMetaOAuthOrigin("http://[::1]:3000")).toBe("https://localhost:3000");
+    expect(toMetaOAuthOrigin("http://localhost:3000")).toBe("https://localhost:3000");
+    expect(toMetaOAuthOrigin("https://localhost:3000")).toBe("https://localhost:3000");
+  });
+
+  it("does not rewrite a public https origin", () => {
+    expect(toMetaOAuthOrigin("https://ads.example.com")).toBe("https://ads.example.com");
+  });
+
+  it("forces https localhost even when the request is 127.0.0.1 HTTP", () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    const req = new Request("http://127.0.0.1:3000/api/auth/meta", {
+      headers: { host: "127.0.0.1:3000" },
+    });
+    expect(metaOAuthOrigin(req)).toBe("https://localhost:3000");
   });
 });

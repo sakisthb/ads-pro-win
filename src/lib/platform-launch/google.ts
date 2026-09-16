@@ -14,8 +14,9 @@ function googleHeaders(accessToken: string, accountId?: string): Record<string, 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
-    "developer-token": process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "",
   };
+  const token = (process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "").trim();
+  if (token) headers["developer-token"] = token;
   const loginCustomerId = googleAdsLoginCustomerId(accountId ?? null);
   if (loginCustomerId) headers["login-customer-id"] = loginCustomerId;
   return headers;
@@ -66,7 +67,7 @@ async function googleSearch<T>(
 }
 
 export function googleWriteConfigured(): boolean {
-  return Boolean(process.env.GOOGLE_ADS_DEVELOPER_TOKEN);
+  return true;
 }
 
 export async function launchGoogleCampaign(

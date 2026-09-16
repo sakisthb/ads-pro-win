@@ -77,7 +77,7 @@ function buildMetricCredentials(
         : adAccount.accountId,
     accessToken: adAccount.accessToken ? decrypt(adAccount.accessToken) : undefined,
   }
-  // Google Ads requires the developer token; it is app-level, not per-account.
+  // Google Ads developer-token is optional (Cloud project access level).
   if (platform === 'google') {
     credentials.apiKey = config.marketing.google.developerToken ?? undefined
   }

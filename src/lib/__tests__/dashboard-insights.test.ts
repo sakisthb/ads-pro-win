@@ -258,7 +258,8 @@ describe("deriveStoreInsights", () => {
     const empty = insights.find((i) => i.id === "google-ads-no-spend");
     expect(empty?.title).toMatch(/spend is empty/i);
     expect(empty?.description).toMatch(/till, not spend/);
-    expect(empty?.description).toMatch(/Basic Access/);
+    expect(empty?.description).toMatch(/Explorer can Sync production/);
+    expect(empty?.description).not.toMatch(/Ads API Center/);
     expect(empty?.description).not.toMatch(/email ROAS/i);
     expect(insights.map((i) => i.id)).not.toContain("connect-google");
     expect(insights.map((i) => i.id)).not.toContain("ga4-organic-not-ads");
