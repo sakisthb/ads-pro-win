@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { getInternalRateLimitOrigin, getOrigin } from "@/lib/public-origin";
 
 // Public page routes accessible without a session: the landing page plus the
 // auth routes (login, signup, and the OAuth/email-confirmation callback).
@@ -118,7 +119,10 @@ async function checkRateLimit(request: NextRequest): Promise<RateLimitResponse |
   const identifier = getClientIdentifier(request);
 
   const secret = process.env.INTERNAL_RATE_LIMIT_SECRET ?? "";
-  const url = new URL("/api/internal/rate-limit", request.nextUrl.origin);
+  const url = new URL(
+    "/api/internal/rate-limit",
+    getInternalRateLimitOrigin(request.nextUrl.origin),
+  );
 
   try {
     const response = await fetch(url.toString(), {
@@ -301,18 +305,14 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!isPublicPage(pathname) && !user) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/auth/login";
+    const loginUrl = new URL("/auth/login", `${getOrigin(request)}/`);
     const next = `${pathname}${request.nextUrl.search}`;
-    redirectUrl.searchParams.set("redirect", next);
-    return NextResponse.redirect(redirectUrl);
+    loginUrl.searchParams.set("redirect", next);
+    return NextResponse.redirect(loginUrl);
   }
 
   if (isAuthRedirectPath(pathname) && user) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
-    redirectUrl.search = "";
-    return NextResponse.redirect(redirectUrl);
+    return NextResponse.redirect(new URL("/dashboard", `${getOrigin(request)}/`));
   }
 
   return supabaseResponse;

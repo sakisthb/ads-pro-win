@@ -7,6 +7,14 @@
  */
 
 import { META_GRAPH_VERSION } from "@/lib/meta/actions";
+import {
+  getOrigin,
+  isListenAllHost,
+  isLoopbackHost,
+  normalizePublicOrigin,
+} from "@/lib/public-origin";
+
+export { getOrigin, normalizePublicOrigin };
 
 export type OAuthPlatform =
   | "meta"
@@ -119,41 +127,6 @@ export function isOAuthPlatform(value: string): value is OAuthPlatform {
   return VALID_PLATFORMS.has(value as OAuthPlatform);
 }
 
-function stripTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, "");
-}
-
-function isLoopbackHostname(hostname: string): boolean {
-  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  return host === "localhost" || host === "127.0.0.1" || host === "::1";
-}
-
-function isListenAllHostname(hostname: string): boolean {
-  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  return host === "0.0.0.0" || host === "::" || host === "[::]";
-}
-
-function originFromParts(protocol: string, host: string): string {
-  const proto = protocol.replace(/:$/, "");
-  return stripTrailingSlash(`${proto}://${host}`);
-}
-
-/**
- * `next dev --hostname 0.0.0.0` makes Request.url origin `http://0.0.0.0:3000`.
- * Browsers never navigate there; rewrite the listen address to localhost.
- */
-export function normalizePublicOrigin(origin: string): string {
-  try {
-    const url = new URL(origin.includes("://") ? origin : `http://${origin}`);
-    if (isListenAllHostname(url.hostname)) {
-      url.hostname = "localhost";
-    }
-    return url.origin;
-  } catch {
-    return stripTrailingSlash(origin);
-  }
-}
-
 /**
  * Google only allows HTTP redirect URIs on localhost / 127.0.0.1.
  * LAN IPs and 0.0.0.0 produce Error 400 invalid_request ("doesn't comply
@@ -163,7 +136,7 @@ export function toGoogleOAuthOrigin(origin: string): string {
   const normalized = normalizePublicOrigin(origin);
   try {
     const url = new URL(normalized);
-    if (url.protocol === "http:" && !isLoopbackHostname(url.hostname)) {
+    if (url.protocol === "http:" && !isLoopbackHost(url.hostname)) {
       url.hostname = "localhost";
     }
     return url.origin;
@@ -181,7 +154,7 @@ export function toMetaOAuthOrigin(origin: string): string {
   const normalized = normalizePublicOrigin(origin);
   try {
     const url = new URL(normalized);
-    if (isLoopbackHostname(url.hostname) || isListenAllHostname(url.hostname)) {
+    if (isLoopbackHost(url.hostname) || isListenAllHost(url.hostname)) {
       url.hostname = "localhost";
       url.protocol = "https:";
     }
@@ -189,28 +162,6 @@ export function toMetaOAuthOrigin(origin: string): string {
   } catch {
     return normalized;
   }
-}
-
-function requestOrigin(request: Request): string {
-  const url = new URL(request.url);
-  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
-  const host = forwardedHost || request.headers.get("host")?.trim();
-  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const proto = forwardedProto || url.protocol.replace(":", "");
-  if (host) return originFromParts(proto, host);
-  return url.origin;
-}
-
-/**
- * Resolve the public origin used for redirect URIs. Prefers an explicitly
- * configured NEXT_PUBLIC_SITE_URL (correct behind proxies/tunnels where the
- * request's own origin is unreliable), then Host / X-Forwarded-Host, then
- * the request URL origin.
- */
-export function getOrigin(request: Request): string {
-  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  const raw = explicit ? stripTrailingSlash(explicit) : requestOrigin(request);
-  return normalizePublicOrigin(raw);
 }
 
 /** Origin Google will accept for Ads / GA4 / Search Console OAuth. */

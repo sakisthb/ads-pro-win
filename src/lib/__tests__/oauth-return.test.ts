@@ -151,6 +151,17 @@ describe("Google OAuth origin", () => {
     expect(toGoogleOAuthOrigin("http://0.0.0.0:3000")).toBe("http://localhost:3000");
   });
 
+  it("prefers NEXT_PUBLIC_SITE_URL over the Docker 0.0.0.0 listen address", () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://adpd.gr";
+    const req = new Request("https://0.0.0.0:3000/api/auth/google-ads", {
+      headers: {
+        host: "0.0.0.0:3000",
+        "x-forwarded-proto": "https",
+      },
+    });
+    expect(getOrigin(req)).toBe("https://adpd.gr");
+  });
+
   it("uses Host localhost even when Request.url is 0.0.0.0", () => {
     delete process.env.NEXT_PUBLIC_SITE_URL;
     const req = new Request("http://0.0.0.0:3000/api/auth/google-ads", {

@@ -28,6 +28,7 @@ env:
   REDIS_PASSWORD: ci-redis-password
   REDIS_DB: "0"
   INTERNAL_RATE_LIMIT_SECRET: ci-local-dev-secret-must-be-at-least-32-characters-long
+  INTERNAL_RATE_LIMIT_ORIGIN: http://127.0.0.1:3000
   TRUSTED_PROXY_HOPS: "1"
   RATE_LIMIT_ENABLED: "false"
   NEXT_PUBLIC_SITE_URL: https://ci.example.com
@@ -203,6 +204,7 @@ jobs:
             -e REDIS_PASSWORD=${{ env.REDIS_PASSWORD }} \
             -e REDIS_DB=0 \
             -e INTERNAL_RATE_LIMIT_SECRET=${{ env.INTERNAL_RATE_LIMIT_SECRET }} \
+            -e INTERNAL_RATE_LIMIT_ORIGIN=${{ env.INTERNAL_RATE_LIMIT_ORIGIN }} \
             -e TRUSTED_PROXY_HOPS=1 \
             -e RATE_LIMIT_ENABLED=false \
             -e NEXT_PUBLIC_SITE_URL=${{ env.NEXT_PUBLIC_SITE_URL }} \

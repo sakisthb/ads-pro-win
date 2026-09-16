@@ -30,10 +30,10 @@ jest.mock("@supabase/ssr", () => ({
 // Import after mocks are registered.
 const { middleware } = require("./middleware") as { middleware: (req: NextRequest) => Promise<Response> };
 
-function cloneableUrl(href: string): URL {
-  const url = new URL(href, "http://localhost:3000");
+function cloneableUrl(href: string, origin = "http://localhost:3000"): URL {
+  const url = new URL(href, origin);
   Object.defineProperty(url, "clone", {
-    value: () => cloneableUrl(url.toString()),
+    value: () => cloneableUrl(url.toString(), origin),
   });
   return url;
 }
@@ -44,9 +44,10 @@ function buildRequest(
     method?: string;
     headers?: Record<string, string>;
     body?: string;
+    origin?: string;
   } = {},
 ): NextRequest {
-  const url = cloneableUrl(pathname);
+  const url = cloneableUrl(pathname, opts.origin);
   const headers = new Headers(opts.headers ?? {});
   if (opts.body && !headers.has("content-length")) {
     headers.set("content-length", String(Buffer.byteLength(opts.body)));
@@ -86,6 +87,7 @@ describe("middleware rate limiting", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "";
     process.env.TRUSTED_PROXY_HOPS = "1";
+    delete process.env.INTERNAL_RATE_LIMIT_ORIGIN;
   });
 
   afterAll(() => {
@@ -229,6 +231,42 @@ describe("middleware rate limiting", () => {
     expect(mockedFetch).not.toHaveBeenCalled();
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
   });
+
+  it("posts rate-limit checks to INTERNAL_RATE_LIMIT_ORIGIN, not the public listen address", async () => {
+    process.env.INTERNAL_RATE_LIMIT_ORIGIN = "http://127.0.0.1:3000";
+    mockedFetch.mockResolvedValue(
+      new Response(JSON.stringify({ allowed: true, limit: 1000, remaining: 999, resetTime: 12345 }), {
+        status: 200,
+      }),
+    );
+
+    await middleware(
+      buildRequest("/api/health", {
+        origin: "https://0.0.0.0:3000",
+        headers: { host: "0.0.0.0:3000", "x-forwarded-proto": "https" },
+      }),
+    );
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockedFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:3000/api/internal/rate-limit");
+    expect(url).not.toMatch(/0\.0\.0\.0/);
+  });
+
+  it("rewrites a 0.0.0.0 listen origin to loopback HTTP when INTERNAL_RATE_LIMIT_ORIGIN is unset", async () => {
+    mockedFetch.mockResolvedValue(
+      new Response(JSON.stringify({ allowed: true, limit: 60, remaining: 59, resetTime: 12345 }), {
+        status: 200,
+      }),
+    );
+
+    await middleware(
+      buildRequest("/api/health", { origin: "https://0.0.0.0:3000" }),
+    );
+
+    const [url] = mockedFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:3000/api/internal/rate-limit");
+  });
 });
 
 describe("middleware public brand assets", () => {
@@ -257,6 +295,18 @@ describe("middleware public brand assets", () => {
     expect(response.status).toBe(307);
     expect(response.headers.get("Location")).toContain("/auth/login");
     expect(response.headers.get("Location")).toContain("redirect=%2Fdashboard");
+  });
+
+  it("sends the login wall to NEXT_PUBLIC_SITE_URL instead of 0.0.0.0", async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://adpd.gr";
+    const response = await middleware(
+      buildRequest("/dashboard", { origin: "https://0.0.0.0:3000" }),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("Location")).toBe(
+      "https://adpd.gr/auth/login?redirect=%2Fdashboard",
+    );
   });
 });
 
