@@ -11,7 +11,7 @@ This is working memory for the catalog desk. It is not a live WordPress dump and
 - Join: Ads Pro `Brand.website` `bagtobag.com.gr` → SACOS `site_id` `bagtobag_com_gr`.
 - Do not merge repos, Prisma, Django, or user tables. Do not iframe Growth Center. Do not reverse-proxy SACOS through Ads Pro. Operator owns DNS for the two future production hostnames.
 - Ads Pro MVP ads stay read-only. Ads Pro session does not unlock catalog surgery or WordPress writes.
-- Ads Pro PR https://github.com/sakisthb/ads-pro-win/pull/2 — do not merge until the operator says so.
+- Ads Pro Growth Center desk [PR #2](https://github.com/sakisthb/ads-pro-win/pull/2) is **merged** to `main`. Branch `feat/growth-center-desk` is historical — new work from `main` via small PRs.
 
 ## Three places that are easy to confuse
 
@@ -63,7 +63,7 @@ Wait for the operator. Do **not** start the 29 `empty_description` drafts, revie
 
 Ads Pro Growth Center desk (engineering, 2026-09-16): Phase A stabilize merged via [PR #2](https://github.com/sakisthb/ads-pro-win/pull/2) (`1393a77` on `main`, head included `18d3ec5`). Hosted origin fail-closed, deploy HTTPS+token gates, ADR two-hostnames, operator truth, router/unit/contract tests. Live dashboard proof: BagToBag counts from SACOS `desk-summary`. **CI that counts:** GitHub Actions only. **Ignore Vercel.** Docker + Caddy only.
 
-Later sequence exists only as backlog, not as permission: test1 native executor; readback; `over_500kb_review` as SACOS `image.optimize` handoff (still not sibio on BagToBag); alt batches; snapshot freshness on the desk; production Growth Center hostname; PR #2 merge; second site as a new profile.
+Later sequence exists only as backlog, not as permission: test1 native executor; readback; `over_500kb_review` as SACOS `image.optimize` handoff (still not sibio on BagToBag); alt batches; snapshot freshness on the desk; production Growth Center hostname; second site as a new profile.
 
 ## Stop conditions
 
