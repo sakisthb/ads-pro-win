@@ -68,10 +68,11 @@ describe("Ads Pro Digital brand", () => {
   });
 
   it("publishes one canonical GDPR URL on adpd.gr", () => {
-    expect(BRAND.privacyPath).toBe("/prosopika-dedomena-gdpr");
-    expect(BRAND.privacyUrl).toBe("https://adpd.gr/prosopika-dedomena-gdpr");
+    expect(BRAND.privacyPath).toBe("/gdpr");
+    expect(BRAND.privacyUrl).toBe("https://adpd.gr/gdpr");
     expect(BRAND.privacyUrl).toBe(`${BRAND.siteUrl}${BRAND.privacyPath}`);
     expect(BRAND.privacyUrl).not.toMatch(/bagtobag\.com\.gr/i);
+    expect(BRAND.privacyUrl).not.toMatch(/prosopika-dedomena-gdpr/);
   });
 
   it("documents the canonical privacy URL for Google/Meta consent, never BagToBag WP GDPR", () => {
@@ -95,12 +96,15 @@ describe("Ads Pro Digital brand", () => {
 
     for (const file of app) {
       expect(`${file.rel}: ${file.text}`).not.toMatch(forbidden);
-      expect(file.text).toMatch(/privacyPath|privacyUrl|\/prosopika-dedomena-gdpr/);
+      expect(file.text).toMatch(/privacyPath|privacyUrl|\/gdpr/);
     }
     for (const file of docs) {
-      expect(file.text).toContain("https://adpd.gr/prosopika-dedomena-gdpr");
+      expect(file.text).toContain("https://adpd.gr/gdpr");
       expect(file.text).not.toMatch(
         /(?:href|url|URL)\s*[:=].*bagtobag\.com\.gr\/prosopika-dedomena-gdpr/i,
+      );
+      expect(file.text).not.toMatch(
+        /Privacy [Pp]olicy URL \| `https:\/\/adpd\.gr\/prosopika-dedomena-gdpr`/,
       );
     }
 
@@ -108,7 +112,7 @@ describe("Ads Pro Digital brand", () => {
     expect(home).not.toMatch(/href="#"[^>]*>Privacy</);
   });
 
-  it("permanently aliases /privacy to the canonical GDPR path", async () => {
+  it("permanently aliases old privacy paths to /gdpr", async () => {
     const config = require(path.join(repoRoot, "next.config.js")) as {
       redirects?: () => Promise<Array<{ source: string; destination: string; permanent: boolean }>>;
     };
@@ -118,7 +122,12 @@ describe("Ads Pro Digital brand", () => {
       expect.arrayContaining([
         expect.objectContaining({
           source: "/privacy",
-          destination: "/prosopika-dedomena-gdpr",
+          destination: "/gdpr",
+          permanent: true,
+        }),
+        expect.objectContaining({
+          source: "/prosopika-dedomena-gdpr",
+          destination: "/gdpr",
           permanent: true,
         }),
       ]),

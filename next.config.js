@@ -108,7 +108,12 @@ const nextConfig = {
     return [
       {
         source: '/privacy',
-        destination: '/prosopika-dedomena-gdpr',
+        destination: '/gdpr',
+        permanent: true,
+      },
+      {
+        source: '/prosopika-dedomena-gdpr',
+        destination: '/gdpr',
         permanent: true,
       },
     ]
