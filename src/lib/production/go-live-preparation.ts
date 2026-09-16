@@ -1,6 +1,6 @@
 /**
  * Go-Live Preparation & Checklist System
- * Ads Pro Enterprise - Production Launch Validation
+ * Ads Pro Digital - Production Launch Validation
  * 
  * This system provides comprehensive validation and preparation
  * for production deployment and go-live activities.

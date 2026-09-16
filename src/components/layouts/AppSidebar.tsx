@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BrandLockup } from '@/components/brand/brand-lockup';
 import { useChromeLocale } from '@/components/providers/chrome-locale';
 import { api } from '@/components/providers/trpc-provider';
 
@@ -137,7 +138,7 @@ function Badge({ text, color }: { text: string; color: 'green' | 'purple' | 'red
 /* ------------------------------------------------------------------ */
 
 export function AppSidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { t } = useChromeLocale();
   const unreadQuery = api.alerts.unreadCount.useQuery(undefined, {
     retry: false,
@@ -152,12 +153,7 @@ export function AppSidebar() {
     <aside className="fixed left-0 top-0 z-30 flex h-screen w-64 flex-col border-r border-white/10 bg-gray-950/95 backdrop-blur-xl">
       {/* Brand */}
       <div className="flex h-16 items-center gap-2.5 px-5 border-b border-white/10">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 shadow-lg shadow-purple-500/25">
-          <Zap className="h-4 w-4 text-white" />
-        </span>
-        <span className="text-base font-bold tracking-tight text-white">
-          Ads Pro
-        </span>
+        <BrandLockup className="h-7 max-w-[168px]" />
       </div>
 
       {/* Scrollable nav */}

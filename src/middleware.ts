@@ -154,7 +154,7 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("X-XSS-Protection", "1; mode=block");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("X-DNS-Prefetch-Control", "on");
-  response.headers.set("X-Powered-By", "Ads Pro Enterprise v3.0");
+  response.headers.set("X-Powered-By", "Ads Pro Digital");
   return response;
 }
 

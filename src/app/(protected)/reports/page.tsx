@@ -348,7 +348,7 @@ export default function ReportsPage() {
   }, [brandId, brands.data]);
 
   // Org name comes straight from useActiveOrg (no extra getCurrent round-trip).
-  const orgName = org?.name ?? "Ads Pro";
+  const orgName = org?.name ?? "Ads Pro Digital";
   const brandName =
     brands.data?.find((b) => b.id === brandId)?.name ?? undefined;
 

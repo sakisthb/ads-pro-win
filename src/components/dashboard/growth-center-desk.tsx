@@ -100,7 +100,7 @@ export function GrowthCenterDesk({ desk }: { desk: GrowthDesk | undefined }) {
       ) : (
         <p className="mt-3 text-xs leading-relaxed text-white/50">
           Counts load from SACOS desk-summary when the origin answers. Open
-          Growth Center for the full catalog desk — Ads Pro never invents
+          Growth Center for the full catalog desk — Ads Pro Digital never invents
           zeros.
         </p>
       )}

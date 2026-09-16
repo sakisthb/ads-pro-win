@@ -716,7 +716,7 @@ function GeoDesk({
             <AnimatedSection>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
                 <h2 className="text-sm font-semibold text-white/80">Organic Search vs generative sessions</h2>
-                <p className="mt-1 text-xs text-zinc-400">Two GA4 clocks. Do not add them. Do not treat either as Ads Pro spend.</p>
+                <p className="mt-1 text-xs text-zinc-400">Two GA4 clocks. Do not add them. Do not treat either as Ads Pro Digital spend.</p>
                 <div className="mt-4 h-56 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={mergedDays} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
@@ -756,7 +756,7 @@ function GeoDesk({
               <div className="border-b border-white/5 p-6 pb-4">
                 <h2 className="text-sm font-semibold text-white/80">GA4 default channels</h2>
                 <p className="mt-0.5 text-xs text-zinc-400">
-                  Desk is inferred from the GA4 channel name. Paid (GA4) is still not Ads Pro DailyMetric spend.
+                  Desk is inferred from the GA4 channel name. Paid (GA4) is still not Ads Pro Digital DailyMetric spend.
                 </p>
               </div>
               <div className="overflow-x-auto">

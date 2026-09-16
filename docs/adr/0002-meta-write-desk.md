@@ -8,18 +8,18 @@ Accepted.
 
 ## Context
 
-ADR 0001 kept Ads Pro MVP ad connectors read-only so catalog/WP risk stayed in SACOS Growth Center. The Meta operator desk (`metaOps` + Meta operator UI) already implemented gated Graph writes (status, budget, rename, and additional controls) behind `ads_management`, Demo-org block, learning-reset confirms, and `metaWriteLog` audit rows.
+ADR 0001 kept Ads Pro Digital MVP ad connectors read-only so catalog/WP risk stayed in SACOS Growth Center. The Meta operator desk (`metaOps` + Meta operator UI) already implemented gated Graph writes (status, budget, rename, and additional controls) behind `ads_management`, Demo-org block, learning-reset confirms, and `metaWriteLog` audit rows.
 
-Operator Athanasios explicitly authorized Ads Pro to **edit Meta for BagToBag** — not read-only only. Leaving ADR 0001 as “all ads stay read-only” silently contradicted shipping code and the new product decision.
+Operator Athanasios explicitly authorized Ads Pro Digital to **edit Meta for BagToBag** — not read-only only. Leaving ADR 0001 as “all ads stay read-only” silently contradicted shipping code and the new product decision.
 
 ## Decision
 
-- **Meta writes are operator-authorized** for the Ads Pro Meta operator desk on non-Demo organizations, brand-scoped via the connected Meta account / brand context. Default operator brand remains BagToBag (`bagtobag.com.gr` → SACOS `bagtobag_com_gr`).
+- **Meta writes are operator-authorized** for the Ads Pro Digital Meta operator desk on non-Demo organizations, brand-scoped via the connected Meta account / brand context. Default operator brand remains BagToBag (`bagtobag.com.gr` → SACOS `bagtobag_com_gr`).
 - **v1 edit surface** (product contract): existing campaign / ad set / ad objects only — `ACTIVE`/`PAUSED` status, daily/lifetime budget where Graph allows, and rename. Creating new campaigns/adsets/ads, creative upload, catalog surgery, WP writes, sibio, and Growth Center merge stay out of this decision.
 - **Fail closed** without Meta OAuth scope `ads_management` (keep `ads_read`). No silent auto-writes; UI requires explicit confirmation for live status/budget/rename.
 - **Audit** every write attempt in `metaWriteLog` (success and failure).
 - **Other ad platforms** (Google Ads, TikTok, etc.) remain read-only unless a future ADR says otherwise.
-- **SACOS boundary unchanged:** Ads Pro session still never unlocks catalog surgery or live WordPress writes. Those stay in Growth Center only.
+- **SACOS boundary unchanged:** Ads Pro Digital session still never unlocks catalog surgery or live WordPress writes. Those stay in Growth Center only.
 
 ## Consequences
 

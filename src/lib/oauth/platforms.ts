@@ -330,7 +330,7 @@ export function platformNotConfiguredMessage(platform: OAuthPlatform): string {
   if (platform === "google-search-console") {
     return (
       `Search Console is not wired. Add ${names} to .env.local, ` +
-      `or reuse GOOGLE_ANALYTICS_CLIENT_ID / SECRET from Ads Pro Connects.`
+      `or reuse GOOGLE_ANALYTICS_CLIENT_ID / SECRET from Ads Pro Digital Connects.`
     );
   }
   return `${OAUTH_PLATFORMS[platform].name} is not configured. Add ${names} to .env.local, then retry.`;

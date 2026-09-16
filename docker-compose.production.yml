@@ -4,7 +4,7 @@
 # `.env.production.example`). `${VAR:?}` fails fast if a value is missing so a
 # production image can never be built with placeholder config baked in.
 #
-# This stack is Ads Pro only. SACOS Growth Center is a second host; pass
+# This stack is Ads Pro Digital only. SACOS Growth Center is a second host; pass
 # SACOS_GROWTH_ORIGIN (HTTPS) and SACOS_GROWTH_DESK_TOKEN via `.env` when that
 # domain exists. Do not add a Growth Center service here.
 x-next-build: &next-build

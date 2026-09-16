@@ -2,6 +2,7 @@
 
 import React from "react"
 import Link from "next/link"
+import { BrandLockup } from "@/components/brand/brand-lockup"
 import { usePathname } from "next/navigation"
 import {
   BarChart3,
@@ -63,12 +64,12 @@ import {
 const data = {
   user: {
     name: "Marketing Pro",
-    email: "user@adsproenterprise.com",
+    email: "operator@adpd.gr",
     avatar: "/avatars/default.jpg",
   },
   teams: [
     {
-      name: "Ads Pro Enterprise",
+      name: "Ads Pro Digital",
       logo: GalleryVerticalEnd,
       plan: "Enterprise",
     },
@@ -209,13 +210,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar collapsible="icon" className="border-r-0" {...props}>
       <SidebarHeader>
         <div className="flex gap-2 py-2 text-sidebar-accent-foreground">
-          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 text-sidebar-primary-foreground">
-            <GalleryVerticalEnd className="size-4" />
-          </div>
+          <BrandLockup variant="mark" className="size-8 h-8 w-8 max-w-none" />
           <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-semibold">Ads Pro Enterprise</span>
+            <span className="truncate font-semibold">Ads Pro Digital</span>
             <span className="truncate text-xs text-sidebar-foreground/70">
-              AI Marketing Platform
+              Paid marketing desk
             </span>
           </div>
         </div>

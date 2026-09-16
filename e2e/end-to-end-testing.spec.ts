@@ -19,7 +19,7 @@ test.describe('End-to-End Testing with Realistic Data', () => {
 
   test('Application loads successfully with realistic data', async ({ page }) => {
     // Test initial page load
-    await expect(page).toHaveTitle(/Ads Pro Enterprise/);
+    await expect(page).toHaveTitle(/Ads Pro Digital/);
     
     // Check if main navigation exists
     await expect(page.locator('nav')).toBeVisible();

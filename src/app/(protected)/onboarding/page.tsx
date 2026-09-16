@@ -9,8 +9,8 @@
 import OnboardingClient from "./onboarding-client";
 
 export const metadata = {
-  title: "Onboarding — Ads Pro",
-  description: "Set up your Ads Pro workspace in a few quick steps.",
+  title: "Onboarding — Ads Pro Digital",
+  description: "Set up your Ads Pro Digital workspace in a few quick steps.",
 };
 
 export default function OnboardingPage() {

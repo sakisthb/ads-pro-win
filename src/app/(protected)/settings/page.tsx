@@ -69,7 +69,7 @@ const DEMO_PLATFORMS = [
 ];
 
 const DEMO_USERS = [
-  { role: "Admin", email: "admin@adspro.com", password: "admin123", name: "Athanasios Vlachos" },
+  { role: "Admin", email: "operator@adpd.gr", password: "admin123", name: "Athanasios Vlachos" },
   { role: "Agency", email: "maria@digitalagency.gr", password: "maria123", name: "Maria Papadopoulou" },
   { role: "Client", email: "nikos@techstartup.com", password: "nikos123", name: "Nikos Antoniou" },
 ];

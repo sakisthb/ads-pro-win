@@ -211,7 +211,7 @@ export const FeaturesSection: React.FC = () => {
               Ready to Transform Your Marketing?
             </h3>
             <p className="text-xl text-purple-100 mb-8 max-w-2xl mx-auto">
-              Join thousands of businesses already using Ads Pro Enterprise to scale their digital marketing efforts.
+              Join thousands of businesses already using Ads Pro Digital to scale their digital marketing efforts.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <motion.button

@@ -11,9 +11,9 @@ import {
   User,
   Settings,
   LogOut,
-  Zap,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { BrandLockup } from '@/components/brand/brand-lockup';
 import { OrgSwitcher } from './OrgSwitcher';
 import { openCommandPalette } from '@/components/command-palette';
 import { useChromeLocale } from '@/components/providers/chrome-locale';
@@ -61,13 +61,8 @@ export function ProfessionalNavbar({ email }: ProfessionalNavbarProps) {
       <div className="flex h-16 items-center justify-between px-6">
         {/* Left — Brand (visible above sidebar width only as accent) */}
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 shadow-lg shadow-purple-500/25">
-            <Zap className="h-4 w-4 text-white" />
-          </span>
-          <h1 className="hidden text-lg font-bold sm:block">
-            <span className="bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
-              Ads Pro
-            </span>
+          <h1 className="flex items-center">
+            <BrandLockup className="h-6 max-w-[148px] sm:h-7 sm:max-w-[200px]" />
           </h1>
           <span className="hidden sm:block h-5 w-px bg-white/15 mx-1" aria-hidden />
           <OrgSwitcher />
@@ -78,7 +73,7 @@ export function ProfessionalNavbar({ email }: ProfessionalNavbarProps) {
           <button
             type="button"
             onClick={openCommandPalette}
-            className="relative flex w-full items-center rounded-lg border border-white/10 bg-white/5 py-2 pl-10 pr-3 text-left text-sm text-white/40 outline-none transition-colors hover:border-purple-500/40 hover:bg-white/10"
+            className="relative flex w-full items-center rounded-lg border border-white/10 bg-white/5 py-2 pl-10 pr-3 text-left text-sm text-white/40 outline-none transition-colors hover:border-white/25 hover:bg-white/10"
           >
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
             <span className="flex-1 truncate">{t("search.placeholder")}</span>
@@ -156,7 +151,7 @@ export function ProfessionalNavbar({ email }: ProfessionalNavbarProps) {
                 <button
                   type="button"
                   aria-label="Account menu"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500/80 to-blue-500/80 text-xs font-bold text-white transition-transform hover:scale-105 focus:outline-none"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#121417] text-xs font-bold text-white ring-1 ring-white/15 transition-transform hover:scale-105 focus:outline-none"
                 >
                   {initials}
                 </button>
@@ -200,7 +195,7 @@ export function ProfessionalNavbar({ email }: ProfessionalNavbarProps) {
             <button
               type="button"
               aria-label="Account menu"
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500/80 to-blue-500/80 text-xs font-bold text-white transition-transform hover:scale-105 focus:outline-none"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#121417] text-xs font-bold text-white ring-1 ring-white/15 transition-transform hover:scale-105 focus:outline-none"
               disabled
             >
               {initials}

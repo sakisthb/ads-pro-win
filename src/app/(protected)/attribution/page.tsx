@@ -467,7 +467,7 @@ export default function AttributionPage() {
           </div>
           {typeof mer?.breakEvenMer === "number" && mer.breakEvenMer > 0 && (
             <p className="mt-3 text-xs text-white/40">
-              Break-even MER at catalog GP is {mer.breakEvenMer.toFixed(1)}x. Pixel vs till is a CAPI / EMQ job in Events Manager, not a new Ads Pro model.
+              Break-even MER at catalog GP is {mer.breakEvenMer.toFixed(1)}x. Pixel vs till is a CAPI / EMQ job in Events Manager, not a new Ads Pro Digital model.
               {(mer.tax ?? 0) <= 0
                 ? " VAT on these Woo rows is 0, so Net ex VAT equals store net until total_tax is present."
                 : ""}

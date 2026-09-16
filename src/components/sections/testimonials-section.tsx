@@ -14,7 +14,7 @@ const testimonials = [
     company: 'TechFlow Inc.',
     avatar: '/avatars/sarah.jpg',
     rating: 5,
-    quote: 'Ads Pro Enterprise transformed our marketing analytics. We saw a 300% increase in ROI within the first quarter. The attribution modeling is incredibly accurate.',
+    quote: 'Ads Pro Digital transformed our marketing analytics. We saw a 300% increase in ROI within the first quarter. The attribution modeling is incredibly accurate.',
     video: true,
     delay: 0.1
   },
@@ -64,7 +64,7 @@ const testimonials = [
     company: 'InnovateCorp',
     avatar: '/avatars/james.jpg',
     rating: 5,
-    quote: 'Ads Pro Enterprise helped us scale from $100K to $2M in annual revenue. The ROI tracking is incredibly detailed.',
+    quote: 'Ads Pro Digital helped us scale from $100K to $2M in annual revenue. The ROI tracking is incredibly detailed.',
     video: false,
     delay: 0.6
   }
@@ -119,7 +119,7 @@ export const TestimonialsSection: React.FC = () => {
           </h2>
           
           <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
-            See how companies are transforming their marketing with Ads Pro Enterprise. 
+            See how companies are transforming their marketing with Ads Pro Digital. 
             Real results from real customers.
           </p>
         </motion.div>
@@ -274,7 +274,7 @@ export const TestimonialsSection: React.FC = () => {
               Ready to Join Them?
             </h3>
             <p className="text-xl text-purple-100 mb-8 max-w-2xl mx-auto">
-              Start your journey with Ads Pro Enterprise and see the results for yourself.
+              Start your journey with Ads Pro Digital and see the results for yourself.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <motion.button

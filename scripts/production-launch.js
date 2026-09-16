@@ -2,7 +2,7 @@
 
 /**
  * Production Launch Script
- * Ads Pro Enterprise - Go-Live Execution
+ * Ads Pro Digital - Go-Live Execution
  * 
  * This script executes the complete production launch process
  * including all go-live checklist items and deployment procedures.
@@ -486,7 +486,7 @@ async function executeProductionLaunch() {
   
   if (launchReport.successRate >= 90 && finalValidation.success) {
     log('🎉 PRODUCTION LAUNCH SUCCESSFUL!', 'success');
-    log('The Ads Pro Enterprise platform is now live!', 'success');
+    log('The Ads Pro Digital platform is now live!', 'success');
   } else {
     log('⚠️  PRODUCTION LAUNCH COMPLETED WITH ISSUES', 'warning');
     log('Please review the failed items and address them.', 'warning');

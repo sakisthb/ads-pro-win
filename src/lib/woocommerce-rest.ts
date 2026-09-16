@@ -57,7 +57,7 @@ export function explainWooHttpFailure(input: {
   const host = hostOf(input.storeUrl);
   if (looksLikeCloudflareChallenge(input)) {
     return (
-      `Cloudflare is blocking Ads Pro from reaching the WooCommerce REST API on ${host} ` +
+      `Cloudflare is blocking Ads Pro Digital from reaching the WooCommerce REST API on ${host} ` +
       `(bot challenge, not a bad consumer key). In Cloudflare → Security → WAF, add a skip ` +
       `rule for URI Path starting with /wp-json/wc/ (skip Bot Fight / managed challenge), then connect again.`
     );

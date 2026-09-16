@@ -1,4 +1,4 @@
-// Test utilities for Ads Pro Enterprise
+// Test utilities for Ads Pro Digital
 // Custom render function with providers and utilities
 
 import React, { ReactElement } from 'react'

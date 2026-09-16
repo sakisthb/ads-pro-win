@@ -1,17 +1,17 @@
-# Ads Pro Enterprise — Domain Context
+# Ads Pro Digital — Domain Context
 
 **Current BagToBag / Growth Center operator truth:** [`docs/operator-bagtobag.md`](docs/operator-bagtobag.md). New chats must read that file before catalog, image, or WordPress work. Architecture decisions: [`docs/adr/0001-growth-center-desk.md`](docs/adr/0001-growth-center-desk.md) (two apps / catalog desk), [`docs/adr/0002-meta-write-desk.md`](docs/adr/0002-meta-write-desk.md) (operator-authorized Meta edits).
 
 ## What this project is
 
-Ads Pro Enterprise is a Next.js SaaS application for performance marketing teams. It provides AI-assisted dashboards, campaign analysis, and platform integrations for ad accounts.
+Ads Pro Digital is a Next.js SaaS application for performance marketing teams. It provides AI-assisted dashboards, campaign analysis, and platform integrations for ad accounts.
 
 ## Core domain concepts
 
 - **Organization** — the top-level tenant. Billing, team membership, and connected platforms are scoped to an organization.
 - **User** — a person who belongs to an Organization. Authentication is handled by Supabase Auth.
 - **Brand** — a shop inside an Organization. `website` / hostname is the join key to SACOS Growth Center.
-- **Growth Center desk** — Ads Pro surface for catalog counts of a mapped brand. Catalog writes stay in SACOS Growth Center (a separate application). Production uses two hostnames (Ads Pro + Growth Center). See `docs/adr/0001-growth-center-desk.md`.
+- **Growth Center desk** — Ads Pro Digital surface for catalog counts of a mapped brand. Catalog writes stay in SACOS Growth Center (a separate application). Production uses two hostnames (Ads Pro Digital + Growth Center). See `docs/adr/0001-growth-center-desk.md`.
 - **Campaign** — a paid advertising campaign imported from or planned for an ad platform.
 - **Meta write desk** — operator-confirmed edits on existing Meta campaign / ad set / ad objects (status, budget, rename). Requires `ads_management`. Audited in `metaWriteLog`. See `docs/adr/0002-meta-write-desk.md`.
 - **AI Agent** — a specialized assistant that analyzes data and produces insights, predictions, or optimization suggestions.

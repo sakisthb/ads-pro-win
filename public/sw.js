@@ -275,7 +275,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification('Ads Pro Enterprise', options)
+    self.registration.showNotification('Ads Pro Digital', options)
   );
 });
 

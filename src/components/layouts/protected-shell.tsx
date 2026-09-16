@@ -14,10 +14,10 @@ import {
   LogOut,
   Menu,
   X,
-  Zap,
   Users,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { BrandLockup } from "@/components/brand/brand-lockup";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: BarChart3 },
@@ -43,7 +43,7 @@ export function ProtectedShell({
   email?: string;
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -76,14 +76,14 @@ export function ProtectedShell({
             {active && (
               <motion.span
                 layoutId="nav-active"
-                className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-gradient-to-b from-purple-400 to-blue-400"
+                className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-white"
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
             )}
             <Icon
               className={`h-4 w-4 transition-colors ${
                 active
-                  ? "text-purple-300"
+                  ? "text-white"
                   : "text-white/40 group-hover:text-white/70"
               }`}
             />
@@ -102,12 +102,7 @@ export function ProtectedShell({
         onClick={onNavigate}
         className="flex items-center gap-2.5 px-6"
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 shadow-lg shadow-purple-500/30">
-          <Zap className="h-5 w-5 text-white" />
-        </span>
-        <span className="text-base font-semibold tracking-tight text-white">
-          Ads Pro
-        </span>
+        <BrandLockup className="h-8 max-w-[180px]" />
       </Link>
 
       <div className="mt-8" />
@@ -117,7 +112,7 @@ export function ProtectedShell({
       <div className="mt-auto px-3">
         <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500/80 to-blue-500/80 text-sm font-semibold text-white">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#121417] text-sm font-semibold text-white ring-1 ring-white/15">
               {initials}
             </span>
             <div className="min-w-0 flex-1">
@@ -143,8 +138,8 @@ export function ProtectedShell({
     <div className="relative min-h-screen w-full bg-gray-950 text-white">
       {/* Ambient background orbs */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-24 left-1/3 h-72 w-72 rounded-full bg-purple-700/10 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-blue-700/10 blur-3xl" />
+        <div className="absolute -top-24 left-1/3 h-72 w-72 rounded-full bg-white/[0.03] blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-white/[0.02] blur-3xl" />
       </div>
 
       {/* Desktop sidebar */}
@@ -155,10 +150,7 @@ export function ProtectedShell({
       {/* Mobile top bar */}
       <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/5 bg-gray-950/80 px-4 backdrop-blur-xl lg:hidden">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-blue-500">
-            <Zap className="h-4 w-4 text-white" />
-          </span>
-          <span className="font-semibold text-white">Ads Pro</span>
+          <BrandLockup className="h-7 max-w-[160px]" />
         </Link>
         <button
           onClick={() => setMobileOpen(true)}

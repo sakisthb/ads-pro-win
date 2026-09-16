@@ -402,7 +402,7 @@ export function deriveStoreInsights(args: {
       insights.push({
         id: "connect-bing",
         title: "Microsoft Ads is not wired",
-        description: `Woo last-click already has ${gap.orders} Bing orders (${formatMoney(gap.netSales, currency)}). Ads Pro cannot pull Microsoft spend yet — treat those as till tags, not as a connected ad account.`,
+        description: `Woo last-click already has ${gap.orders} Bing orders (${formatMoney(gap.netSales, currency)}). Ads Pro Digital cannot pull Microsoft spend yet — treat those as till tags, not as a connected ad account.`,
         impact: "high",
         actionLabel: "Attribution",
         href: "/attribution",
@@ -460,7 +460,7 @@ export function deriveStoreInsights(args: {
     insights.push({
       id: "woo-tax-zero",
       title: "Woo tax is 0 — net ex VAT equals till",
-      description: `REST total_tax/cart_tax is €0 on ${args.storeOrders.toFixed(0)} orders. Enable WooCommerce taxes (GR 24% if that is the catalog) and re-sync. Ads Pro will not invent ΦΠΑ.`,
+      description: `REST total_tax/cart_tax is €0 on ${args.storeOrders.toFixed(0)} orders. Enable WooCommerce taxes (GR 24% if that is the catalog) and re-sync. Ads Pro Digital will not invent ΦΠΑ.`,
       impact: "medium",
       actionLabel: "Playbook",
       href: "/help",

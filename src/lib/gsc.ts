@@ -3,7 +3,7 @@
  *
  * List verified properties, then import Search Analytics into DailyMetric.
  * Scope: https://www.googleapis.com/auth/webmasters.readonly
- * Enable Search Console API on the same Cloud project as Ads Pro Connects.
+ * Enable Search Console API on the same Cloud project as Ads Pro Digital Connects.
  */
 
 import type { DateRange } from "@/lib/mcp/types";

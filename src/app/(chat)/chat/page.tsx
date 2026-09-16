@@ -300,7 +300,7 @@ function exportConversation(messages: ChatMessage[]) {
     const role = m.type === "user" ? "You" : "Moby AI";
     return `[${m.createdAt.toLocaleString("en-US")}] ${role}:\n${m.content}`;
   });
-  const text = `Ads Pro — AI Chat Export\nGenerated: ${new Date().toLocaleString("en-US")}\n${"=".repeat(60)}\n\n${lines.join(`\n\n${"-".repeat(60)}\n\n`)}`;
+  const text = `Ads Pro Digital — AI Chat Export\nGenerated: ${new Date().toLocaleString("en-US")}\n${"=".repeat(60)}\n\n${lines.join(`\n\n${"-".repeat(60)}\n\n`)}`;
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -823,7 +823,7 @@ export default function ChatPage() {
   }, [isSending, messages, userId, persistRemote, activeSessionId, supabase]);
 
   useEffect(() => {
-    const ask = searchParams.get("ask")?.trim();
+    const ask = searchParams?.get("ask")?.trim();
     if (!ask || consumedAsk.current || isLoading || isSending) return;
     consumedAsk.current = true;
     void sendMessage(ask);

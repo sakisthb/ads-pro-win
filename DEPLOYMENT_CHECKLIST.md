@@ -1,4 +1,4 @@
-# 🚀 Ads Pro Enterprise - Deployment Checklist
+# 🚀 Ads Pro Digital - Deployment Checklist
 
 ## ✅ Pre-Deployment Checks Completed
 

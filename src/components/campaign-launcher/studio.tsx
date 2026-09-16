@@ -81,7 +81,7 @@ export function CampaignLauncherStudio() {
   const searchParams = useSearchParams();
 
   const [mode, setMode] = useState<StudioMode>(() => {
-    const q = searchParams.get("mode");
+    const q = searchParams?.get("mode");
     if (q === "create" || q === "launch" || q === "automation" || q === "scale") return q;
     return "create";
   });
