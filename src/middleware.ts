@@ -21,10 +21,16 @@ const PUBLIC_PAGE_PATHS = [
   "/privacy",
 ];
 
+// Files served from /public. Next.js exposes them at the root (not /public/...),
+// so they must skip the login wall or chrome logos 307 to /auth/login.
+const PUBLIC_STATIC_ASSET =
+  /\.(?:ico|png|jpe?g|gif|webp|svg|woff2?|txt|xml|json|webmanifest)$/i;
+
 // Auth pages that bounce already-signed-in users to the dashboard.
 const AUTH_REDIRECT_PATHS = ["/auth/login", "/auth/signup"];
 
 const isPublicPage = (pathname: string) =>
+  PUBLIC_STATIC_ASSET.test(pathname) ||
   PUBLIC_PAGE_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
@@ -318,8 +324,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public files (public folder)
+     * - static files served from the public/ folder at the URL root
      */
-    "/((?!_next/static|_next/image|favicon.ico|public/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
   ],
 };

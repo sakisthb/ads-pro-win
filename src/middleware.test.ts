@@ -30,6 +30,14 @@ jest.mock("@supabase/ssr", () => ({
 // Import after mocks are registered.
 const { middleware } = require("./middleware") as { middleware: (req: NextRequest) => Promise<Response> };
 
+function cloneableUrl(href: string): URL {
+  const url = new URL(href, "http://localhost:3000");
+  Object.defineProperty(url, "clone", {
+    value: () => cloneableUrl(url.toString()),
+  });
+  return url;
+}
+
 function buildRequest(
   pathname: string,
   opts: {
@@ -38,15 +46,7 @@ function buildRequest(
     body?: string;
   } = {},
 ): NextRequest {
-  const url = Object.assign(new URL(pathname, "http://localhost:3000"), {
-    clone() {
-      return Object.assign(new URL(this.toString()), {
-        clone() {
-          return this;
-        },
-      });
-    },
-  });
+  const url = cloneableUrl(pathname);
   const headers = new Headers(opts.headers ?? {});
   if (opts.body && !headers.has("content-length")) {
     headers.set("content-length", String(Buffer.byteLength(opts.body)));
@@ -61,9 +61,19 @@ function buildRequest(
     writable: false,
   });
   Object.defineProperty(request, "cookies", {
-    value: { getAll: () => [] },
+    value: {
+      getAll: () => [],
+      set: () => undefined,
+    },
   });
   return request;
+}
+
+function mockAnonymousSession() {
+  mockedGetUser.mockResolvedValue({ data: { user: null } });
+  mockedCreateServerClient.mockReturnValue({
+    auth: { getUser: mockedGetUser },
+  });
 }
 
 describe("middleware rate limiting", () => {
@@ -221,15 +231,41 @@ describe("middleware rate limiting", () => {
   });
 });
 
+describe("middleware public brand assets", () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-test-key";
+    mockAnonymousSession();
+  });
+
+  it.each([
+    "/adpd-logo-mark.png",
+    "/adpd-logo-wordmark.png",
+    "/apple-touch-icon.png",
+  ])("lets anonymous browsers fetch %s", async (pathname) => {
+    const response = await middleware(buildRequest(pathname));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+    expect(mockedGetUser).toHaveBeenCalled();
+  });
+
+  it("still sends anonymous visitors away from protected pages", async () => {
+    const response = await middleware(buildRequest("/dashboard"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("Location")).toContain("/auth/login");
+    expect(response.headers.get("Location")).toContain("redirect=%2Fdashboard");
+  });
+});
+
 describe("middleware public GDPR page", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
-    mockedCreateServerClient.mockReturnValue({
-      auth: { getUser: mockedGetUser },
-    });
-    mockedGetUser.mockResolvedValue({ data: { user: null } });
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-test-key";
+    mockAnonymousSession();
   });
 
   it("lets anonymous visitors read /prosopika-dedomena-gdpr", async () => {
@@ -244,12 +280,5 @@ describe("middleware public GDPR page", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Location")).toBeNull();
-  });
-
-  it("still sends anonymous visitors from /dashboard to login", async () => {
-    const response = await middleware(buildRequest("/dashboard"));
-
-    expect(response.status).toBe(307);
-    expect(response.headers.get("Location")).toContain("/auth/login");
   });
 });
