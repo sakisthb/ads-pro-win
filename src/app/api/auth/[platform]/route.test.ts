@@ -153,6 +153,81 @@ describe("GET /api/auth/[platform]", () => {
     expect(createData.pkceCodeVerifier).toBeTruthy();
   });
 
+  it("redirects Google Analytics with PKCE using GOOGLE_ANALYTICS_CLIENT_*", async () => {
+    process.env.GOOGLE_ANALYTICS_CLIENT_ID = "ga4-client-id";
+    process.env.GOOGLE_ANALYTICS_CLIENT_SECRET = "ga4-client-secret";
+    delete process.env.GOOGLE_ADS_CLIENT_ID;
+    delete process.env.GOOGLE_ADS_CLIENT_SECRET;
+    delete process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID;
+    delete process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET;
+
+    const response = await startOAuth(
+      request(
+        "google-analytics",
+        "?return=%2Fconnections&brand=cmtafnju70001i5h38yrzx25u",
+      ),
+      { params: Promise.resolve({ platform: "google-analytics" }) },
+    );
+
+    expect(response.status).toBe(307);
+    const location = response.headers.get("Location") ?? "";
+    expect(location.startsWith("https://accounts.google.com/")).toBe(true);
+    const url = new URL(location);
+    expect(url.searchParams.get("client_id")).toBe("ga4-client-id");
+    expect(url.searchParams.get("redirect_uri")).toContain(
+      "/api/auth/google-analytics/callback",
+    );
+    expect(url.searchParams.get("code_challenge")).toBeTruthy();
+    expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+    expect(url.searchParams.get("access_type")).toBe("offline");
+    expect(url.searchParams.get("prompt")).toBe("consent");
+
+    const createData = mockedPrisma.oAuthTransaction.create.mock.calls[0][0].data;
+    expect(createData.platform).toBe("google-analytics");
+    expect(createData.brandId).toBe("cmtafnju70001i5h38yrzx25u");
+    expect(createData.returnPath).toBe("/connections");
+    expect(createData.pkceCodeVerifier).toBeTruthy();
+  });
+
+  it("redirects Search Console with PKCE reusing GOOGLE_ANALYTICS_CLIENT_* fallback", async () => {
+    process.env.GOOGLE_ANALYTICS_CLIENT_ID = "ga4-client-id";
+    process.env.GOOGLE_ANALYTICS_CLIENT_SECRET = "ga4-client-secret";
+    delete process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID;
+    delete process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET;
+
+    const response = await startOAuth(request("google-search-console"), {
+      params: Promise.resolve({ platform: "google-search-console" }),
+    });
+
+    expect(response.status).toBe(307);
+    const url = new URL(response.headers.get("Location") ?? "");
+    expect(url.searchParams.get("client_id")).toBe("ga4-client-id");
+    expect(url.searchParams.get("redirect_uri")).toContain(
+      "/api/auth/google-search-console/callback",
+    );
+    expect(url.searchParams.get("code_challenge")).toBeTruthy();
+
+    const createData = mockedPrisma.oAuthTransaction.create.mock.calls[0][0].data;
+    expect(createData.platform).toBe("google-search-console");
+    expect(createData.pkceCodeVerifier).toBeTruthy();
+  });
+
+  it("returns 503 instead of 500 when oauth_transactions persistence fails", async () => {
+    mockedPrisma.oAuthTransaction.create.mockRejectedValue(
+      Object.assign(new Error("The table `public.oauth_transactions` does not exist"), {
+        code: "P2021",
+      }),
+    );
+
+    const response = await startOAuth(request("google-analytics"), {
+      params: Promise.resolve({ platform: "google-analytics" }),
+    });
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.error).toMatch(/oauth_transactions|database|migrate/i);
+  });
+
   it("rejects an unauthorized brand selection", async () => {
     const { OrganizationAuthorizationError } = await import(
       "@/lib/organization-authorization"
