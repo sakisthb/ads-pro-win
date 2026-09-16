@@ -297,8 +297,8 @@ class CDNInfrastructureManager {
       cachePolicies: Array.from(this.cachePolicies.values()),
       config: this.config,
       
-      // Vercel-specific configuration
-      vercel: {
+      // Edge host configuration (Docker + Caddy — not Vercel)
+      edgeHost: {
         regions: this.config.regions.map(r => r.code),
         functions: {
           'app/api/**/*.js': {

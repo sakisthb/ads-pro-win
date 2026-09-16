@@ -1,6 +1,6 @@
 // CDN Integration & Asset Optimization - Phase 3 Week 8
 interface CDNConfig {
-  provider: 'vercel' | 'cloudflare' | 'aws' | 'custom';
+  provider: 'cloudflare' | 'aws' | 'custom';
   baseUrl: string;
   regions: string[];
   cacheHeaders: {
@@ -29,7 +29,7 @@ class CDNOptimizer {
 
   constructor(config: Partial<CDNConfig> = {}) {
     this.config = {
-      provider: 'vercel',
+      provider: 'custom',
       baseUrl: process.env.CDN_BASE_URL || '',
       regions: ['us-east-1', 'eu-west-1', 'ap-southeast-1'],
       cacheHeaders: {
@@ -63,8 +63,8 @@ class CDNOptimizer {
       fit = 'cover',
     } = options;
 
-    // If using Vercel, leverage their image optimization
-    if (this.config.provider === 'vercel') {
+    // If using a CDN with image optimization
+    if (this.config.provider === 'cloudflare') {
       const params = new URLSearchParams({
         url: src,
         w: width.toString(),
@@ -331,7 +331,7 @@ let cdnOptimizer: CDNOptimizer | null = null;
 export function getCDNOptimizer(): CDNOptimizer {
   if (!cdnOptimizer) {
     cdnOptimizer = new CDNOptimizer({
-      provider: (process.env.CDN_PROVIDER as 'vercel' | 'cloudflare' | 'aws') || 'vercel',
+      provider: (process.env.CDN_PROVIDER as 'cloudflare' | 'aws' | 'custom') || 'custom',
       baseUrl: process.env.CDN_BASE_URL || '',
       imageOptimization: process.env.IMAGE_OPTIMIZATION !== 'false',
       compression: process.env.ASSET_COMPRESSION !== 'false',

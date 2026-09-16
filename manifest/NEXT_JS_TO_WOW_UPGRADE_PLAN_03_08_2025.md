@@ -1,3 +1,5 @@
+> **Historical note (2026-09-16):** Vercel is retired. Ads Pro deploys with Docker + Caddy only. Ignore Vercel URLs/CLI in this document.
+
 # 🚀 Next.js to WOW! Upgrade Plan - 03/08/2025
 
 ## 🎯 **MISSION: Transform Next.js Project to Enterprise SaaS Excellence**

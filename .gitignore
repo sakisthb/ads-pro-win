@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Local chat dumps — keep out of PRs (operator docs stay tracked)
+docs/chat-*.md

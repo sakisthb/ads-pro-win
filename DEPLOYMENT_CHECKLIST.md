@@ -86,31 +86,24 @@ npm run build
 npm start
 ```
 
-### **4. Platform-Specific Deployment**
+### **4. Production deployment (Docker + Caddy only)**
 
-#### **Vercel Deployment**
+**Vercel is retired. Do not run `vercel`.**
+
 ```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel --prod
+# .env from .env.production.example on the host, then:
+./deploy.sh
+# Windows: .\deploy.ps1
 ```
 
-#### **Docker Deployment**
-```bash
-# Build Docker image
-docker build -t ads-pro-enterprise .
-
-# Run container
-docker run -p 3000:3000 ads-pro-enterprise
-```
+See `DEPLOYMENT_STRATEGY.md` and `docker-compose.production.yml`.
 
 ## 🔍 Post-Deployment Verification
 
 ### **Health Checks**
 - ✅ Application loads without errors
-- ✅ Authentication works (Clerk integration)
+- ✅ Authentication works (Supabase Auth)
+
 - ✅ Database connections are successful
 - ✅ API endpoints respond correctly
 - ✅ Caching layer is operational
@@ -131,7 +124,7 @@ docker run -p 3000:3000 ads-pro-enterprise
 
 ### **Recommended Tools**
 - **Application Monitoring**: Sentry (DSN configured)
-- **Performance**: Vercel Analytics or Google Analytics
+- **Performance**: Host metrics + Google Analytics (if configured). Not Vercel Analytics.
 - **Database**: Supabase Dashboard
 - **Authentication**: Clerk Dashboard
 

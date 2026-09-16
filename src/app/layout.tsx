@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     title: "Ads Pro Enterprise - Advanced Attribution Analytics",
     description: "Performance digital marketing platform with advanced attribution analytics and cross-channel reporting that drives real results.",
     type: "website",
-    url: "https://ads-pro-enterprise.vercel.app",
+    url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
     siteName: "Ads Pro Enterprise",
   },
   twitter: {

@@ -1,3 +1,5 @@
+NOTE (2026-09-16): Vercel is retired. Ads Pro deploys with Docker + Caddy only. Ignore Vercel URLs/CLI below.
+
 ================================================================================
 VISUAL DESIGN IMPROVEMENT ROADMAP
 Ads Pro Enterprise - Modern UI/UX Enhancement Plan

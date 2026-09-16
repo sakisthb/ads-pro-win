@@ -23,6 +23,31 @@ fi
 
 echo "🚀 Deploying ads-pro-win (tag: $TAG)..."
 
+env_value() {
+  local line value
+  line="$(grep -E "^${1}=" .env 2>/dev/null | tail -n1 || true)"
+  value="${line#*=}"
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#\'}"
+  value="${value%\'}"
+  printf '%s' "$value"
+}
+
+if [[ -f .env ]]; then
+  origin="$(env_value SACOS_GROWTH_ORIGIN)"
+  token="$(env_value SACOS_GROWTH_DESK_TOKEN)"
+  if [[ -z "$origin" ]]; then
+    echo "Growth Center origin unset; desk stays unlinked until that domain exists."
+  elif [[ "$origin" != https://* ]]; then
+    echo "SACOS_GROWTH_ORIGIN must be HTTPS on the Growth Center domain, not 127.0.0.1." >&2
+    exit 1
+  elif [[ ${#token} -lt 32 ]]; then
+    echo "SACOS_GROWTH_DESK_TOKEN (min 32 chars) is required when origin is set." >&2
+    exit 1
+  fi
+fi
+
 # Step 1: Build
 echo "📦 Building Docker image..."
 docker build -t ads-pro-win:"$TAG" -t ads-pro-win:latest .

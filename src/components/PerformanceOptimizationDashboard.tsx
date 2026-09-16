@@ -64,7 +64,7 @@ const PerformanceOptimizationDashboard: React.FC = () => {
       name: 'CDN Integration',
       status: 'completed',
       improvement: '50% faster asset loading',
-      description: 'Static asset optimization with Vercel CDN'
+      description: 'Static asset optimization via the Docker/Caddy edge host'
     },
     {
       name: 'Service Worker Caching',

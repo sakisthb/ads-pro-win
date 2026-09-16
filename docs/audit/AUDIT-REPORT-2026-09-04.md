@@ -1,3 +1,5 @@
+> **Historical note (2026-09-16):** Vercel is retired. Ads Pro deploys with Docker + Caddy only. Ignore Vercel URLs/CLI in this document.
+
 # Ads Pro Enterprise — Product & Engineering Audit
 
 **Ημερομηνία:** Παρασκευή 4 Σεπτεμβρίου 2026  

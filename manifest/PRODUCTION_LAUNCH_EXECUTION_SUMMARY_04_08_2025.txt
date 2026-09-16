@@ -1,3 +1,5 @@
+NOTE (2026-09-16): Vercel is retired. Ads Pro deploys with Docker + Caddy only. Ignore Vercel URLs/CLI below.
+
 ================================================================================
 PRODUCTION LAUNCH EXECUTION SUMMARY
 Ads Pro Enterprise - Complete Progress & Next Steps

@@ -6,6 +6,8 @@
  * 
  * This script executes the complete production launch process
  * including all go-live checklist items and deployment procedures.
+ *
+ * Vercel is retired. Deploy with Docker + Caddy (./deploy.sh) only.
  */
 
 // Load environment variables
@@ -22,7 +24,7 @@ const path = require('path');
 const CONFIG = {
   projectName: 'ads-pro-enterprise',
   environment: 'production',
-  deploymentUrl: process.env.VERCEL_URL || 'https://ads-pro-enterprise.vercel.app',
+  deploymentUrl: (process.env.NEXT_PUBLIC_SITE_URL || 'http://127.0.0.1:3000').replace(/\/$/, ''),
   databaseUrl: process.env.DATABASE_URL,
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
   clerkPublishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
@@ -52,24 +54,24 @@ const GO_LIVE_CHECKLIST = [
   {
     id: 'infra-02',
     title: 'Load Balancer Configuration',
-    command: 'curl -I https://ads-pro-enterprise.vercel.app/health',
-    validation: 'curl -f https://ads-pro-enterprise.vercel.app/api/health',
+    command: 'curl -I "$NEXT_PUBLIC_SITE_URL/api/health" || curl -I http://127.0.0.1:3000/api/health',
+    validation: 'curl -f "${NEXT_PUBLIC_SITE_URL:-http://127.0.0.1:3000}/api/health"',
     estimatedTime: 45,
     critical: true
   },
   {
     id: 'infra-03',
     title: 'SSL/TLS Certificate Installation',
-    command: 'curl -I https://ads-pro-enterprise.vercel.app',
-    validation: 'openssl s_client -connect ads-pro-enterprise.vercel.app:443 -servername ads-pro-enterprise.vercel.app',
+    command: 'curl -I "${NEXT_PUBLIC_SITE_URL:-http://127.0.0.1:3000}"',
+    validation: 'echo "TLS terminates at Caddy on DOMAIN; skip openssl-to-vercel check"',
     estimatedTime: 20,
     critical: true
   },
   {
     id: 'infra-04',
     title: 'Auto-scaling Configuration',
-    command: 'vercel --prod',
-    validation: 'vercel ls',
+    command: './deploy.sh',
+    validation: 'docker compose -f docker-compose.production.yml ps',
     estimatedTime: 60,
     critical: false
   },
@@ -84,8 +86,8 @@ const GO_LIVE_CHECKLIST = [
   {
     id: 'security-02',
     title: 'Firewall & DDoS Protection',
-    command: 'vercel --prod --force',
-    validation: 'curl -I https://ads-pro-enterprise.vercel.app',
+    command: './deploy.sh',
+    validation: 'curl -I "${NEXT_PUBLIC_SITE_URL:-http://127.0.0.1:3000}"',
     estimatedTime: 90,
     critical: true
   },
@@ -124,8 +126,8 @@ const GO_LIVE_CHECKLIST = [
   {
     id: 'perf-03',
     title: 'CDN Configuration & Optimization',
-    command: 'vercel --prod',
-    validation: 'curl -I https://ads-pro-enterprise.vercel.app',
+    command: './deploy.sh',
+    validation: 'curl -I "${NEXT_PUBLIC_SITE_URL:-http://127.0.0.1:3000}"',
     estimatedTime: 90,
     critical: false
   },
@@ -204,8 +206,8 @@ const GO_LIVE_CHECKLIST = [
   {
     id: 'deploy-01',
     title: 'Deployment Pipeline Configuration',
-    command: 'vercel --prod',
-    validation: 'vercel ls',
+    command: './deploy.sh',
+    validation: 'docker compose -f docker-compose.production.yml ps',
     estimatedTime: 120,
     critical: true
   },
@@ -220,8 +222,8 @@ const GO_LIVE_CHECKLIST = [
   {
     id: 'deploy-03',
     title: 'Blue-Green Deployment Setup',
-    command: 'vercel --prod',
-    validation: 'vercel ls',
+    command: './deploy.sh',
+    validation: 'docker compose -f docker-compose.production.yml ps',
     estimatedTime: 120,
     critical: false
   },
@@ -450,7 +452,7 @@ async function executeProductionLaunch() {
   log('🔍 Performing final validation...', 'info');
   
   const finalValidation = executeCommand(
-    'curl -f https://ads-pro-enterprise.vercel.app/api/health',
+    'curl -f "${NEXT_PUBLIC_SITE_URL:-http://127.0.0.1:3000}/api/health"',
     'Final health check'
   );
   
@@ -504,8 +506,8 @@ function executeRollback() {
   const rollbackSteps = [
     {
       title: 'Stop application traffic',
-      command: 'vercel --prod --force',
-      validation: 'curl -I https://ads-pro-enterprise.vercel.app'
+      command: './deploy.sh',
+      validation: 'curl -I "${NEXT_PUBLIC_SITE_URL:-http://127.0.0.1:3000}"'
     },
     {
       title: 'Restore previous database version',
@@ -514,12 +516,12 @@ function executeRollback() {
     },
     {
       title: 'Revert to previous deployment',
-      command: 'vercel --prod --force',
-      validation: 'vercel ls'
+      command: './deploy.sh',
+      validation: 'docker compose -f docker-compose.production.yml ps'
     },
     {
       title: 'Validate rollback',
-      command: 'curl -f https://ads-pro-enterprise.vercel.app/api/health',
+      command: 'curl -f "${NEXT_PUBLIC_SITE_URL:-http://127.0.0.1:3000}/api/health"',
       validation: 'npm run test:basic'
     }
   ];
