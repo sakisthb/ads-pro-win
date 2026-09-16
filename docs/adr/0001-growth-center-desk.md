@@ -19,6 +19,7 @@ Two applications, one brand cockpit.
 - Ads Pro may copy only the narrow `GET /api/desk-summary` counts (image issues, pending drafts, last accepted). It never invents zeros or catalog rows.
 - Catalog surgery, WordPress writes, and SACOS login stay in Growth Center. Ads Pro session does not unlock them.
 - Demo org stays unlinked.
+- Production is two hostnames. The operator owns DNS: one domain for Ads Pro (Caddy `DOMAIN`), one HTTPS origin for Growth Center (`SACOS_GROWTH_ORIGIN`). Ads Pro does not reverse-proxy Growth Center. Leave the origin empty until that domain exists; do not point production at `127.0.0.1`.
 
 ## Consequences
 

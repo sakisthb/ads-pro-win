@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { DEMO_ORG_SLUG } from "@/lib/org-default";
 import { resolveBrandWebsite } from "@/lib/site-seo";
 import {
-  growthCenterOriginFromEnv,
+  resolveGrowthDeskOrigin,
   loadGrowthDesk,
 } from "@/lib/growth-center";
 
@@ -25,14 +25,17 @@ export const growthRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Brand not found" });
       }
 
+      const nodeEnv = process.env.NODE_ENV ?? "development";
+      const deskToken = process.env.SACOS_GROWTH_DESK_TOKEN;
       return loadGrowthDesk({
         organizationSlug: ctx.organization.slug,
         website: resolveBrandWebsite(brand),
-        origin: growthCenterOriginFromEnv(
-          process.env.SACOS_GROWTH_ORIGIN,
-          process.env.NODE_ENV ?? "development",
-        ),
-        deskToken: process.env.SACOS_GROWTH_DESK_TOKEN,
+        origin: resolveGrowthDeskOrigin({
+          originRaw: process.env.SACOS_GROWTH_ORIGIN,
+          token: deskToken,
+          nodeEnv,
+        }),
+        deskToken,
       });
     }),
 });

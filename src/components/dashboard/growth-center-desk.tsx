@@ -99,8 +99,9 @@ export function GrowthCenterDesk({ desk }: { desk: GrowthDesk | undefined }) {
         </dl>
       ) : (
         <p className="mt-3 text-xs leading-relaxed text-white/50">
-          Image issues, drafts, and the last accepted batch stay in SACOS. Ads Pro
-          does not copy those numbers.
+          Counts load from SACOS desk-summary when the origin answers. Open
+          Growth Center for the full catalog desk — Ads Pro never invents
+          zeros.
         </p>
       )}
       {desk.reachability === "unreachable" ? (

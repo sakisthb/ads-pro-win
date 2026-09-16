@@ -75,7 +75,12 @@ export function growthCenterOriginFromEnv(
   nodeEnv: string,
 ): string | null {
   const parsed = parseGrowthCenterOrigin(raw);
-  if (parsed) return parsed;
+  if (parsed) {
+    if (nodeEnv !== "development" && parsed.startsWith("http:")) {
+      return null;
+    }
+    return parsed;
+  }
   if (nodeEnv === "development") return "http://127.0.0.1:18806";
   return null;
 }
@@ -176,6 +181,57 @@ export function parseGrowthDeskToken(
 ): string | null {
   if (!raw || raw.length < 32 || /\s/.test(raw)) return null;
   return raw;
+}
+
+export function assertHostedGrowthDeskEnv(args: {
+  origin: string | undefined | null;
+  token: string | undefined | null;
+}): { ok: true; origin: string | null } | { ok: false; error: string } {
+  const raw = args.origin?.trim() ?? "";
+  if (!raw) return { ok: true, origin: null };
+  const parsed = parseGrowthCenterOrigin(raw);
+  if (!parsed || parsed.startsWith("http:")) {
+    return {
+      ok: false,
+      error:
+        "SACOS_GROWTH_ORIGIN must be the HTTPS Growth Center domain, not Ads Pro and not 127.0.0.1",
+    };
+  }
+  if (!parseGrowthDeskToken(args.token)) {
+    return {
+      ok: false,
+      error:
+        "SACOS_GROWTH_DESK_TOKEN is required when SACOS_GROWTH_ORIGIN is set",
+    };
+  }
+  return { ok: true, origin: parsed };
+}
+
+/**
+ * Runtime origin for the Growth Center desk.
+ * Development may use loopback without a token (counts stay null).
+ * Outside development: empty origin → unlinked; set origin requires HTTPS + token.
+ */
+export function resolveGrowthDeskOrigin(args: {
+  originRaw: string | undefined | null;
+  token: string | undefined | null;
+  nodeEnv: string;
+}): string | null {
+  if (args.nodeEnv === "development") {
+    return growthCenterOriginFromEnv(
+      args.originRaw ?? undefined,
+      args.nodeEnv,
+    );
+  }
+  const asserted = assertHostedGrowthDeskEnv({
+    origin: args.originRaw,
+    token: args.token,
+  });
+  if (!asserted.ok) return null;
+  return growthCenterOriginFromEnv(
+    asserted.origin ?? undefined,
+    args.nodeEnv,
+  );
 }
 
 export function parseGrowthCenterFacts(

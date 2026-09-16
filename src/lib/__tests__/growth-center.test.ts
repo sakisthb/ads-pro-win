@@ -4,6 +4,8 @@ import {
   buildGrowthDesk,
   growthCenterOriginFromEnv,
   parseGrowthCenterOrigin,
+  assertHostedGrowthDeskEnv,
+  resolveGrowthDeskOrigin,
   probeGrowthCenterReadyz,
   resolveGrowthCenterDesk,
   parseGrowthCenterFacts,
@@ -36,6 +38,97 @@ describe("growthCenterOriginFromEnv", () => {
     expect(
       growthCenterOriginFromEnv("https://sacos.socialideas.gr", "production"),
     ).toBe("https://sacos.socialideas.gr");
+  });
+
+  it("rejects loopback origin outside development so Docker cannot point at itself", () => {
+    expect(
+      growthCenterOriginFromEnv("http://127.0.0.1:18806", "production"),
+    ).toBeNull();
+    expect(
+      growthCenterOriginFromEnv("http://127.0.0.1:18806", "test"),
+    ).toBeNull();
+    expect(
+      growthCenterOriginFromEnv("http://127.0.0.1:18806", "development"),
+    ).toBe("http://127.0.0.1:18806");
+  });
+});
+
+describe("assertHostedGrowthDeskEnv", () => {
+  it("allows an empty origin until the Growth Center domain exists", () => {
+    expect(assertHostedGrowthDeskEnv({ origin: "", token: "" })).toEqual({
+      ok: true,
+      origin: null,
+    });
+  });
+
+  it("requires HTTPS origin and a desk token when origin is set", () => {
+    expect(
+      assertHostedGrowthDeskEnv({
+        origin: "http://127.0.0.1:18806",
+        token: "t".repeat(32),
+      }).ok,
+    ).toBe(false);
+    expect(
+      assertHostedGrowthDeskEnv({
+        origin: "https://growth.example",
+        token: "short",
+      }).ok,
+    ).toBe(false);
+    expect(
+      assertHostedGrowthDeskEnv({
+        origin: "https://growth.example",
+        token: "t".repeat(32),
+      }),
+    ).toEqual({ ok: true, origin: "https://growth.example" });
+  });
+});
+
+describe("resolveGrowthDeskOrigin", () => {
+  it("keeps local loopback in development even without a desk token", () => {
+    expect(
+      resolveGrowthDeskOrigin({
+        originRaw: "http://127.0.0.1:18806",
+        token: "",
+        nodeEnv: "development",
+      }),
+    ).toBe("http://127.0.0.1:18806");
+  });
+
+  it("fails closed in production when origin is loopback or token is missing", () => {
+    expect(
+      resolveGrowthDeskOrigin({
+        originRaw: "http://127.0.0.1:18806",
+        token: "t".repeat(32),
+        nodeEnv: "production",
+      }),
+    ).toBeNull();
+    expect(
+      resolveGrowthDeskOrigin({
+        originRaw: "https://growth.example",
+        token: "",
+        nodeEnv: "production",
+      }),
+    ).toBeNull();
+  });
+
+  it("accepts HTTPS Growth Center origin with a desk token outside development", () => {
+    expect(
+      resolveGrowthDeskOrigin({
+        originRaw: "https://growth.example",
+        token: "t".repeat(32),
+        nodeEnv: "production",
+      }),
+    ).toBe("https://growth.example");
+  });
+
+  it("leaves the desk unlinked when production origin is unset", () => {
+    expect(
+      resolveGrowthDeskOrigin({
+        originRaw: "",
+        token: "",
+        nodeEnv: "production",
+      }),
+    ).toBeNull();
   });
 });
 
@@ -325,6 +418,89 @@ describe("loadGrowthDesk facts", () => {
     expect(desk.status).toBe("linked");
     if (desk.status !== "linked") return;
     expect(desk.catalogFacts).toBeNull();
+  });
+});
+
+describe("loadGrowthDesk live HTTP contract", () => {
+  it("talks to a real loopback peer shaped like SACOS desk-summary", async () => {
+    const http = await import("node:http");
+    const token = "t".repeat(32);
+    const server = http.createServer((req, res) => {
+      const url = new URL(req.url ?? "/", "http://127.0.0.1");
+      if (url.pathname === "/readyz") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ready", release: "contract-smoke" }));
+        return;
+      }
+      if (url.pathname === "/api/desk-summary") {
+        const auth = req.headers.authorization ?? "";
+        if (
+          auth !== `Bearer ${token}` ||
+          url.searchParams.get("site") !== "bagtobag_com_gr"
+        ) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            site: "bagtobag_com_gr",
+            imageIssues: 14,
+            pendingDrafts: 0,
+            lastAccepted: {
+              appliedProducts: 32,
+              at: "2026-09-11T12:38:19Z",
+            },
+          }),
+        );
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      server.close();
+      throw new Error("expected TCP address");
+    }
+    const origin = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const desk = await loadGrowthDesk({
+        organizationSlug: "kotman1979",
+        website: "https://bagtobag.com.gr",
+        origin,
+        deskToken: token,
+      });
+      expect(desk).toMatchObject({
+        status: "linked",
+        siteId: "bagtobag_com_gr",
+        origin,
+        reachability: "reachable",
+        catalogFacts: {
+          imageIssues: 14,
+          pendingDrafts: 0,
+          lastAccepted: {
+            appliedProducts: 32,
+            at: "2026-09-11T12:38:19Z",
+          },
+        },
+      });
+      if (desk.status === "linked") {
+        expect(growthCenterHref(desk.origin, desk.siteId, "images")).toBe(
+          `${origin}/?site=bagtobag_com_gr&view=images`,
+        );
+      }
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 });
 

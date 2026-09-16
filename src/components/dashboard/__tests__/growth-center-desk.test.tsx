@@ -30,6 +30,7 @@ describe("GrowthCenterDesk", () => {
     expect(screen.queryByText(/MFA/i)).not.toBeInTheDocument();
     expect(screen.queryByText("0")).not.toBeInTheDocument();
     expect(screen.queryByText("2,753")).not.toBeInTheDocument();
+    expect(screen.getByText(/never invents zeros/i)).toBeInTheDocument();
   });
 
   it("says the origin did not answer without substituting zeros", () => {
@@ -93,7 +94,7 @@ describe("GrowthCenterDesk", () => {
       "http://127.0.0.1:18806/?site=bagtobag_com_gr&view=products&pilot=1",
     );
     expect(
-      screen.queryByText(/does not copy those numbers/i),
+      screen.queryByText(/never invents zeros/i),
     ).not.toBeInTheDocument();
   });
 
@@ -118,7 +119,7 @@ describe("GrowthCenterDesk", () => {
     expect(screen.getAllByText("0")).toHaveLength(2);
     expect(screen.getByText(/none yet/i)).toBeInTheDocument();
     expect(
-      screen.queryByText(/does not copy those numbers/i),
+      screen.queryByText(/never invents zeros/i),
     ).not.toBeInTheDocument();
   });
 });
