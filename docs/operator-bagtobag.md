@@ -61,7 +61,7 @@ Product records in Growth Center are still the 11/09 catalog seed. The 29 `empty
 
 Wait for the operator. Do **not** start the 29 `empty_description` drafts, reviewed pack, or any copy queue.
 
-Ads Pro Growth Center desk (engineering, 2026-09-16): Phase A stabilize is on `feat/growth-center-desk` as `0f2012c` (pushed). Hosted origin fail-closed, deploy HTTPS+token gates, ADR two-hostnames, operator truth, router/unit/contract tests. Live dashboard proof: BagToBag counts from SACOS `desk-summary` on Ads Pro `:3000` with Growth Center `:18806`. **CI that counts:** GitHub Actions only (all green on `0f2012c`). **Ignore Vercel** — leftover GitHub App, not paid, not the Docker/Caddy deploy path. Do **not** merge [PR #2](https://github.com/sakisthb/ads-pro-win/pull/2) until the operator says so.
+Ads Pro Growth Center desk (engineering, 2026-09-16): Phase A stabilize merged via [PR #2](https://github.com/sakisthb/ads-pro-win/pull/2) (`1393a77` on `main`, head included `18d3ec5`). Hosted origin fail-closed, deploy HTTPS+token gates, ADR two-hostnames, operator truth, router/unit/contract tests. Live dashboard proof: BagToBag counts from SACOS `desk-summary`. **CI that counts:** GitHub Actions only. **Ignore Vercel.** Docker + Caddy only.
 
 Later sequence exists only as backlog, not as permission: test1 native executor; readback; `over_500kb_review` as SACOS `image.optimize` handoff (still not sibio on BagToBag); alt batches; snapshot freshness on the desk; production Growth Center hostname; PR #2 merge; second site as a new profile.
 
