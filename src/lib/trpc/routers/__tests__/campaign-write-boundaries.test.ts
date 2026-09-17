@@ -2,7 +2,7 @@
 jest.mock("superjson", () => ({ __esModule: true, default: { serialize: (v: unknown) => v, deserialize: (v: unknown) => v } }));
 jest.mock("@/lib/auth", () => ({ getSession: jest.fn() }));
 jest.mock("@/lib/db", () => ({ prisma: {
-  organization: { findUnique: jest.fn() }, brand: { findMany: jest.fn() },
+  organization: { findUnique: jest.fn() }, brand: { findMany: jest.fn(), findFirst: jest.fn() },
   adAccount: { findMany: jest.fn() }, wooProduct: { findMany: jest.fn() },
   campaign: { findMany: jest.fn(), create: jest.fn(), updateMany: jest.fn() },
 } }));
@@ -12,6 +12,7 @@ jest.mock("@/lib/organization-authorization", () => ({
 }));
 jest.mock("@/lib/platform-launch", () => ({
   resolveLaunchAccount: jest.fn(), googleWriteConfigured: jest.fn(() => true),
+  generateLaunchPlan: jest.fn(),
   launchGoogleCampaign: jest.fn(), launchMetaCampaign: jest.fn(), launchTikTokCampaign: jest.fn(),
   updateGoogleCampaignStatus: jest.fn(), updateMetaCampaignStatus: jest.fn(), updateTikTokCampaignStatus: jest.fn(),
   scaleGoogleCampaignBudget: jest.fn(), scaleMetaCampaignBudget: jest.fn(), scaleTikTokCampaignBudget: jest.fn(),
@@ -34,6 +35,24 @@ beforeEach(() => {
   jest.mocked(prisma.organization.findUnique).mockResolvedValue({ id: "org-1", slug: "fixture", settings: null } as never);
   jest.mocked(launch.resolveLaunchAccount).mockResolvedValue(null);
   jest.mocked(prisma.campaign.create).mockResolvedValue({ id: "draft-1" } as never);
+  jest.mocked(prisma.brand.findFirst).mockResolvedValue({ id: "brand-1" } as never);
+});
+
+it("does not send another brand's legacy context to a scoped planner", async () => {
+  jest.mocked(prisma.organization.findUnique).mockResolvedValue({ id: "org-1", slug: "fixture", settings: {
+    projectContext: { objective: "sales", targetResult: "Other brand legacy target" },
+  } } as never);
+  await caller().generatePlan({ prompt: "Fixture planning question", objective: "sales", platforms: ["google"], brandId: "brand-1" });
+  expect(launch.generateLaunchPlan).toHaveBeenCalledWith(expect.objectContaining({ brandId: "brand-1", projectContext: undefined }));
+  expect(prisma.brand.findFirst).toHaveBeenCalledWith({ where: { id: "brand-1", organizationId: "org-1" }, select: { id: true } });
+  expect(launch.resolveLaunchAccount).not.toHaveBeenCalled();
+});
+it("refuses a foreign planner brand before any generation or provider resolution", async () => {
+  jest.mocked(prisma.brand.findFirst).mockResolvedValue(null);
+  await expect(caller().generatePlan({ prompt: "Fixture planning question", objective: "sales", platforms: ["google"], brandId: "foreign" }))
+    .rejects.toMatchObject({ code: "NOT_FOUND" });
+  expect(launch.generateLaunchPlan).not.toHaveBeenCalled();
+  expect(launch.resolveLaunchAccount).not.toHaveBeenCalled();
 });
 
 it.each(["google", "tiktok"] as const)("refuses %s status before credential/account resolution", async (platform) => {

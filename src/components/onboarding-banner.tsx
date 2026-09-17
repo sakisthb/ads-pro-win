@@ -37,7 +37,7 @@ export function OnboardingBanner() {
     setDismissed(true);
   };
 
-  const incomplete = statusQuery.data && !statusQuery.data.onboardingCompleted && !statusQuery.data.ready;
+  const incomplete = statusQuery.data && !statusQuery.data.onboardingCompleted && !statusQuery.data.setupReady;
   const visible = !isDemo && !dismissed && Boolean(incomplete);
 
   return (
@@ -55,7 +55,7 @@ export function OnboardingBanner() {
               href="/onboarding"
               className="flex items-center gap-2 font-medium transition-opacity hover:opacity-80"
             >
-              <span>Finish first-session setup — connect, save context, load performance</span>
+              <span>Finish first-session setup — select a shop, review connections and context</span>
               <ChevronRight className="h-4 w-4" />
             </Link>
             <button

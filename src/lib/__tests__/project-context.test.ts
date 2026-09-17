@@ -11,6 +11,12 @@ import {
 } from "@/lib/project-context";
 
 describe("project context", () => {
+  it("never falls back to another brand's last-saved context for an explicit missing brand", () => {
+    const legacy = { ...emptyProjectContext(), notes: "Last-saved other shop" };
+    const parsed = parseOrgSettings({ projectContext: legacy });
+    expect(contextForBrand(parsed, "brand-without-inputs")).toBeNull();
+    expect(contextForBrand(parsed, undefined)).toEqual(legacy);
+  });
   it("reads only the exact brand context, never the last-saved organization fallback", () => {
     const own = { ...emptyProjectContext(), constraints: "Owned shop constraints" };
     const parsed = parseOrgSettings({

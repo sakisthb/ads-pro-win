@@ -732,9 +732,15 @@ export const campaignsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      if (input.brandId) {
+        const brand = await ctx.prisma.brand.findFirst({
+          where: { id: input.brandId, organizationId: ctx.organizationId }, select: { id: true },
+        });
+        if (!brand) throw new TRPCError({ code: "NOT_FOUND", message: "Brand not found" });
+      }
       const settings = parseOrgSettings(ctx.organization.settings);
       const projectContext = contextToPromptBlock(
-        contextForBrand(settings, input.brandId) ?? settings.projectContext,
+        contextForBrand(settings, input.brandId),
       );
       return generateLaunchPlan({ ...input, projectContext: projectContext || undefined });
     }),

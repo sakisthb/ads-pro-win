@@ -7,7 +7,6 @@ import {
   organizationProcedure,
 } from "../server";
 import {
-  contextForBrand,
   emptyProjectContext,
   isContextComplete,
   mergeOrgSettings,
@@ -18,7 +17,6 @@ import {
 } from "@/lib/project-context";
 import { adAccountIsConnected } from "@/lib/connection-status";
 import { buildQuickAudit } from "@/lib/quick-audit";
-import { PAID_AD_PLATFORMS } from "@/lib/paid-ad-metrics";
 
 const DEMO_ORG_SLUG = "demo";
 
@@ -31,11 +29,6 @@ const contextInputSchema = z.object({
   seasonality: z.string().max(500).optional().default(""),
   notes: z.string().max(2000).optional().default(""),
 });
-
-function toNumber(value: Prisma.Decimal | null | undefined): number {
-  if (value == null) return 0;
-  return typeof value.toNumber === "function" ? value.toNumber() : Number(value);
-}
 
 export const onboardingRouter = createTRPCRouter({
   getBrandContext: organizationProcedure
@@ -90,17 +83,18 @@ export const onboardingRouter = createTRPCRouter({
     const shops = brands.map((b) => {
       const shopConnections = connections.filter((c) => c.brandId === b.id);
       const shopConnected = shopConnections.filter((c) => c.isConnected);
-      const ctxForShop = contextForBrand(parsed, b.id) ?? emptyProjectContext();
+      const ctxForShop = strictContextForBrand(parsed, b.id);
       return {
         ...b,
         connectedCount: shopConnected.length,
         connectedPlatforms: shopConnected.map((c) => c.platform),
         contextComplete: isContextComplete(ctxForShop),
+        contextSource: ctxForShop ? "brand" as const : "missing" as const,
       };
     });
 
     const context = parsed.projectContext ?? emptyProjectContext();
-    const contextComplete = shops.some((s) => s.contextComplete) || isContextComplete(parsed.projectContext);
+    const contextComplete = shops.some((s) => s.contextComplete);
     const isDemo = ctx.organization.slug === DEMO_ORG_SLUG;
 
     return {
@@ -114,11 +108,11 @@ export const onboardingRouter = createTRPCRouter({
       hasPerformance: metricCount > 0,
       context,
       contextComplete,
-      ready:
-        !isDemo &&
-        connected.length > 0 &&
-        contextComplete &&
-        metricCount > 0,
+      setupReady: !isDemo && shops.some((s) => s.connectedCount > 0 && s.contextComplete),
+      // Setup cannot certify provider health, selected-period coverage or action permission.
+      ready: false as const,
+      executionAllowed: false as const,
+      readinessScope: "organization_setup_only" as const,
     };
   }),
 
@@ -176,66 +170,18 @@ export const onboardingRouter = createTRPCRouter({
   getQuickAudit: organizationProcedure
     .input(
       z.object({
-        days: z.number().min(7).max(90).default(14),
+        days: z.number().int().min(7).max(90).default(14),
         brandId: z.string().min(1).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
-      const parsed = parseOrgSettings(ctx.organization.settings);
-      const end = new Date();
-      const start = new Date();
-      start.setUTCDate(start.getUTCDate() - input.days);
-      const startDate = start.toISOString().slice(0, 10);
-      const endDate = end.toISOString().slice(0, 10);
-      const shopContext = contextForBrand(parsed, input.brandId);
-
-      const grouped = await ctx.prisma.dailyMetric.groupBy({
-        by: ["campaignId", "campaignName", "platform"],
-        where: {
-          date: {
-            gte: new Date(`${startDate}T00:00:00.000Z`),
-            lte: new Date(`${endDate}T23:59:59.999Z`),
-          },
-          campaignId: { not: "" },
-          platform: { in: [...PAID_AD_PLATFORMS] },
-          adAccount: {
-            brand: {
-              organizationId: ctx.organizationId,
-              ...(input.brandId ? { id: input.brandId } : {}),
-            },
-          },
-        },
-        _sum: {
-          spend: true,
-          conversions: true,
-          conversionValue: true,
-        },
-        orderBy: { _sum: { spend: "desc" } },
-        take: 40,
-      });
-
-      const campaigns = grouped.map((g) => {
-        const spend = toNumber(g._sum.spend);
-        const conversionValue = toNumber(g._sum.conversionValue);
-        return {
-          campaignId: g.campaignId ?? "",
-          campaignName: g.campaignName ?? "Unknown campaign",
-          platform: g.platform,
-          totalSpend: spend,
-          totalConversions: toNumber(g._sum.conversions),
-          roas: spend > 0 ? conversionValue / spend : 0,
-        };
-      });
-
-      return {
-        days: input.days,
-        startDate,
-        endDate,
-        objective: shopContext?.objective ?? "sales",
-        audit: buildQuickAudit({
-          campaigns,
-          objective: shopContext?.objective,
-        }),
-      };
+      if (input.brandId) {
+        const brand = await ctx.prisma.brand.findFirst({
+          where: { id: input.brandId, organizationId: ctx.organizationId }, select: { id: true },
+        });
+        if (!brand) throw new TRPCError({ code: "NOT_FOUND", message: "Brand not found" });
+      }
+      // Compatibility endpoint only. No unscoped metric reads, provider calls or verdicts.
+      return { audit: buildQuickAudit({ campaigns: [] }) };
     }),
 });

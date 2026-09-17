@@ -1,45 +1,22 @@
 import { buildQuickAudit, targetRoasForObjective } from "@/lib/quick-audit";
 
-describe("quick audit", () => {
-  it("sets a higher ROAS bar for sales than for leads", () => {
-    expect(targetRoasForObjective("sales")).toBe(2.5);
-    expect(targetRoasForObjective("leads")).toBe(1.5);
-    expect(targetRoasForObjective("awareness")).toBe(0);
+describe("retired unscoped quick audit", () => {
+  it.each(["sales", "leads", "awareness", "traffic", undefined])("never invents a numeric target for %s", objective => {
+    expect(targetRoasForObjective(objective)).toBeNull();
   });
-
-  it("flags high spend with no purchases as high priority", () => {
-    const result = buildQuickAudit({
-      objective: "sales",
-      campaigns: [
-        {
-          campaignId: "c1",
-          campaignName: "No conversions",
-          platform: "facebook",
-          totalSpend: 120,
-          roas: 0,
-          totalConversions: 0,
-        },
-      ],
-    });
-    expect(result.highCount).toBe(1);
-    expect(result.items[0]?.priority).toBe("high");
+  it.each([0, 3.1, NaN, Infinity])("withholds legacy campaign advice rather than classify ROAS %s", roas => {
+    const result = buildQuickAudit({ objective: "sales", targetRoas: 2.5, campaigns: [{
+      campaignId: "c1", campaignName: "Unscoped fixture", platform: "google", totalSpend: 120,
+      roas, totalConversions: 0,
+    }] });
+    expect(result).toMatchObject({ status: "retired", executionAllowed: false, auditUrl: "/account-audit", items: [] });
+    expect(result.summary).toMatch(/retired/i);
+    expect(result.summary).not.toMatch(/No emergency|protect.*performer|without a purchase|pause or rebuild|scale in small/i);
   });
-
-  it("protects campaigns at or above the target ROAS", () => {
-    const result = buildQuickAudit({
-      objective: "sales",
-      campaigns: [
-        {
-          campaignId: "c2",
-          campaignName: "Winner",
-          platform: "google",
-          totalSpend: 80,
-          roas: 3.1,
-          totalConversions: 12,
-        },
-      ],
-    });
-    expect(result.items[0]?.priority).toBe("stable");
-    expect(result.highCount).toBe(0);
+  it("does not interpret an empty legacy result as measured zero or a Connect/Sync diagnosis", () => {
+    const result = buildQuickAudit({ campaigns: [] });
+    expect(result.summary).toMatch(/exact.*account/i);
+    expect(result.summary).toMatch(/no.*performance verdict/i);
+    expect(result.summary).not.toMatch(/Connect an|Sync the account|No emergency/i);
   });
 });
