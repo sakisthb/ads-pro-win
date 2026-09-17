@@ -6,6 +6,7 @@
 // orders/products runs). No mutations are performed.
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, organizationProcedure } from "../server";
 
 // ----------------------------------------------------------------------------
@@ -26,6 +27,30 @@ const getStatusInputSchema = z
 // ----------------------------------------------------------------------------
 
 export const syncStatusRouter = createTRPCRouter({
+  getGoogleCoverage: organizationProcedure
+    .input(z.object({ adAccountId: z.string().min(1) }))
+    .query(async ({ input, ctx }) => {
+      const account = await ctx.prisma.adAccount.findFirst({
+        where: { id: input.adAccountId, platform: "google", brand: { organizationId: ctx.organizationId } },
+        select: { id: true },
+      });
+      if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "Google account not found" });
+      try {
+        const jobs = await ctx.prisma.syncJob.findMany({
+          where: { adAccountId: account.id, platform: "google", type: "metrics" },
+          orderBy: { createdAt: "desc" }, take: 10,
+          select: { id: true, status: true, createdAt: true, completedAt: true, coverageReceipt: true },
+        });
+        return { availability: "available" as const, jobs };
+      } catch (error) {
+        const details = error as { code?: string; meta?: { table?: string } } | null;
+        const table = details?.meta?.table?.replaceAll('"', "");
+        if (details?.code === "P2021" && (table === "public.SyncCoverageReceipt" || table === "SyncCoverageReceipt")) {
+          return { availability: "migration_required" as const, jobs: [] };
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Coverage receipts could not be loaded" });
+      }
+    }),
   // --------------------------------------------------------------------------
   // getStatus — recent SyncJobs for the org's brands/accounts, grouped by
   // platform, showing each account's lastSyncAt and job status. Read-only.

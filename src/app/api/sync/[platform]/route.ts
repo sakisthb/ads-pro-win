@@ -10,7 +10,6 @@ import {
 import { z } from "zod";
 import {
   fetchMetaAccountData,
-  fetchGoogleAccountData,
   fetchTikTokMetrics,
   fetchOmnisendData,
   fetchBrevoData,
@@ -31,6 +30,7 @@ import {
   ensureFreshGoogleAccessToken,
 } from "@/lib/oauth/google-refresh";
 import { safeFetch } from "@/lib/safe-fetch";
+import { syncGoogleReporting } from "@/lib/sync/google-coverage-import";
 
 // ---------------------------------------------------------------------------
 // Supported platforms
@@ -343,24 +343,8 @@ export async function POST(
         await cleanupAccountLevelRows(adAccount.id, platform);
       }
     } else if (platform === "google") {
-      const googleAccessToken = await ensureFreshGoogleAccessToken(
-        {
-          id: adAccount.id,
-          accessToken: adAccount.accessToken,
-          refreshToken: adAccount.refreshToken,
-          tokenExpiry: adAccount.tokenExpiry,
-        },
-        "ads",
-      );
-
-      const { metrics: rows, campaigns } = await fetchGoogleAccountData(googleAccessToken, adAccount.accountId, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
-      recordsSynced += await upsertAdCampaigns(campaigns, adAccount.id, platform, adAccount.currency);
-      // Campaign-level rows landed: drop legacy account-aggregated rows
-      // (campaignId: "") for this account so spend is not counted twice.
-      if (rows.length > 0) {
-        await cleanupAccountLevelRows(adAccount.id, platform);
-      }
+      const { recordsProcessed } = await syncGoogleReporting({ syncJobId: syncJob.id, executionPath: "manual", account: adAccount, dateRange });
+      return json({ success: true, platform, recordsSynced: recordsProcessed, syncJobId: syncJob.id });
     } else if (platform === "google-analytics") {
       const gaAccessToken = await ensureFreshGoogleAccessToken(
         {

@@ -52,6 +52,7 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { TRACKING_WORKSTREAMS } from "@/lib/tracking-ops";
+import { GoogleCoveragePanel } from "@/components/connections/GoogleCoveragePanel";
 
 const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -993,6 +994,10 @@ export default function ConnectionsPage() {
       )}
 
       {/* ── Bottom Section: Activity Log + Volume Chart ── */}
+      {!waiting && !connError ? connections.filter((account) => account.platform === "google").map((account) => (
+        <GoogleCoveragePanel key={`${account.id}:${account.latestJob?.id ?? "no-run"}`} adAccountId={account.id} />
+      )) : null}
+
       {connectedCount > 0 && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* Sync Activity Log */}
