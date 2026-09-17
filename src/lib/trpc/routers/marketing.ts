@@ -2270,7 +2270,9 @@ export const marketingRouter = createTRPCRouter({
   getCampaignPerformance: organizationProcedure
     .input(
       z.object({
-        limit: z.number().min(1).max(200).default(200),
+        // Legacy views remain at 200; the account audit may request up to 1000.
+        // Larger inventories stay explicitly truncated, never silently complete.
+        limit: z.number().int().min(1).max(1000).default(200),
         brandId: z.string().min(1).optional(),
         adAccountId: z.string().min(1).optional(),
         platform: z.enum(["all", "meta", "facebook", "instagram", "google", "tiktok"]).optional(),

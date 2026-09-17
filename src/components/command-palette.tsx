@@ -60,6 +60,7 @@ const COMMAND_ITEMS: CommandItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, section: "MAIN", shortcut: "G D" },
   { label: "Campaigns", href: "/campaigns", icon: Megaphone, section: "MAIN", shortcut: "G C" },
   { label: "Analytics", href: "/analytics", icon: BarChart3, section: "MAIN", shortcut: "G A" },
+  { label: "Account Audit", href: "/account-audit", icon: ClipboardCheck, section: "MAIN" },
   { label: "Analytics Studio", href: "/analytics-studio", icon: Sparkles, section: "MAIN" },
   { label: "Real-Time", href: "/realtime", icon: Activity, section: "MAIN" },
   { label: "AI Chat", href: "/chat", icon: MessageSquare, section: "MAIN" },

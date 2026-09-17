@@ -62,6 +62,7 @@ const NAV_SECTIONS: NavSection[] = [
       { labelKey: 'nav.dashboard', href: '/dashboard', icon: LayoutDashboard },
       { labelKey: 'nav.campaigns', href: '/campaigns', icon: Megaphone },
       { labelKey: 'nav.analytics', href: '/analytics', icon: BarChart3 },
+      { labelKey: 'nav.audit', href: '/account-audit', icon: ClipboardCheck },
       { labelKey: 'nav.studio', href: '/analytics-studio', icon: Sparkles, badge: { text: 'AI', color: 'purple' } },
       { labelKey: 'nav.realtime', href: '/realtime', icon: Activity, badge: { text: 'Live', color: 'green' } },
       { labelKey: 'nav.chat', href: '/chat', icon: MessageSquare },
