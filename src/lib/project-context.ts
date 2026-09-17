@@ -98,9 +98,7 @@ export function contextForBrand(
   settings: OrgSettingsBlob,
   brandId: string | undefined,
 ): ProjectContext | null {
-  if (brandId && settings.brandContexts?.[brandId]) {
-    return settings.brandContexts[brandId];
-  }
+  if (brandId !== undefined) return strictContextForBrand(settings, brandId);
   return settings.projectContext ?? null;
 }
 

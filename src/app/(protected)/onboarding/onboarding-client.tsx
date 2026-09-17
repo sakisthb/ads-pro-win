@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Syne } from "next/font/google";
@@ -13,7 +14,6 @@ import {
   PartyPopper,
   Plug,
   Plus,
-  RefreshCw,
   Rocket,
   Sparkles,
 } from "lucide-react";
@@ -23,9 +23,9 @@ import { toast } from "sonner";
 import { api } from "@/components/providers/trpc-provider";
 import { useActiveOrg } from "@/hooks/use-active-org";
 import { ACTIVE_BRAND_STORAGE_KEY, pickActiveBrandId } from "@/hooks/use-active-brand";
-import { useCurrency } from "@/components/providers/currency";
 import {
   PROJECT_OBJECTIVES,
+  emptyProjectContext,
   type ProjectObjective,
 } from "@/lib/project-context";
 
@@ -87,12 +87,8 @@ function StepIndicator({ current }: { current: number }) {
 
 export default function OnboardingClient() {
   const { isDemo, isLoading, org } = useActiveOrg();
-  const { format } = useCurrency();
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [days, setDays] = useState(14);
-  const [syncing, setSyncing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
   const [brandId, setBrandId] = useState("");
   const [newShopName, setNewShopName] = useState("");
   const [newShopWebsite, setNewShopWebsite] = useState("");
@@ -101,10 +97,6 @@ export default function OnboardingClient() {
     retry: false,
     refetchOnWindowFocus: true,
   });
-  const auditQuery = api.onboarding.getQuickAudit.useQuery(
-    { days, brandId: brandId || undefined },
-    { enabled: step >= 3 && !isDemo, retry: false },
-  );
   const createBrand = api.brands.create.useMutation({
     onSuccess: (brand) => {
       setBrandId(brand.id);
@@ -124,8 +116,9 @@ export default function OnboardingClient() {
   const [notes, setNotes] = useState("");
 
   const status = statusQuery.data;
-  const shops = status?.brands ?? [];
-  const selectedShop = shops.find((b) => b.id === brandId) ?? shops[0];
+  const shops = useMemo(() => status?.brands ?? [], [status?.brands]);
+  const selectedShop = shops.find((b) => b.id === brandId);
+  const deskUrl = selectedShop ? `/account-audit?brand=${encodeURIComponent(selectedShop.id)}` : "/account-audit";
 
   useEffect(() => {
     if (brandId || shops.length === 0) return;
@@ -148,15 +141,15 @@ export default function OnboardingClient() {
     } catch {
       /* ignore */
     }
-    const shopCtx = status?.brandContexts?.[brandId] ?? status?.context;
-    if (!shopCtx) return;
+    const shopCtx = (status?.brandContexts && Object.hasOwn(status.brandContexts, brandId)
+      ? status.brandContexts[brandId] : null) ?? emptyProjectContext();
     setObjective(shopCtx.objective);
     setTargetResult(shopCtx.targetResult);
     setPriorities(shopCtx.priorities);
     setConstraints(shopCtx.constraints);
     setSeasonality(shopCtx.seasonality);
     setNotes(shopCtx.notes);
-  }, [brandId, status?.brandContexts, status?.context]);
+  }, [brandId, status?.brandContexts]);
 
   const saveContext = api.onboarding.saveContext.useMutation({
     onSuccess: () => {
@@ -177,7 +170,7 @@ export default function OnboardingClient() {
     onError: (err) => toast.error(err.message),
   });
 
-  const connected = (status?.connections ?? []).filter((c) => !brandId || c.brandId === brandId);
+  const connected = (status?.connections ?? []).filter((c) => Boolean(selectedShop) && c.brandId === brandId);
   const connectedCount = connected.filter((c) => c.isConnected).length;
 
   const handleConnect = (authPath: string) => {
@@ -190,48 +183,19 @@ export default function OnboardingClient() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("connected")) setStep(1);
-    const fromUrl = params.get("brand");
-    if (fromUrl) setBrandId(fromUrl);
   }, []);
 
-  const handleSync = useCallback(async () => {
-    if (!brandId) {
-      setSyncError("Create a brand first, then connect an ad account.");
+  const handleSaveContext = () => {
+    if (!selectedShop) {
+      toast.error("Select an owned shop before saving context.");
       return;
     }
-    setSyncing(true);
-    setSyncError(null);
-    const platforms = connected.filter((c) => c.isConnected).map((c) => c.platform);
-    const unique = [...new Set(platforms)];
-    try {
-      for (const platform of unique) {
-        if (platform !== "meta" && platform !== "google" && platform !== "tiktok" && platform !== "woocommerce") continue;
-        const res = await fetch(`/api/sync/${platform}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ brandId }),
-        });
-        const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
-        if (!res.ok || data.success === false) {
-          throw new Error(data.error ?? `Sync failed for ${platform}`);
-        }
-      }
-      await statusQuery.refetch();
-      await auditQuery.refetch();
-    } catch (error) {
-      setSyncError(error instanceof Error ? error.message : "Sync failed");
-    } finally {
-      setSyncing(false);
-    }
-  }, [brandId, connected, statusQuery, auditQuery]);
-
-  const handleSaveContext = () => {
     if (!targetResult.trim() && !priorities.trim()) {
-      toast.error("Add a target result or priorities so audits are not generic.");
+      toast.error("Add a target result or priorities for this shop. These are operator inputs, not validated KPIs.");
       return;
     }
     saveContext.mutate({
-      brandId: brandId || undefined,
+      brandId: selectedShop.id,
       objective,
       targetResult,
       priorities,
@@ -244,16 +208,6 @@ export default function OnboardingClient() {
   const handleFinish = () => {
     complete.mutate();
   };
-
-  const audit = auditQuery.data?.audit;
-  const checklist = useMemo(
-    () => [
-      { ok: connectedCount > 0, label: `Ads account connected for ${selectedShop?.name ?? "this shop"}` },
-      { ok: Boolean(selectedShop?.contextComplete || status?.contextComplete), label: "Project setup has a goal or priorities" },
-      { ok: Boolean(status?.hasPerformance), label: "Performance data has been loaded" },
-    ],
-    [connectedCount, selectedShop, status],
-  );
 
   if (isLoading || statusQuery.isLoading) {
     return (
@@ -287,7 +241,7 @@ export default function OnboardingClient() {
                       Your ads desk, in one loop
                     </h2>
                     <p className="mx-auto max-w-lg text-sm leading-relaxed text-zinc-400">
-                      Each shop in this workspace uses live ads and store data. Connect the shop, save its context, load performance, then create paused campaigns. The Demo workspace is StyleVault sample data only.
+                      Select a shop, review its connections and save its business context. Then inspect exact-account evidence in the Performance Marketing Desk. Setup alone does not verify data coverage or authorize campaign actions. The Demo workspace is StyleVault sample data only.
                     </p>
                     <p className="text-xs text-zinc-500">
                       Workspace: {isDemo ? "Demo (StyleVault sample, read-only)" : org?.name ?? "Your brand"}
@@ -372,7 +326,7 @@ export default function OnboardingClient() {
                             ) : (
                               <button
                                 type="button"
-                                disabled={!brandId || isDemo}
+                                disabled={!selectedShop || isDemo}
                                 onClick={() => handleConnect(p.authPath)}
                                 className="text-xs font-semibold text-sky-300 hover:underline disabled:opacity-40"
                               >
@@ -414,7 +368,7 @@ export default function OnboardingClient() {
                   <div className="space-y-4">
                     <h2 className={`text-2xl font-extrabold text-white ${syne.className}`}>Project setup</h2>
                     <p className="text-sm text-zinc-400">
-                      Saved on {selectedShop?.name ?? "this shop"} so audits and campaign plans use this store’s goal, not a generic template.
+                      Business context for {selectedShop?.name ?? "an owned shop"}. These are operator inputs, not measured results or validated commercial targets. Missing shop context never uses another shop’s saved goals.
                     </p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {PROJECT_OBJECTIVES.map((id) => (
@@ -464,11 +418,14 @@ export default function OnboardingClient() {
                       placeholder="Anything else the next audit should know"
                       className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/25"
                     />
+                    <Button variant="outline" onClick={() => setStep(3)} className="w-full border-white/15 text-zinc-300">
+                      Review audit readiness without saving
+                    </Button>
                     <div className="flex justify-between">
                       <Button variant="ghost" onClick={() => setStep(1)} className="text-zinc-400">Back</Button>
                       <Button
                         onClick={handleSaveContext}
-                        disabled={saveContext.isPending}
+                        disabled={saveContext.isPending || !selectedShop}
                         className="rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 text-sm font-semibold text-white"
                       >
                         {saveContext.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save context"}
@@ -480,64 +437,20 @@ export default function OnboardingClient() {
 
                 {step === 3 && (
                   <div className="space-y-5">
-                    <h2 className={`text-2xl font-extrabold text-white ${syne.className}`}>Load performance & first audit</h2>
-                    <p className="text-sm text-zinc-400">
-                      Goal: {OBJECTIVE_COPY[objective].label} for {selectedShop?.name ?? "this shop"}. Campaign view, last {days} days. Quick Audit ranks spend against this shop’s target — it does not pause anything.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {[7, 14, 30].map((d) => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => setDays(d)}
-                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                            days === d ? "border-sky-400/40 bg-sky-400/15 text-sky-100" : "border-white/10 text-zinc-500"
-                          }`}
-                        >
-                          {d} days
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => void handleSync()}
-                        disabled={syncing || isDemo || connectedCount === 0}
-                        className="inline-flex items-center gap-1 rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-zinc-300 disabled:opacity-40"
-                      >
-                        {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                        Sync now
-                      </button>
+                    <h2 className={`text-2xl font-extrabold text-white ${syne.className}`}>Review account evidence</h2>
+                    <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-zinc-300">
+                      <p>Legacy Quick Audit is retired. There is no account-performance verdict on this setup page.</p>
+                      <p className="mt-2 text-xs text-zinc-400">The Performance Marketing Desk requires an exact account, currency and completed current / comparison periods. Missing evidence stays unverified; generic conversions are not verified purchases.</p>
                     </div>
-                    {syncError && <p className="text-xs text-rose-300">{syncError}</p>}
-                    <div className="space-y-2">
-                      {checklist.map((item) => (
-                        <div key={item.label} className="flex items-center gap-2 text-xs">
-                          <span className={item.ok ? "text-emerald-400" : "text-zinc-600"}>{item.ok ? "✓" : "○"}</span>
-                          <span className={item.ok ? "text-zinc-200" : "text-zinc-500"}>{item.label}</span>
-                        </div>
-                      ))}
+                    <div className="space-y-2 text-xs text-zinc-400">
+                      <p>Shop: {selectedShop?.name ?? "No owned shop selected"}</p>
+                      <p>Connection descriptors for this shop: {connectedCount}. Connected does not certify provider health or period coverage.</p>
+                      <p>Saved context for this shop: {selectedShop?.contextComplete ? "goal or priorities supplied" : "missing or incomplete"}. Context is not action permission.</p>
+                      <p>Workspace stored performance rows: {status?.hasPerformance ? "present" : "not present"}. This is not selected-account or selected-period coverage.</p>
                     </div>
-                    {auditQuery.isLoading ? (
-                      <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-sky-400" /></div>
-                    ) : (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                        <p className="text-sm text-zinc-300">{audit?.summary}</p>
-                        <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">
-                          {(audit?.items ?? []).slice(0, 6).map((item) => (
-                            <div key={item.id} className="rounded-xl border border-white/5 px-3 py-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="truncate text-xs font-semibold text-white">{item.campaignName}</p>
-                                <span className={`text-[10px] font-bold uppercase ${
-                                  item.priority === "high" ? "text-rose-300" : item.priority === "stable" ? "text-emerald-300" : "text-amber-300"
-                                }`}>
-                                  {item.priority}
-                                </span>
-                              </div>
-                              <p className="mt-1 text-[11px] text-zinc-500">{item.title} · {format(item.spend)} · {item.roas.toFixed(2)}x</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    <Link href={deskUrl} className="inline-flex rounded-xl bg-sky-500/15 px-4 py-3 text-sm font-semibold text-sky-200">
+                      Open Performance Marketing Desk
+                    </Link>
                     <div className="flex justify-between">
                       <Button variant="ghost" onClick={() => setStep(2)} className="text-zinc-400">Back</Button>
                       <Button
@@ -557,9 +470,9 @@ export default function OnboardingClient() {
                     <div className="rounded-full border border-emerald-400/30 bg-emerald-500/15 p-6">
                       <PartyPopper className="h-10 w-10 text-emerald-300" />
                     </div>
-                    <h2 className={`text-3xl font-extrabold text-white ${syne.className}`}>Desk is ready</h2>
+                    <h2 className={`text-3xl font-extrabold text-white ${syne.className}`}>Setup completed — not campaign action readiness</h2>
                     <p className="max-w-md text-sm text-zinc-400">
-                      Create generates the plan. Automation pushes a paused structure. Scale only runs after you confirm.
+                      Review exact-account evidence before discussing campaign changes. Google and TikTok remain read-only. Supported Meta existing-object changes require account-scoped UI confirmation and an audit log; campaign creation is not enabled.
                     </p>
                     <div className="flex flex-wrap justify-center gap-3">
                       <Button
@@ -573,7 +486,7 @@ export default function OnboardingClient() {
                         onClick={() => router.push("/campaign-launcher")}
                         className="rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 text-sm font-semibold text-white"
                       >
-                        <Rocket className="mr-2 h-4 w-4" /> Open Campaign Studio
+                        <Rocket className="mr-2 h-4 w-4" /> Open Campaign Studio (planning only)
                       </Button>
                     </div>
                   </div>
@@ -582,7 +495,7 @@ export default function OnboardingClient() {
             </AnimatePresence>
           </CardContent>
           <div className="border-t border-white/[0.06] px-6 py-3 text-center text-[11px] text-zinc-600">
-            {isDemo ? "Demo workspace is StyleVault sample data — switch to your real workspace for live shops." : "Reconnect Meta with ads_management before creating campaigns on the platform."}
+            {isDemo ? "Demo workspace is StyleVault sample data — switch to your real workspace for live shops." : "Setup is not action readiness. Google / TikTok are read-only; supported Meta changes require scoped confirmation."}
           </div>
         </Card>
       </motion.div>
