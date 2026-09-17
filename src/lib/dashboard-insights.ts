@@ -4,6 +4,7 @@
  */
 
 import { formatMoney, type ReportingCurrency } from "@/lib/currency";
+import { accountSyncState, syncStateNotice, type SyncEvidence, type SyncState } from "@/lib/sync-health";
 import {
   missingPaidConnections,
   type WooChannel,
@@ -219,6 +220,7 @@ export function deriveStoreInsights(args: {
   tax?: number;
   emailConnected?: boolean;
   emailDelivered?: number;
+  emailSyncState?: SyncState;
   /** Paid DailyMetric google spend. OAuth-connected with 0 is not Google Ads ROAS. */
   googleAdsSpend?: number;
   marketMode?: MarketMode;
@@ -320,12 +322,21 @@ export function deriveStoreInsights(args: {
     });
   }
 
-  if (args.emailConnected && (args.emailDelivered ?? 0) <= 0) {
+  if (args.emailConnected && args.emailSyncState !== "ready") {
+    insights.push({
+      id: "email-sync-health",
+      title: "Email reporting is unverified",
+      description: syncStateNotice(args.emailSyncState ?? "unknown"),
+      impact: "high",
+      actionLabel: "Connections",
+      href: "/connections",
+    });
+  } else if (args.emailConnected && (args.emailDelivered ?? 0) <= 0) {
     insights.push({
       id: "email-quiet-window",
-      title: "Email sends sit outside this window",
+      title: "No stored email deliveries in this window",
       description:
-        "Brevo is connected and this range has 0 delivered campaigns. That is not 0 influence and not Pixel ROAS. Open Email desk (180 days) or widen the date picker.",
+        "This stored range has 0 delivered. That is not 0 influence and not Pixel ROAS. A recent successful sync does not prove coverage of this selected range. Check Email desk (180 days) and the reporting window.",
       impact: "medium",
       actionLabel: "Email desk",
       href: "/email",
@@ -346,11 +357,11 @@ export function deriveStoreInsights(args: {
         : "";
     insights.push({
       id: "google-ads-no-spend",
-      title: "Google Ads is connected, spend is empty",
-      description: `OAuth is on and this window has €0 Google Ads DailyMetric.${tillBit}${organicBit} Pixel ROAS stays Meta-only until Sync Now writes google rows. Explorer can Sync production; Basic is a Cloud Console quota upgrade.`,
+      title: "Google Ads reporting coverage is unverified",
+      description: `No Google Ads spend is stored in this selected window. This is not proof of zero activity or a Connect failure.${tillBit}${organicBit} Confirm customer, query dates and the latest reporting result before interpreting Google ROAS.`,
       impact: "high",
       actionLabel: "Connections",
-      href: "/connections?connect=google-ads",
+      href: "/connections",
     });
   }
 
@@ -671,19 +682,16 @@ export function deriveActivity(args: {
 }
 
 export function syncHealth(args: {
-  accounts: Array<{ lastSyncAt: Date | string | null; isActive?: boolean }>;
+  accounts: SyncEvidence[];
+  now?: Date;
 }): { pct: number; label: string } {
-  const active = args.accounts.filter((a) => a.isActive !== false);
-  const pool = active.length ? active : args.accounts;
-  if (pool.length === 0) return { pct: 0, label: "No ad accounts yet" };
-  const synced = pool.filter((a) => a.lastSyncAt).length;
+  const pool = args.accounts.filter((a) => a.isActive !== false);
+  if (pool.length === 0) return { pct: 0, label: "No active accounts yet" };
+  const synced = pool.filter((a) => accountSyncState(a, args.now) === "ready").length;
   const pct = Math.round((synced / pool.length) * 100);
   return {
     pct,
-    label:
-      pct === 100
-        ? "All connected accounts have synced"
-        : `${synced} of ${pool.length} accounts synced`,
+    label: `${synced} of ${pool.length} active accounts have a recent successful sync (≤24h)`,
   };
 }
 
@@ -903,12 +911,12 @@ export function buildMissingPlatformRecs(
     if (platform === "google" && connected.has("google") && spendKnown && !spendLive) {
       recs.push({
         id: "google-ads-no-spend",
-        title: "Google Ads has no spend rows",
+        title: "Google Ads reporting coverage is unverified",
         description:
-          "OAuth is connected and DailyMetric google is €0. Woo last-click Google is till. Pixel ROAS stays Meta-only until Sync Now writes rows. Explorer can Sync production; Basic is quota-only in Cloud Console.",
+          "No Google Ads spend is stored in this selected window. This is not proof of zero activity or a Connect failure. Woo last-click Google is till. Confirm customer, query dates and the latest reporting result before interpreting Google ROAS.",
         impact: "high",
         actionLabel: "Connections",
-        href: "/connections?connect=google-ads",
+        href: "/connections",
       });
       continue;
     }

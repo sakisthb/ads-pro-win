@@ -225,6 +225,7 @@ export async function fetchGoogleMetrics(
   dateRange: DateRange,
 ): Promise<DailyMetricInput[]> {
   const { startDate, endDate } = dateRange;
+  validateGoogleDateRange(dateRange);
   const cid = parseGoogleAdsCustomerId(customerId);
   if (!cid) {
     throw new Error("Pick a Google Ads account on Connections before syncing.");
@@ -244,16 +245,85 @@ export async function fetchGoogleMetrics(
     googleAdsLoginCustomerId(customerId),
   );
 
-  return rows.map((r) => ({
-    date: r.segments.date,
-    spend: (parseInt(r.metrics.costMicros ?? "0", 10) || 0) / 1_000_000,
-    impressions: parseInt(r.metrics.impressions ?? "0", 10),
-    clicks: parseInt(r.metrics.clicks ?? "0", 10),
-    conversions: parseFloat(r.metrics.conversions ?? "0"),
-    conversionValue: parseFloat(r.metrics.conversionsValue ?? "0"),
-    campaignId: r.campaign.id,
-    campaignName: r.campaign.name,
-  }));
+  return rows.map((r) => {
+    if (!r?.campaign?.id || !/^\d+$/.test(r.campaign.id) || !r.segments?.date || !validGoogleDate(r.segments.date) || r.segments.date < startDate || r.segments.date > endDate || !r.metrics) {
+      throw new Error("Invalid Google Ads metric row");
+    }
+    return {
+      date: r.segments.date,
+      spend: googleMetricNumber(r.metrics.costMicros) / 1_000_000,
+      impressions: googleMetricNumber(r.metrics.impressions),
+      clicks: googleMetricNumber(r.metrics.clicks),
+      conversions: googleMetricNumber(r.metrics.conversions),
+      conversionValue: googleMetricNumber(r.metrics.conversionsValue),
+      campaignId: r.campaign.id,
+      campaignName: r.campaign.name,
+    };
+  });
+}
+
+function validGoogleDate(value: string): boolean {
+  const date = new Date(`${value}T00:00:00Z`);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function validateGoogleDateRange({ startDate, endDate }: DateRange): void {
+  if (!validGoogleDate(startDate) || !validGoogleDate(endDate) || startDate > endDate) {
+    throw new Error("Invalid Google Ads date range");
+  }
+}
+
+function googleMetricNumber(value: string | undefined): number {
+  // Unset numeric protobuf fields are valid zero; malformed supplied values are not.
+  if (value === undefined) return 0;
+  if (typeof value !== "string" && typeof value !== "number") throw new Error("Invalid Google Ads metric value");
+  if (String(value).trim() === "") throw new Error("Invalid Google Ads metric value");
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw new Error("Invalid Google Ads metric value");
+  return number;
+}
+
+interface GoogleCampaignRow {
+  campaign: {
+    id: string;
+    name: string;
+    status: string;
+    primaryStatus?: string;
+    advertisingChannelType?: string;
+  };
+}
+
+/** Current non-removed inventory is independent of reporting activity and dates. */
+export async function fetchGoogleCampaigns(accessToken: string, accountId: string): Promise<AdCampaignInput[]> {
+  const cid = parseGoogleAdsCustomerId(accountId);
+  if (!cid) throw new Error("Pick a Google Ads account on Connections before syncing.");
+  const rows = await googleAdsSearchRows<GoogleCampaignRow>(accessToken, cid,
+    "SELECT campaign.id, campaign.name, campaign.status, campaign.primary_status, campaign.advertising_channel_type FROM campaign WHERE campaign.status != 'REMOVED'",
+    googleAdsLoginCustomerId(accountId),
+  );
+  return rows.map((row) => {
+    const campaign = row?.campaign;
+    if (!campaign || !/^\d+$/.test(campaign.id) || typeof campaign.name !== "string" || !["ENABLED", "PAUSED", "UNKNOWN", "UNSPECIFIED"].includes(campaign.status)) {
+      throw new Error("Invalid Google Ads campaign row");
+    }
+    return {
+      platformCampaignId: campaign.id,
+      name: campaign.name,
+      status: campaign.status === "ENABLED" ? "active" : campaign.status === "PAUSED" ? "paused" : "unknown",
+      effectiveStatus: campaign.primaryStatus ?? null,
+      objective: campaign.advertisingChannelType ?? null,
+    };
+  });
+}
+
+/** Both manual and scheduled sync must successfully fetch metrics AND inventory. */
+export async function fetchGoogleAccountData(accessToken: string, accountId: string, dateRange: DateRange): Promise<{ metrics: DailyMetricInput[]; campaigns: AdCampaignInput[] }> {
+  validateGoogleDateRange(dateRange);
+  const [metrics, campaigns] = await Promise.all([
+    fetchGoogleMetrics(accessToken, accountId, dateRange),
+    fetchGoogleCampaigns(accessToken, accountId),
+  ]);
+  return { metrics, campaigns };
 }
 
 // ---------------------------------------------------------------------------

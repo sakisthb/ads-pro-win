@@ -155,18 +155,26 @@ export function googleAdsHeaders(accessToken: string, loginCustomerId?: string |
 }
 
 function parseGoogleAdsSearchResults<T>(json: unknown): T[] {
+  const malformed = () => new Error("Invalid Google Ads reporting response");
   const batches = Array.isArray(json)
     ? json
     : json && typeof json === "object" && "results" in json
       ? [json]
-      : [];
+      : null;
+  if (!batches) throw malformed();
   const rows: T[] = [];
   for (const batch of batches) {
-    if (!batch || typeof batch !== "object") continue;
-    const err = (batch as { error?: { message?: string } }).error;
-    if (err?.message) throw new Error(err.message);
+    if (!batch || typeof batch !== "object" || Array.isArray(batch)) throw malformed();
+    if ("error" in batch) throw new Error("Google Ads reporting response contains an error");
     const results = (batch as { results?: T[] }).results;
-    if (results) rows.push(...results);
+    if (results !== undefined) {
+      if (!Array.isArray(results)) throw malformed();
+      rows.push(...results);
+    } else if (!("fieldMask" in batch) || typeof batch.fieldMask !== "string" || !batch.fieldMask.trim()) {
+      // Google may omit results on a zero-row response but still returns
+      // fieldMask / queryResourceConsumption. Unknown payloads are not zero.
+      throw malformed();
+    }
   }
   return rows;
 }
@@ -189,10 +197,10 @@ export async function googleAdsSearchRows<T>(
     throw new Error(formatGoogleAdsApiError(res.status, text));
   }
   try {
-    return parseGoogleAdsSearchResults<T>(JSON.parse(text || "[]"));
+    return parseGoogleAdsSearchResults<T>(JSON.parse(text));
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw new Error(formatGoogleAdsApiError(res.status, text));
+      throw new Error("Invalid Google Ads reporting response");
     }
     throw error;
   }

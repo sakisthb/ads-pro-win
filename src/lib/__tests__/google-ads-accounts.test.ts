@@ -7,6 +7,7 @@ import {
   googleAdsHeaders,
   googleAdsPendingAccountId,
   googleAdsSearchStreamUrl,
+  googleAdsSearchRows,
   googleAdsStoredAccountId,
   isGoogleAdsAccountReady,
   listGoogleAdsCustomers,
@@ -14,6 +15,28 @@ import {
   parseGoogleAdsStoredAccount,
   preferGoogleAdsCustomer,
 } from "@/lib/google-ads-accounts";
+
+describe("Google SearchStream response evidence", () => {
+  const search = (body: string) => googleAdsSearchRows(
+    "test-token", "1234567890", "SELECT campaign.id FROM campaign", null,
+    jest.fn(async () => ({ ok: true, status: 200, text: async () => body })) as unknown as typeof fetch,
+  );
+
+  it.each(["[]", '[{"results":[]}]', '[{"fieldMask":"campaign.id","queryResourceConsumption":"1"}]'])(
+    "accepts a valid empty response %s", async (body) => {
+      await expect(search(body)).resolves.toEqual([]);
+    },
+  );
+  it.each(["", "null", "{}", "[null]", '[{"results":"wrong"}]', '[{"unexpected":true}]', '[{"error":{"code":403}}]', '[{"fieldMask":null}]', '[{"fieldMask":""}]', '[{"fieldMask":"campaign.id","error":false}]'])(
+    "rejects malformed or failed responses instead of claiming zero rows: %s", async (body) => {
+      await expect(search(body)).rejects.toThrow(/Google Ads.*response/i);
+    },
+  );
+  it("combines multiple result batches", async () => {
+    await expect(search('[{"results":[{"campaign":{"id":"1"}}]},{"results":[{"campaign":{"id":"2"}}]}]'))
+      .resolves.toHaveLength(2);
+  });
+});
 
 describe("Google Ads API errors", () => {
   it("tells operators to apply for Basic Access when the token is test-only", () => {

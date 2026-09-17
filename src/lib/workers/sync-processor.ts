@@ -4,8 +4,8 @@
  * Three logical workers are defined here:
  *
  *  • **metricSyncWorker** — a set of three Worker instances (one per ad
- *    platform queue) that fetch performance metrics via the MCP adapters
- *    and upsert them into the `DailyMetric` table.
+ *    platform queue) that fetch Google reporting directly and Meta / TikTok
+ *    via MCP adapters, persisting metrics and campaign inventory.
  *
  *  • **wooSyncWorker** — a single Worker instance for the `sync-woocommerce`
  *    queue that pulls orders / products through persistWooCommerceSync (COGS,
@@ -35,16 +35,17 @@ import type {
   PlatformAdapter,
 } from '@/lib/mcp/types'
 import { MetaAdsAdapter } from '@/lib/mcp/adapters/meta-ads'
-import { GoogleAdsAdapter } from '@/lib/mcp/adapters/google-ads'
 import { TikTokAdsAdapter } from '@/lib/mcp/adapters/tiktok-ads'
 import { prisma } from '@/lib/db'
-import { config } from '@/lib/config'
 import { decrypt } from '@/lib/crypto'
 import { logSecurityEvent } from '@/lib/security-events'
 import { defaultSyncLookbackDays } from '@/lib/meta/actions'
-import { parseGoogleAdsCustomerId, isGoogleAdsAccountReady } from '@/lib/google-ads-accounts'
+import { isGoogleAdsAccountReady } from '@/lib/google-ads-accounts'
+import { ensureFreshGoogleAccessToken } from '@/lib/oauth/google-refresh'
 import {
   campaignFromNormalized,
+  fetchGoogleAccountData,
+  cleanupAccountLevelRows,
   fetchOpenCartData,
   fetchWooProducts,
   metricFromNormalized,
@@ -71,15 +72,8 @@ function buildMetricCredentials(
 ): AdAccountCredentials {
   const credentials: AdAccountCredentials = {
     platform: platform as AdAccountCredentials['platform'],
-    accountId:
-      platform === 'google'
-        ? parseGoogleAdsCustomerId(adAccount.accountId) ?? adAccount.accountId
-        : adAccount.accountId,
+    accountId: adAccount.accountId,
     accessToken: adAccount.accessToken ? decrypt(adAccount.accessToken) : undefined,
-  }
-  // Google Ads developer-token is optional (Cloud project access level).
-  if (platform === 'google') {
-    credentials.apiKey = config.marketing.google.developerToken ?? undefined
   }
   return credentials
 }
@@ -94,8 +88,6 @@ function createMetricAdapter(
   switch (platform) {
     case 'meta':
       return new MetaAdsAdapter(credentials)
-    case 'google':
-      return new GoogleAdsAdapter(credentials)
     case 'tiktok':
       return new TikTokAdsAdapter(credentials)
     default:
@@ -114,8 +106,8 @@ function createMetricAdapter(
  * Steps:
  *  1. Look up the `AdAccount` to obtain credentials.
  *  2. Create a `SyncJob` record (status = 'running').
- *  3. Build credentials, instantiate & connect the adapter.
- *  4. Fetch performance metrics via `getPerformance()`.
+ *  3. Refresh Google credentials for direct reporting; connect other adapters.
+ *  4. Fetch reporting metrics and campaign inventory.
  *  5. Upsert each metric into `DailyMetric`.
  *  6. Mark the `SyncJob` completed and update `AdAccount.lastSyncAt`.
  *  7. On error: mark the `SyncJob` failed and re-throw.
@@ -135,6 +127,9 @@ export async function processMetricSync(job: Job<MetricSyncJobData>): Promise<vo
     })
     throw new Error(`[Worker:metrics] AdAccount not found: ${adAccountId}`)
   }
+  if (adAccount.platform !== platform || !adAccount.isActive) {
+    throw new Error('[Worker:metrics] Inactive account or platform mismatch')
+  }
   if (platform === 'google' && !isGoogleAdsAccountReady(adAccount.accountId)) {
     logSecurityEvent('queue_failure', 'info', {
       code: 'account_not_ready',
@@ -149,6 +144,7 @@ export async function processMetricSync(job: Job<MetricSyncJobData>): Promise<vo
   const syncJob = await prisma.syncJob.create({
     data: {
       adAccountId,
+      brandId: adAccount.brandId,
       type: 'metrics',
       platform,
       status: 'running',
@@ -158,10 +154,6 @@ export async function processMetricSync(job: Job<MetricSyncJobData>): Promise<vo
 
   let adapter: PlatformAdapter | null = null
   try {
-    const credentials = buildMetricCredentials(adAccount, platform)
-    adapter = createMetricAdapter(platform, credentials)
-    await adapter.connect(credentials)
-
     // Calculate date range — empty values (from repeatable jobs) are
     // resolved dynamically so that cron-triggered syncs always cover
     // the expected window relative to *when the job runs*, not when it
@@ -181,28 +173,41 @@ export async function processMetricSync(job: Job<MetricSyncJobData>): Promise<vo
       startDate: resolvedStartDate,
       endDate: resolvedEndDate,
     }
-    const metrics = await adapter.getPerformance(dateRange)
-    let recordsProcessed = await upsertDailyMetrics(
-      metrics.map(metricFromNormalized),
-      adAccountId,
-      platform,
-    )
-
-    try {
-      const campaigns = await adapter.getCampaigns()
-      recordsProcessed += await upsertAdCampaigns(
-        campaigns.map(campaignFromNormalized),
-        adAccountId,
-        platform,
-        adAccount.currency,
-      )
-    } catch (error) {
-      logSecurityEvent('queue_failure', 'warn', {
-        code: 'campaign_sync_skipped',
-        platform,
-        adAccountId,
-        message: error instanceof Error ? error.message : String(error),
-      })
+    let recordsProcessed = 0
+    if (platform === 'google') {
+      if (!adAccount.accessToken) throw new Error('No Google Ads access token stored')
+      const accessToken = await ensureFreshGoogleAccessToken({
+        id: adAccount.id,
+        accessToken: adAccount.accessToken,
+        refreshToken: adAccount.refreshToken,
+        tokenExpiry: adAccount.tokenExpiry,
+      }, 'ads')
+      const { metrics, campaigns } = await fetchGoogleAccountData(accessToken, adAccount.accountId, dateRange)
+      recordsProcessed = await upsertDailyMetrics(metrics, adAccountId, platform)
+      recordsProcessed += await upsertAdCampaigns(campaigns, adAccountId, platform, adAccount.currency)
+      if (metrics.length > 0) await cleanupAccountLevelRows(adAccountId, platform)
+    } else {
+      const credentials = buildMetricCredentials(adAccount, platform)
+      adapter = createMetricAdapter(platform, credentials)
+      await adapter.connect(credentials)
+      const metrics = await adapter.getPerformance(dateRange)
+      recordsProcessed = await upsertDailyMetrics(metrics.map(metricFromNormalized), adAccountId, platform)
+      try {
+        const campaigns = await adapter.getCampaigns()
+        recordsProcessed += await upsertAdCampaigns(
+          campaigns.map(campaignFromNormalized),
+          adAccountId,
+          platform,
+          adAccount.currency,
+        )
+      } catch (error) {
+        logSecurityEvent('queue_failure', 'warn', {
+          code: 'campaign_sync_skipped',
+          platform,
+          adAccountId,
+          message: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
 
     await prisma.syncJob.update({

@@ -13,6 +13,7 @@ import { api } from "@/components/providers/trpc-provider";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { nonMppUniqueOpens } from "@/lib/email-desk";
+import { syncStateNotice, type SyncState } from "@/lib/sync-health";
 
 const GLASS =
   "bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl";
@@ -74,10 +75,12 @@ export function EmailMetricsPanel({
   startDate,
   endDate,
   brandId,
+  syncState = "unknown",
 }: {
   startDate: string;
   endDate: string;
   brandId?: string;
+  syncState?: SyncState;
 }) {
   const query = api.emailCampaigns.getEmailMetrics.useQuery(
     {
@@ -137,6 +140,12 @@ export function EmailMetricsPanel({
         </div>
       )}
 
+      {!loading && !error && data?.connected && syncState !== "ready" ? (
+        <p role="status" className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
+          {syncStateNotice(syncState)}
+        </p>
+      ) : null}
+
       {!loading && !error && !hasData && (
         <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
@@ -144,9 +153,9 @@ export function EmailMetricsPanel({
           </span>
           <p className="max-w-md text-sm text-white/50">
             {data?.connected
-              ? lastSync
-                ? `Email is connected. Last sync ${lastSync} wrote 0 sent campaigns in this window. Widen the date range (Email desk defaults to 180 days) — 0 delivered here is not 0 influence and not Pixel ROAS.`
-                : "Email is connected but has not synced yet. Open Connections and Sync Now."
+              ? syncState === "ready"
+                ? `No stored email campaign rows in this window. Last successful sync ${lastSync ?? "time unavailable"} does not prove coverage of these dates. Check the reporting range on Email desk (180 days); missing rows are not 0 influence or Pixel ROAS.`
+                : "No stored email campaign rows in this window. Delivery activity cannot be verified until sync evidence is resolved."
               : "No email campaign data yet. Connect Omnisend or Brevo and sync to see delivered and clicks here."}
           </p>
           <Link href="/connections" className="text-xs font-medium text-teal-300 hover:text-teal-200">
@@ -157,6 +166,7 @@ export function EmailMetricsPanel({
 
       {!loading && !error && hasData && data && (
         <>
+          {syncState !== "ready" ? <p className="mb-3 text-xs text-amber-200">Historical stored metrics — not verified current delivery.</p> : null}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatBox
               label="Delivered"

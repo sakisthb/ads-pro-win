@@ -7,7 +7,12 @@ import {
   deriveInsights,
   deriveStoreInsights,
   selectPixelFunnelStages,
+  syncHealth,
 } from "@/lib/dashboard-insights";
+
+it("does not call a failed latest sync healthy just because there was an older success", () => {
+  expect(syncHealth({ accounts: [{ lastSyncAt: new Date(), lastJobStatus: "failed" }] }).pct).toBe(0);
+});
 
 describe("deriveFunnelActions", () => {
   it("flags high CTR with weak click-to-purchase", () => {
@@ -256,9 +261,10 @@ describe("deriveStoreInsights", () => {
       ga4OrganicSearchPurchases: 67,
     });
     const empty = insights.find((i) => i.id === "google-ads-no-spend");
-    expect(empty?.title).toMatch(/spend is empty/i);
+    expect(empty?.title).toMatch(/coverage/i);
     expect(empty?.description).toMatch(/till, not spend/);
-    expect(empty?.description).toMatch(/Explorer can Sync production/);
+    expect(empty?.description).toMatch(/not proof of zero activity/i);
+    expect(empty?.description).not.toMatch(/until Sync Now|Basic|Reconnect/);
     expect(empty?.description).not.toMatch(/Ads API Center/);
     expect(empty?.description).not.toMatch(/email ROAS/i);
     expect(insights.map((i) => i.id)).not.toContain("connect-google");
@@ -320,6 +326,7 @@ describe("deriveStoreInsights", () => {
       connectedPlatforms: ["meta"],
       emailConnected: true,
       emailDelivered: 0,
+      emailSyncState: "ready",
     });
     const quiet = insights.find((i) => i.id === "email-quiet-window");
     expect(quiet?.href).toBe("/email");
