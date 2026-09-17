@@ -1,5 +1,6 @@
 import { buildPerformanceAudit, auditMarkdown, precedingAuditWindow, auditProviderAccountLabel } from "../performance-audit";
 import type { AuditCampaign, AuditSnapshot } from "../performance-audit";
+import { emptyProjectContext } from "../project-context";
 
 const window = { startDate: "2026-08-18", endDate: "2026-09-16" };
 const row = (extra: Partial<AuditCampaign> = {}): AuditCampaign => ({
@@ -129,4 +130,33 @@ it("exports the same scope, limitations, diagnostics, strategy and calendar as t
   expect(md).toContain("| Status | Objective | Currency |");
   expect(md).toContain("Stored metric campaigns: 1; without window metrics: 0.");
   expect(md).not.toContain("\n## heading");
+});
+
+it("carries saved business inputs into the audit and export without inventing numeric economics or overriding the selected goal", () => {
+  const context = { ...emptyProjectContext(), objective: "leads" as const, targetResult: "Owner target | text", priorities: "Qualified shops",
+    constraints: "No automatic scaling", seasonality: "Operator winter plan", notes: "Unverified\n## injected heading", updatedAt: "2026-09-17T10:00:00Z" };
+  const result = buildPerformanceAudit({ current: snapshot(), goal: "wholesale", asOf: "2026-09-17", platform: "google", adAccountId: "fixture-account",
+    businessContext: { source: "brand", context } });
+  expect(result.businessContext).toEqual({ source: "brand", context });
+  expect(result.goal).toBe("wholesale");
+  expect(result.summaries[0].roas).toBe(3);
+  expect(result.activationAllowed).toBe(false);
+  const md = auditMarkdown(result, { brand: "Fixture shop", account: "Fixture account", providerAccountId: "1111111111", market: "wholesale" });
+  expect(md).toContain("## Business Context (brand-level)");
+  expect(md).toContain("Operator inputs, not verified business economics");
+  expect(md).toContain("shared across accounts and markets");
+  expect(md).toContain("Saved inputs may be outdated");
+  expect(md).toContain("Saved objective: leads");
+  expect(md).toContain("No automatic scaling");
+  expect(md).toContain("Operator winter plan");
+  expect(md).toContain("2026-09-17T10:00:00Z");
+  expect(md).not.toContain("\n## injected heading");
+});
+it.each(["missing", "unavailable"] as const)("exports %s business context as a gap, not a legacy or invented profile", source => {
+  const result = buildPerformanceAudit({ current: snapshot(), goal: "sales", asOf: "2026-09-17", platform: "google", adAccountId: "fixture-account",
+    businessContext: { source, context: null } });
+  const md = auditMarkdown(result, { brand: "Fixture", account: "Fixture", providerAccountId: "1", market: "all" });
+  expect(md).toContain(`Business context source: ${source}`);
+  expect(md).toContain("No verified economics or numeric targets are inferred");
+  expect(result.activationAllowed).toBe(false);
 });

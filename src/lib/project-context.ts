@@ -104,6 +104,22 @@ export function contextForBrand(
   return settings.projectContext ?? null;
 }
 
+/** Strict provenance for scoped audits. The legacy blob may belong to a different brand. */
+export function strictContextForBrand(settings: OrgSettingsBlob, brandId: string): ProjectContext | null {
+  if (!brandId || !settings.brandContexts || !Object.hasOwn(settings.brandContexts, brandId)) return null;
+  return settings.brandContexts[brandId] ?? null;
+}
+
+/** Shared labels/values for the screen and downloadable audit. These are operator inputs. */
+export function projectContextEntries(ctx: ProjectContext): [string, string][] {
+  return [
+    ["Saved objective", ctx.objective], ["Target result (text)", ctx.targetResult],
+    ["Priorities", ctx.priorities], ["Constraints", ctx.constraints],
+    ["Seasonality / promotions", ctx.seasonality], ["Notes", ctx.notes],
+    ["Updated at", ctx.updatedAt ?? ""],
+  ];
+}
+
 export function isContextComplete(ctx: ProjectContext | null | undefined): boolean {
   if (!ctx) return false;
   return ctx.targetResult.trim().length > 0 || ctx.priorities.trim().length > 0;

@@ -5,7 +5,7 @@ import { api } from "@/components/providers/trpc-provider";
 
 jest.mock("@/components/providers/trpc-provider", () => ({api:{marketing:{
   getCampaignPerformance:{useQuery:jest.fn()},getCampaignReportAccounts:{useQuery:jest.fn()},
-}}}));
+},onboarding:{getBrandContext:{useQuery:jest.fn()}}}}));
 jest.mock("@/hooks/use-active-brand", () => ({useActiveBrand:()=>({brandId:"brand-1",brands:[{id:"brand-1",name:"Fixture shop"}],setBrandId:jest.fn(),isLoading:false})}));
 jest.mock("@/hooks/use-active-market", () => ({useActiveMarket:()=>({market:"all"})}));
 jest.mock("@/components/brands/desk-filters",()=>({DeskFilterRow:()=>null}));
@@ -13,8 +13,10 @@ jest.mock("recharts",()=>({ResponsiveContainer:()=>null,BarChart:()=>null,Bar:()
 
 const query = api.marketing.getCampaignPerformance.useQuery;
 const accounts = api.marketing.getCampaignReportAccounts.useQuery;
+const businessContext = api.onboarding.getBrandContext.useQuery;
 beforeEach(()=>{
   jest.clearAllMocks();
+  jest.mocked(businessContext).mockReturnValue({isLoading:false,isFetching:false,data:{brandId:"brand-1",source:"missing",context:null}} as never);
   jest.mocked(accounts).mockReturnValue({isLoading:false,data:{accounts:[{id:"account-google",name:"Fixture Google",accountId:"1111111111",platform:"google",currency:"EUR"}]}} as never);
   jest.mocked(query).mockImplementation((input:unknown)=>{
     const scope=input as {platform:string;startDate:string;endDate:string;adAccountId:string};
@@ -22,6 +24,42 @@ beforeEach(()=>{
       campaigns:[],coverage:"stored_only_not_provider_verified",truncated:false,
       totals:{campaigns:0,active:0,storedMetricCampaigns:0,unverifiedCampaigns:0}}}} as never;
   });
+});
+
+it("shows the shared saved brand inputs separately from measured evidence and the selected audit goal",()=>{
+  jest.mocked(businessContext).mockReturnValue({isLoading:false,data:{brandId:"brand-1",source:"brand",context:{
+    objective:"leads",targetResult:"Qualified business buyers",priorities:"Wholesale quality",constraints:"No automatic scaling",
+    seasonality:"Owner winter plan",notes:"Owner inputs",updatedAt:"2026-09-17T10:00:00Z",
+  }}} as never);
+  render(<AccountAuditPage/>);
+  const region=screen.getByRole("region",{name:"Business Context (brand-level)"});
+  expect(region).toHaveTextContent("Qualified business buyers");
+  expect(region).toHaveTextContent("No automatic scaling");
+  expect(region).toHaveTextContent("Operator inputs, not verified business economics");
+  expect(region).toHaveTextContent("shared across accounts and markets");
+  expect(region).toHaveTextContent("Saved inputs may be outdated");
+  expect(screen.getByRole("link",{name:"Review / edit saved brand context"})).toHaveAttribute("href","/onboarding?brand=brand-1");
+  expect(screen.getByRole("combobox",{name:"Business objective"})).toHaveValue("sales");
+  expect(businessContext).toHaveBeenCalledWith({brandId:"brand-1"},expect.objectContaining({enabled:true}));
+});
+it("keeps a context read error explicit while preserving valid stored diagnostics",()=>{
+  jest.mocked(businessContext).mockReturnValue({isLoading:false,error:{message:"Fixture context failure"}} as never);
+  render(<AccountAuditPage/>);
+  expect(screen.getByRole("region",{name:"Business Context (brand-level)"})).toHaveTextContent("Business context source: unavailable");
+  expect(screen.getByText("No stored metrics for this account/window")).toBeInTheDocument();
+  expect(screen.getByRole("button",{name:"Campaign activation locked"})).toBeDisabled();
+});
+it("withholds stale other-brand context rather than exporting it",()=>{
+  jest.mocked(businessContext).mockReturnValue({isLoading:false,data:{brandId:"other-brand",source:"brand",context:{notes:"Other shop private input"}}} as never);
+  render(<AccountAuditPage/>);
+  expect(screen.queryByText("Other shop private input")).not.toBeInTheDocument();
+  expect(screen.getByRole("region",{name:"Business Context (brand-level)"})).toHaveTextContent("Business context source: unavailable");
+});
+it("waits for the current business input before enabling a download",()=>{
+  jest.mocked(businessContext).mockReturnValue({isLoading:true,isFetching:true} as never);
+  render(<AccountAuditPage/>);
+  expect(screen.getByRole("button",{name:"Download audit (.md)"})).toBeDisabled();
+  expect(screen.getByRole("status")).toHaveTextContent("business context");
 });
 it("loads current and preceding windows for one owned account, never an all-platform fallback",()=>{
   render(<AccountAuditPage/>);
@@ -106,5 +144,25 @@ it("prepares a Markdown download and does not show its receipt for a different o
     URL.revokeObjectURL = originalRevoke;
     click.mockRestore();
     jest.useRealTimers();
+  }
+});
+
+it("clears a download receipt when the displayed business context changes",()=>{
+  const originalCreate = URL.createObjectURL;
+  const originalRevoke = URL.revokeObjectURL;
+  URL.createObjectURL = jest.fn(()=>"blob:fixture-audit");
+  URL.revokeObjectURL = jest.fn();
+  const click = jest.spyOn(HTMLAnchorElement.prototype,"click").mockImplementation(()=>{});
+  jest.useFakeTimers();
+  try {
+    const {rerender}=render(<AccountAuditPage/>);
+    fireEvent.click(screen.getByRole("button",{name:"Download audit (.md)"}));
+    expect(screen.getByRole("status")).toHaveTextContent("Audit download requested");
+    jest.mocked(businessContext).mockReturnValue({isLoading:false,data:{brandId:"brand-1",source:"brand",context:{objective:"sales",notes:"New input version"}}} as never);
+    rerender(<AccountAuditPage/>);
+    expect(screen.queryByText("Audit download requested for this displayed scope.")).not.toBeInTheDocument();
+  } finally {
+    jest.runOnlyPendingTimers();
+    URL.createObjectURL=originalCreate; URL.revokeObjectURL=originalRevoke; click.mockRestore(); jest.useRealTimers();
   }
 });

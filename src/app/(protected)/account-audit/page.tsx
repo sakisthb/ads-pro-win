@@ -8,7 +8,8 @@ import { useActiveBrand } from "@/hooks/use-active-brand";
 import { useActiveMarket } from "@/hooks/use-active-market";
 import { DeskFilterRow } from "@/components/brands/desk-filters";
 import { lastCompletedCampaignWindow, validCampaignWindow } from "@/lib/campaign-reporting";
-import { auditMarkdown, auditProviderAccountLabel, buildPerformanceAudit, precedingAuditWindow, type AuditGoal } from "@/lib/performance-audit";
+import { auditMarkdown, auditProviderAccountLabel, buildPerformanceAudit, precedingAuditWindow, BUSINESS_CONTEXT_CAUTION, type AuditBusinessContext, type AuditGoal } from "@/lib/performance-audit";
+import { projectContextEntries } from "@/lib/project-context";
 
 const control = "max-w-full min-w-0 rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-400";
 const section = "rounded-2xl border border-white/10 bg-white/[0.025] p-5 space-y-4";
@@ -36,19 +37,23 @@ export default function AccountAuditPage() {
   }
   const valid = Boolean(previousWindow);
   const enabled = Boolean(brandId && account && valid);
+  const contextQuery = api.onboarding.getBrandContext.useQuery({ brandId: brandId || "" }, { enabled });
+  const businessContext: AuditBusinessContext = contextQuery.error || contextQuery.data?.brandId !== brandId
+    ? { source: "unavailable", context: null }
+    : { source: contextQuery.data.source, context: contextQuery.data.context };
   const common = { brandId: brandId || undefined, platform, adAccountId: accountId || undefined, market, limit: 1000 };
   const currentQuery = api.marketing.getCampaignPerformance.useQuery({ ...common, ...window }, { enabled });
   const previousQuery = api.marketing.getCampaignPerformance.useQuery({ ...common, ...(previousWindow ?? window) }, { enabled });
   const currentError = currentQuery.error;
-  const loading = enabled && (currentQuery.isLoading || currentQuery.isFetching || previousQuery.isLoading || previousQuery.isFetching);
+  const loading = enabled && (currentQuery.isLoading || currentQuery.isFetching || previousQuery.isLoading || previousQuery.isFetching || contextQuery.isLoading || contextQuery.isFetching);
   const current = currentQuery.data?.data;
   const audit = enabled && !currentError && !loading && current ? buildPerformanceAudit({ current,
     previous: previousQuery.error ? undefined : previousQuery.data?.data,
-    goal, asOf, platform, adAccountId: accountId,
+    goal, asOf, platform, adAccountId: accountId, businessContext,
   }) : null;
   const chartScope = `${scope}:${accountId}:${market}:${window.startDate}:${window.endDate}`;
-  const downloadScope = `${chartScope}:${goal}`;
-  const downloadMessage = downloadReceipt.scope === downloadScope ? downloadReceipt.message : "";
+  const downloadScope = `${chartScope}:${goal}:${JSON.stringify(businessContext)}`;
+  const downloadMessage = audit && downloadReceipt.scope === downloadScope ? downloadReceipt.message : "";
   const currencies = audit?.summaries.map(s => s.currency) ?? [];
   const chartCurrency = chartSelection.scope === chartScope && currencies.includes(chartSelection.currency)
     ? chartSelection.currency : currencies[0] ?? "";
@@ -113,10 +118,25 @@ export default function AccountAuditPage() {
       {!account && !accountsQuery.isLoading && !accountsQuery.error && <p className={section}>Select an owned ad account to run the audit.</p>}
       {accountsQuery.isLoading && <p role="status">Loading owned ad accounts…</p>}
       {enabled && currentError && <p role="alert" className={section}>Could not load account audit. No empty-success report is generated.</p>}
-      {loading && <p role="status" className={section}>Loading current and previous stored windows…</p>}
+      {loading && <p role="status" className={section}>Loading current and previous stored windows and brand business context…</p>}
       {enabled && previousQuery.error && !currentError && <p role="alert">Previous window could not be loaded. Current data remains available; comparisons are withheld.</p>}
 
       {audit && <>
+        <section className={section} aria-label="Business Context (brand-level)">
+          <h2 className="text-lg font-semibold">Business Context (brand-level)</h2>
+          <p className="text-xs text-zinc-400">Business context source: {audit.businessContext.source}</p>
+          <p className="text-sm text-zinc-400">Operator inputs, not verified business economics; shared across accounts and markets, not an account/wholesale-specific profile.</p>
+          <p className="text-xs text-zinc-400">No verified economics or numeric targets are inferred. The selected audit objective remains separate from the saved objective.</p>
+          <p className="text-sm text-amber-200">{BUSINESS_CONTEXT_CAUTION}</p>
+          {audit.businessContext.context ? <dl className="grid gap-3 sm:grid-cols-2">
+            {projectContextEntries(audit.businessContext.context).map(([label, value]) => <div key={label} className="min-w-0">
+              <dt className="text-xs text-zinc-400">{label}</dt><dd className="whitespace-pre-wrap break-words text-sm">{value || "Not provided"}</dd>
+            </div>)}
+          </dl> : <p className="text-sm text-amber-200">{audit.businessContext.source === "unavailable"
+            ? "Could not load the exact brand context. No legacy fallback is used." : "No context saved for this brand. No legacy fallback is used."}</p>}
+          <Link href={`/onboarding?brand=${encodeURIComponent(brandId)}`} className="inline-block text-sm text-blue-300 underline">Review / edit saved brand context</Link>
+        </section>
+
         <section className={section} aria-label="Audit performance summary">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Data quality & account coverage</h2>
