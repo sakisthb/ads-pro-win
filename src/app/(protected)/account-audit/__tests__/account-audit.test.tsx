@@ -14,6 +14,47 @@ jest.mock("recharts",()=>({ResponsiveContainer:()=>null,BarChart:()=>null,Bar:()
 const query = api.marketing.getCampaignPerformance.useQuery;
 const accounts = api.marketing.getCampaignReportAccounts.useQuery;
 const businessContext = api.onboarding.getBrandContext.useQuery;
+
+it("loads the selected completed preset and historical baseline with unchanged owned scope", async()=>{
+  render(<AccountAuditPage/>);
+  await userEvent.selectOptions(screen.getByRole("combobox",{name:"Audit period"}),"year");
+  await userEvent.selectOptions(screen.getByRole("combobox",{name:"Comparison period"}),"year_2");
+  const start=(screen.getByLabelText("Start date (UTC)") as HTMLInputElement).value;
+  const inputs=jest.mocked(query).mock.calls.map(c=>c[0] as {adAccountId:string;startDate:string;endDate:string});
+  expect(inputs.at(-1)?.startDate.slice(0,4)).toBe(String(Number(start.slice(0,4))-2));
+  expect(inputs.at(-1)?.adAccountId).toBe("account-google");
+  expect(screen.getByRole("region",{name:"KPI definitions and availability"})).toHaveTextContent("Purchase-only ROAS");
+  expect(screen.getByRole("button",{name:"Campaign activation locked"})).toBeDisabled();
+});
+it("rejects overlapping custom baselines and disables both reporting queries and export", async()=>{
+  render(<AccountAuditPage/>);
+  await userEvent.selectOptions(screen.getByRole("combobox",{name:"Comparison period"}),"custom");
+  fireEvent.change(screen.getByLabelText("Baseline start date (UTC)"),{target:{value:(screen.getByLabelText("Start date (UTC)") as HTMLInputElement).value}});
+  fireEvent.change(screen.getByLabelText("Baseline end date (UTC)"),{target:{value:(screen.getByLabelText("End date (UTC)") as HTMLInputElement).value}});
+  expect(screen.getByRole("alert")).toHaveTextContent("baseline");
+  expect(query).toHaveBeenLastCalledWith(expect.anything(),expect.objectContaining({enabled:false}));
+  expect(screen.getByRole("button",{name:"Download audit (.md)"})).toBeDisabled();
+});
+it("withholds a stale current response for a different window rather than exporting the wrong period",()=>{
+  jest.mocked(query).mockReturnValue({isLoading:false,isFetching:false,data:{data:{window:{startDate:"2020-01-01",endDate:"2020-01-07"},campaigns:[],truncated:false,
+    coverage:"stored_only_not_provider_verified",totals:{campaigns:0,active:0,storedMetricCampaigns:0,unverifiedCampaigns:0}}}} as never);
+  render(<AccountAuditPage/>);
+  expect(screen.getByRole("alert")).toHaveTextContent("Stored response does not match the selected current window");
+  expect(screen.getByRole("button",{name:"Download audit (.md)"})).toBeDisabled();
+});
+it("clears the download receipt when the historical comparison changes",()=>{
+  const originalCreate=URL.createObjectURL, originalRevoke=URL.revokeObjectURL;
+  URL.createObjectURL=jest.fn(()=>"blob:fixture"); URL.revokeObjectURL=jest.fn();
+  const click=jest.spyOn(HTMLAnchorElement.prototype,"click").mockImplementation(()=>{});
+  jest.useFakeTimers();
+  try {
+    render(<AccountAuditPage/>);
+    fireEvent.click(screen.getByRole("button",{name:"Download audit (.md)"}));
+    expect(screen.getByRole("status")).toHaveTextContent("Audit download requested");
+    fireEvent.change(screen.getByRole("combobox",{name:"Comparison period"}),{target:{value:"year_1"}});
+    expect(screen.queryByText("Audit download requested for this displayed scope.")).not.toBeInTheDocument();
+  } finally { jest.runOnlyPendingTimers(); jest.useRealTimers(); URL.createObjectURL=originalCreate;URL.revokeObjectURL=originalRevoke;click.mockRestore(); }
+});
 beforeEach(()=>{
   jest.clearAllMocks();
   jest.mocked(businessContext).mockReturnValue({isLoading:false,isFetching:false,data:{brandId:"brand-1",source:"missing",context:null}} as never);
