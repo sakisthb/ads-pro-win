@@ -106,6 +106,13 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npx prisma generate
+      - name: Native backend containment behavior in a separate disposable database
+        env:
+          PGPASSWORD: postgres
+          ADPRO_NATIVE_SECURITY_TEST_URL: postgresql://postgres:postgres@127.0.0.1:5432/adspro_containment_test
+        run: |
+          createdb -h 127.0.0.1 -p 5432 -U postgres adspro_containment_test
+          npx jest tests/backend-table-security.native.test.js --runInBand --no-coverage
       - name: Prepare disposable coverage security roles
         run: node scripts/verify-google-coverage-db.cjs prepare
       - name: Validate migrations apply cleanly
