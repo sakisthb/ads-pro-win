@@ -10,6 +10,8 @@ import { DeskFilterRow } from "@/components/brands/desk-filters";
 import { lastCompletedCampaignWindow, validCampaignWindow } from "@/lib/campaign-reporting";
 import { auditMarkdown, auditProviderAccountLabel, buildPerformanceAudit, precedingAuditWindow, BUSINESS_CONTEXT_CAUTION, type AuditBusinessContext, type AuditGoal } from "@/lib/performance-audit";
 import { projectContextEntries } from "@/lib/project-context";
+import { auditPresetWindow, resolveAuditPeriods, type AuditComparison, type AuditPreset } from "@/lib/audit-periods";
+import { AUDIT_KPI_REFERENCES } from "@/lib/audit-kpis";
 
 const control = "max-w-full min-w-0 rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-400";
 const section = "rounded-2xl border border-white/10 bg-white/[0.025] p-5 space-y-4";
@@ -22,6 +24,9 @@ export default function AccountAuditPage() {
   const [goal, setGoal] = useState<AuditGoal>("sales");
   const [window, setWindow] = useState(() => lastCompletedCampaignWindow());
   const [asOf] = useState(() => new Date().toISOString().slice(0, 10));
+  const [preset, setPreset] = useState<AuditPreset | "custom">("month");
+  const [comparisonSelection, setComparisonSelection] = useState("previous");
+  const [customBaseline, setCustomBaseline] = useState(() => precedingAuditWindow(lastCompletedCampaignWindow()));
   const [selected, setSelected] = useState({ scope: "", id: "" });
   const [chartSelection, setChartSelection] = useState({ scope: "", currency: "" });
   const [downloadReceipt, setDownloadReceipt] = useState({ scope: "", message: "" });
@@ -31,11 +36,14 @@ export default function AccountAuditPage() {
   const accountId = selected.scope === scope && accounts.some(a => a.id === selected.id)
     ? selected.id : accounts.length === 1 ? accounts[0].id : "";
   const account = accounts.find(a => a.id === accountId);
-  let previousWindow: { startDate: string; endDate: string } | undefined;
-  if (validCampaignWindow(window.startDate, window.endDate) && window.endDate < asOf) {
-    try { previousWindow = precedingAuditWindow(window); } catch { /* unsupported long range */ }
-  }
-  const valid = Boolean(previousWindow);
+  const comparison: AuditComparison = comparisonSelection === "custom" ? { mode: "custom", window: customBaseline }
+    : comparisonSelection.startsWith("year_") ? { mode: "year", yearsBack: Number(comparisonSelection.slice(5)) } : { mode: "previous" };
+  let periods: ReturnType<typeof resolveAuditPeriods> | undefined;
+  let periodError = "";
+  try { periods = resolveAuditPeriods(window, comparison, asOf); }
+  catch (error) { periodError = error instanceof Error ? error.message : "Invalid audit periods"; }
+  const previousWindow = periods?.window;
+  const valid = Boolean(periods);
   const enabled = Boolean(brandId && account && valid);
   const contextQuery = api.onboarding.getBrandContext.useQuery({ brandId: brandId || "" }, { enabled });
   const businessContext: AuditBusinessContext = contextQuery.error || contextQuery.data?.brandId !== brandId
@@ -47,11 +55,12 @@ export default function AccountAuditPage() {
   const currentError = currentQuery.error;
   const loading = enabled && (currentQuery.isLoading || currentQuery.isFetching || previousQuery.isLoading || previousQuery.isFetching || contextQuery.isLoading || contextQuery.isFetching);
   const current = currentQuery.data?.data;
-  const audit = enabled && !currentError && !loading && current ? buildPerformanceAudit({ current,
+  const currentWindowMatches = current?.window.startDate === window.startDate && current?.window.endDate === window.endDate;
+  const audit = enabled && !currentError && !loading && current && currentWindowMatches ? buildPerformanceAudit({ current,
     previous: previousQuery.error ? undefined : previousQuery.data?.data,
-    goal, asOf, platform, adAccountId: accountId, businessContext,
+    goal, asOf, platform, adAccountId: accountId, businessContext, comparison,
   }) : null;
-  const chartScope = `${scope}:${accountId}:${market}:${window.startDate}:${window.endDate}`;
+  const chartScope = `${scope}:${accountId}:${market}:${window.startDate}:${window.endDate}:${comparisonSelection}:${previousWindow?.startDate}:${previousWindow?.endDate}`;
   const downloadScope = `${chartScope}:${goal}:${JSON.stringify(businessContext)}`;
   const downloadMessage = audit && downloadReceipt.scope === downloadScope ? downloadReceipt.message : "";
   const currencies = audit?.summaries.map(s => s.currency) ?? [];
@@ -67,7 +76,7 @@ export default function AccountAuditPage() {
         account: account.name, providerAccountId: auditProviderAccountLabel(platform, account.accountId), market });
       const url = URL.createObjectURL(new Blob([md], { type: "text/markdown;charset=utf-8" }));
       const anchor = document.createElement("a");
-      anchor.href = url; anchor.download = `account-audit-${platform}-${window.startDate}_${window.endDate}.md`;
+      anchor.href = url; anchor.download = `account-audit-${platform}-${window.startDate}_${window.endDate}-vs-${audit.comparisonWindow.startDate}_${audit.comparisonWindow.endDate}.md`;
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setDownloadReceipt({ scope: downloadScope, message: "Audit download requested for this displayed scope." });
@@ -98,28 +107,60 @@ export default function AccountAuditPage() {
               <option value="sales">Sales / profitable acquisition</option><option value="branding">Branding / demand</option><option value="wholesale">Wholesale / qualified buyers</option>
             </select>
           </label>
+          <label className="grid max-w-full min-w-0 gap-1 text-xs text-zinc-400">Audit period
+            <select aria-label="Audit period" className={control} value={preset} onChange={e => {
+              const next = e.target.value as AuditPreset | "custom";
+              setPreset(next); if (next !== "custom") setWindow(auditPresetWindow(next, asOf));
+            }}>
+              <option value="week">Last 7 completed days</option><option value="month">Last 30 completed days</option>
+              <option value="six_months">Last 6 calendar months</option><option value="year">Last 12 calendar months</option><option value="custom">Custom dates</option>
+            </select>
+          </label>
+          <label className="grid max-w-full min-w-0 gap-1 text-xs text-zinc-400">Comparison period
+            <select aria-label="Comparison period" className={control} value={comparisonSelection} onChange={e => {
+              const next = e.target.value; setComparisonSelection(next);
+              if (next === "custom" && validCampaignWindow(window.startDate, window.endDate)) {
+                try { setCustomBaseline(precedingAuditWindow(window)); } catch { /* keep explicit invalid state */ }
+              }
+            }}>
+              <option value="previous">Previous equal-length period</option><option value="year_1">Same dates last year</option>
+              <option value="year_2">Same dates 2 years earlier</option><option value="year_3">Same dates 3 years earlier</option><option value="custom">Custom historical baseline</option>
+            </select>
+          </label>
           <label className="grid max-w-full min-w-0 gap-1 text-xs text-zinc-400">Start date (UTC)
             <input aria-label="Start date (UTC)" type="date" className={control} value={window.startDate}
-              onChange={e => setWindow({ ...window, startDate: e.target.value })} />
+              onChange={e => { setPreset("custom"); setWindow({ ...window, startDate: e.target.value }); }} />
           </label>
           <label className="grid max-w-full min-w-0 gap-1 text-xs text-zinc-400">End date (UTC)
             <input aria-label="End date (UTC)" type="date" className={control} value={window.endDate} max={lastCompletedCampaignWindow().endDate}
-              onChange={e => setWindow({ ...window, endDate: e.target.value })} />
+              onChange={e => { setPreset("custom"); setWindow({ ...window, endDate: e.target.value }); }} />
           </label>
-          <button className={control} onClick={() => setWindow(lastCompletedCampaignWindow())}>Reset to 30 completed days</button>
+          {comparisonSelection === "custom" && <>
+            <label className="grid max-w-full min-w-0 gap-1 text-xs text-zinc-400">Baseline start date (UTC)
+              <input aria-label="Baseline start date (UTC)" type="date" className={control} value={customBaseline.startDate}
+                onChange={e => setCustomBaseline({ ...customBaseline, startDate: e.target.value })} />
+            </label>
+            <label className="grid max-w-full min-w-0 gap-1 text-xs text-zinc-400">Baseline end date (UTC)
+              <input aria-label="Baseline end date (UTC)" type="date" className={control} value={customBaseline.endDate}
+                onChange={e => setCustomBaseline({ ...customBaseline, endDate: e.target.value })} />
+            </label>
+          </>}
+          <button className={control} onClick={() => { setPreset("month"); setWindow(auditPresetWindow("month", asOf)); setComparisonSelection("previous"); }}>Reset to 30 completed days</button>
           <button className={`${control} disabled:opacity-40`} disabled={!audit} onClick={download}>Download audit (.md)</button>
         </div>
-        <p className="text-xs text-zinc-400">Current: {window.startDate} → {window.endDate} UTC. Previous: {previousWindow?.startDate ?? "Unverified"} → {previousWindow?.endDate ?? "Unverified"} UTC. Same account/market; currencies remain separate.</p>
+        <p className="text-xs text-zinc-400">Current: {window.startDate} → {window.endDate} UTC. Baseline: {previousWindow?.startDate ?? "Unverified"} → {previousWindow?.endDate ?? "Unverified"} UTC. Same account/market; currencies remain separate.</p>
+        {periods && <p className="text-xs text-amber-200">{periods.label} · {periods.currentDays} current days / {periods.baselineDays} baseline days. {periods.notice}</p>}
         {downloadMessage && <p role="status" className="text-sm text-blue-200">{downloadMessage}</p>}
       </header>
 
-      {!valid && <p role="alert" className="rounded-xl border border-amber-400/30 p-4 text-amber-100">Choose a valid completed UTC window of at most 366 days, ending before today.</p>}
+      {!valid && <p role="alert" className="rounded-xl border border-amber-400/30 p-4 text-amber-100">{periodError}</p>}
       {accountsQuery.error && <p role="alert">Could not load owned ad accounts. No account-wide fallback is used.</p>}
       {!account && !accountsQuery.isLoading && !accountsQuery.error && <p className={section}>Select an owned ad account to run the audit.</p>}
       {accountsQuery.isLoading && <p role="status">Loading owned ad accounts…</p>}
       {enabled && currentError && <p role="alert" className={section}>Could not load account audit. No empty-success report is generated.</p>}
-      {loading && <p role="status" className={section}>Loading current and previous stored windows and brand business context…</p>}
-      {enabled && previousQuery.error && !currentError && <p role="alert">Previous window could not be loaded. Current data remains available; comparisons are withheld.</p>}
+      {enabled && current && !loading && !currentError && !currentWindowMatches && <p role="alert" className={section}>Stored response does not match the selected current window. Report and export withheld.</p>}
+      {loading && <p role="status" className={section}>Loading current and baseline stored windows and brand business context…</p>}
+      {enabled && previousQuery.error && !currentError && <p role="alert">Baseline window could not be loaded. Current data remains available; comparisons are withheld.</p>}
 
       {audit && <>
         <section className={section} aria-label="Business Context (brand-level)">
@@ -147,12 +188,28 @@ export default function AccountAuditPage() {
           {!audit.summaries.length ? <p>Performance: Unverified. Missing observations or limited rows are not measured zero.</p> :
             <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm" aria-label="Stored performance comparison">
               <caption className="pb-3 text-left text-xs text-zinc-400">Stored metric subset, separated by currency. Attributed value ≠ store revenue or incremental profit. Ratios are recomputed from sums.</caption>
-              <thead><tr>{["Currency", "Spend", "Attributed value", "Conversions", "ROAS", "Previous ROAS", "CPA", "CTR"].map(t => <th key={t} className="p-2">{t}</th>)}</tr></thead>
+              <thead><tr>{["Currency", "Spend", "Attributed value", "Conversions", "ROAS", "Baseline ROAS", "CPA", "CTR"].map(t => <th key={t} className="p-2">{t}</th>)}</tr></thead>
               <tbody>{audit.summaries.map(s => <tr key={s.currency} className="border-t border-white/10">
                 <td className="p-2">{s.currency}</td><td className="p-2">{fmt(s.spend)}</td><td className="p-2">{fmt(s.value)}</td><td className="p-2">{fmt(s.conversions)}</td>
                 <td className="p-2">{fmt(s.roas, "x")}</td><td className="p-2">{fmt(s.previous?.roas ?? null, "x")}</td><td className="p-2">{fmt(s.cpa)}</td><td className="p-2">{fmt(s.ctr, "%")}</td>
               </tr>)}</tbody>
             </table></div>}
+        </section>
+
+        <section className={section} aria-label="KPI definitions and availability">
+          <h2 className="text-lg font-semibold">KPI definitions and availability</h2>
+          <p className="text-sm text-zinc-400">Objective-aware measurement inventory, not validated targets or campaign recommendations. Stored subset ≠ provider-complete coverage. Missing denominators stay Unverified.</p>
+          <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm" aria-label="Objective KPI availability">
+            <thead><tr>{["KPI / role", "Availability", "Current / baseline", "Definition & limitation"].map(t => <th key={t} className="p-2">{t}</th>)}</tr></thead>
+            <tbody>{audit.kpis.map(k => <tr key={k.id} className="border-t border-white/10 align-top">
+              <td className="p-2"><p>{k.label}</p><p className="text-xs text-zinc-500">{k.role}</p></td>
+              <td className="p-2 text-amber-200">{k.status}</td>
+              <td className="p-2">{k.values.length ? k.values.map(v => <p key={v.currency}>{v.currency}: {fmt(v.current)} / {fmt(v.baseline)}</p>) : "Unverified"}</td>
+              <td className="max-w-md p-2"><p>{k.formula}</p><p className="text-xs text-zinc-400">{k.caveat}</p></td>
+            </tr>)}</tbody>
+          </table></div>
+          <p className="text-xs text-zinc-400">Reference documentation for conversion/reach definitions, not account-coverage proof. Google-specific eligibility/retention limits do not automatically apply to Meta or TikTok.</p>
+          <div className="flex flex-wrap gap-3 text-xs">{AUDIT_KPI_REFERENCES.map(s => <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline">{s.label}</a>)}</div>
         </section>
 
         {chartRows.length > 0 && !audit.truncated && <section className={section}>

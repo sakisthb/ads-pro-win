@@ -1,5 +1,7 @@
 import { validCampaignWindow } from "./campaign-reporting";
 import { projectContextEntries, type ProjectContext } from "./project-context";
+import { resolveAuditPeriods, type AuditComparison } from "./audit-periods";
+import { auditKpis, AUDIT_KPI_REFERENCES, type AuditMeasures } from "./audit-kpis";
 
 export type AuditGoal = "sales" | "branding" | "wholesale";
 export type AuditWindow = { startDate: string; endDate: string };
@@ -17,8 +19,7 @@ export interface AuditSnapshot {
   coverage: "stored_only_not_provider_verified";
   totals: { campaigns: number; active: number; storedMetricCampaigns: number; unverifiedCampaigns: number };
 }
-type Measures = { spend: number; value: number; conversions: number; clicks: number; impressions: number;
-  roas: number | null; cpa: number | null; cpc: number | null; ctr: number | null };
+type Measures = AuditMeasures;
 export type AuditFinding = {
   id: string; code: string; severity: "blocker" | "watch"; confidence: "observed" | "provisional";
   title: string; evidence: string; nextStep: string; campaignName?: string; currency?: string;
@@ -58,7 +59,8 @@ function aggregate(rows: AuditCampaign[]): Measures {
   return { ...sums, roas: sums.spend > 0 ? sums.value / sums.spend : null,
     cpa: sums.conversions > 0 ? sums.spend / sums.conversions : null,
     cpc: sums.clicks > 0 ? sums.spend / sums.clicks : null,
-    ctr: sums.impressions > 0 ? sums.clicks / sums.impressions * 100 : null };
+    ctr: sums.impressions > 0 ? sums.clicks / sums.impressions * 100 : null,
+    cpm: sums.impressions > 0 ? sums.spend / sums.impressions * 1000 : null };
 }
 
 function strategy(goal: AuditGoal) {
@@ -97,7 +99,7 @@ function calendar(asOf: string) {
   const season = month >= 2 && month <= 4 ? "Spring" : month >= 5 && month <= 7 ? "Summer" : month >= 8 && month <= 10 ? "Autumn" : "Winter";
   return { asOf, season, basis: "Northern-hemisphere meteorological calendar; planning context, not measured market demand.", demandVerified: false,
     prompts: ["Confirm the current collection, stock, margins, geography and commercial calendar with the operator",
-      "Use comparable year-over-year query/product history to validate seasonal demand; this desk does not load that history yet",
+      "Use the selected historical comparison as descriptive campaign evidence; query/product demand and complete history remain unverified",
       "Check retail campaign timing and wholesale buying/fulfilment lead times separately"] };
 }
 
@@ -106,11 +108,13 @@ export function buildPerformanceAudit(input: {
   current: AuditSnapshot; previous?: AuditSnapshot; goal: AuditGoal; asOf: string;
   platform: string; adAccountId: string;
   businessContext?: AuditBusinessContext;
+  comparison?: AuditComparison;
 }) {
   const { current, previous } = input;
   const businessContext: AuditBusinessContext = input.businessContext?.source === "brand" && input.businessContext.context
     ? input.businessContext : { source: input.businessContext?.source === "unavailable" ? "unavailable" : "missing", context: null };
-  const comparisonWindow = precedingAuditWindow(current.window);
+  const comparison = resolveAuditPeriods(current.window, input.comparison, input.asOf);
+  const comparisonWindow = comparison.window;
   const findings: AuditFinding[] = [];
   const add = (f: Omit<AuditFinding, "id">, suffix = "") => findings.push({ ...f, id: `${f.code}:${suffix}` });
   const inScope = (r: AuditCampaign) => r.adAccountId === input.adAccountId &&
@@ -137,7 +141,7 @@ export function buildPerformanceAudit(input: {
     evidence: current.coverage, nextStep: "Review coverage receipts and native↔stored reconciliation; stored metrics alone never unlock activation" });
 
   let comparable = false;
-  if (previous && !current.truncated && !badCurrent && !previous.truncated &&
+  if (previous && comparison.equalDays && !current.truncated && !badCurrent && !previous.truncated &&
       previous.window.startDate === comparisonWindow.startDate && previous.window.endDate === comparisonWindow.endDate) {
     const previousSeen = new Set<string>();
     comparable = measured(previous.campaigns).length > 0 && previous.campaigns.every(r => {
@@ -146,7 +150,7 @@ export function buildPerformanceAudit(input: {
     });
   }
   if (!comparable) add({ code: "comparison_unavailable", severity: "watch", confidence: "observed", title: "Comparable baseline unavailable",
-    evidence: "An adjacent equal-length, untruncated, same-account/currency stored baseline is required. No zero baseline is invented.",
+    evidence: "The selected equal-day-count, untruncated, same-account/currency stored baseline is required. No zero baseline is invented.",
     nextStep: "Review the previous window and conversion maturity/coverage before interpreting change" });
   const priorRows = comparable && previous ? measured(previous.campaigns) : [];
   const priorByKey = new Map(priorRows.map(r => [key(r), r]));
@@ -172,12 +176,12 @@ export function buildPerformanceAudit(input: {
     return { currency, measuredCampaigns: group.length, ...aggregate(group), previous: prior.length ? aggregate(prior) : null };
   });
   return {
-    platform: input.platform, adAccountId: input.adAccountId, goal: input.goal, window: current.window, comparisonWindow,
+    platform: input.platform, adAccountId: input.adAccountId, goal: input.goal, window: current.window, comparisonWindow, comparison,
     coverage: current.coverage, truncated: current.truncated, inventoryTotals: current.totals,
     verdict: findings.some(f => f.severity === "blocker") ? "blocked" as const : "review" as const,
     activationAllowed: false as const,
     businessContext,
-    findings, summaries,
+    findings, summaries, kpis: auditKpis(input.goal, summaries),
     inventory: current.campaigns.filter(inScope).map(r => ({ id: key(r), campaignId: r.campaignId, name: r.campaignName,
       status: r.status, currency: r.currency, objective: r.objective ?? "Unknown", metricState: r.metricState,
       spend: r.metricState === "stored_metrics" && validMetrics(r) ? r.totalSpend : null,
@@ -188,7 +192,7 @@ export function buildPerformanceAudit(input: {
     calendar: calendar(input.asOf), strategy: strategy(input.goal),
     unavailableEvidence: ["Provider-reconciled completeness and conversion-action definitions", "Search terms, keywords, bidding strategy and change history",
       "PMax product/feed eligibility and product-level outcomes", "Margins, returns, inventory and incremental profit",
-      "Comparable year-over-year demand and verified commercial events", "Qualified wholesale lead → paid/repeat-order linkage"],
+      "Complete historical coverage, query/product-level seasonal demand and verified commercial events", "Qualified wholesale lead → paid/repeat-order linkage"],
     decisionPlan: ["Close host/recovery and release gates before production rollout", "Reconcile the exact owned account and current/previous windows",
       "Resolve blockers, validate conversion/business economics and inspect objective-specific evidence",
       "Agree two campaign IDs, budgets/exposure and stop conditions only after the audit",
@@ -204,6 +208,8 @@ export function auditMarkdown(audit: PerformanceAudit, context: { brand: string;
     `Platform: ${audit.platform} · Market: ${mdCell(context.market)} · Objective: ${audit.goal}`,
     `Window (UTC): ${audit.window.startDate} → ${audit.window.endDate}`,
     `Comparison (UTC): ${audit.comparisonWindow.startDate} → ${audit.comparisonWindow.endDate}`,
+    `Comparison mode: ${audit.comparison.label} · ${audit.comparison.currentDays} current days / ${audit.comparison.baselineDays} baseline days`,
+    audit.comparison.notice,
     `Coverage: ${audit.coverage} · Verdict: ${audit.verdict} · Live activation: locked / read-only`, "",
     "## Business Context (brand-level)", "",
     `Business context source: ${audit.businessContext.source}`,
@@ -214,9 +220,14 @@ export function auditMarkdown(audit: PerformanceAudit, context: { brand: string;
       audit.businessContext.source === "unavailable" ? "Could not load the exact brand context. No legacy fallback is used." : "No context saved for this brand. No legacy fallback is used.",
     ]), "",
     "## Stored performance by currency", "", "Attributed conversion value is not store revenue, purchase-only proof or incremental profit.", "",
-    "| Currency | Spend | Attributed value | Conversions | ROAS | Previous stored ROAS | CPA | CTR (%) |", "|---|---:|---:|---:|---:|---:|---:|---:|",
+    "| Currency | Spend | Attributed value | Conversions | ROAS | Baseline stored ROAS | CPA | CTR (%) |", "|---|---:|---:|---:|---:|---:|---:|---:|",
     ...audit.summaries.map(s => `| ${s.currency} | ${n(s.spend)} | ${n(s.value)} | ${n(s.conversions)} | ${n(s.roas)} | ${n(s.previous?.roas ?? null)} | ${n(s.cpa)} | ${n(s.ctr)} |`),
     ...(audit.summaries.length ? [] : ["No complete usable metric subset. Totals withheld, not measured zero."]), "",
+    "## KPI definitions and availability", "", "Objective-aware measurement inventory, not validated targets or campaign recommendations. Stored subset ≠ provider-complete coverage.", "",
+    "| KPI | Role | Availability | Formula | Current / baseline by currency | Caveat |", "|---|---|---|---|---|---|",
+    ...audit.kpis.map(k => `| ${mdCell(k.label)} | ${k.role} | ${k.status} | ${mdCell(k.formula)} | ${k.values.length ? k.values.map(v => `${v.currency}: ${n(v.current)} / ${n(v.baseline)}`).join("; ") : "Unverified"} | ${mdCell(k.caveat)} |`), "",
+    "Reference documentation for conversion/reach definitions, not account-coverage proof. Google-specific eligibility/retention limits do not automatically apply to Meta or TikTok.", "",
+    ...AUDIT_KPI_REFERENCES.map(s => `- [${s.label}](${s.url})`), "",
     "## Inventory", "", `Total inventory: ${audit.inventoryTotals.campaigns}; active status: ${audit.inventoryTotals.active} (not serving proof). Truncated: ${audit.truncated}.`, "",
     `Stored metric campaigns: ${audit.inventoryTotals.storedMetricCampaigns}; without window metrics: ${audit.inventoryTotals.unverifiedCampaigns}.`, "",
     "| Campaign | ID | Status | Objective | Currency | Spend | ROAS | Metric state |", "|---|---|---|---|---|---:|---:|---|",

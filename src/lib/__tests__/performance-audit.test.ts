@@ -103,11 +103,45 @@ it("blocks duplicate account/campaign/currency grains", () => {
   expect(result.summaries).toEqual([]);
 });
 it("uses today's calendar season, not the report period or invented market demand", () => {
-  const result = buildPerformanceAudit({current:snapshot(),goal:"sales",asOf:"2026-07-01",platform:"google",adAccountId:"fixture-account"});
+  const result = buildPerformanceAudit({current:snapshot([], {window:{startDate:"2026-06-01",endDate:"2026-06-30"}}),goal:"sales",asOf:"2026-07-01",platform:"google",adAccountId:"fixture-account"});
   expect(result.calendar.season).toBe("Summer");
   expect(result.calendar.basis).toContain("calendar");
   expect(result.calendar.demandVerified).toBe(false);
   expect(result.calendar.asOf).toBe("2026-07-01");
+});
+
+it("uses an explicitly selected year-over-year baseline in the engine and export", () => {
+  const prior = snapshot([row({totalConversionValue:400})], {window:{startDate:"2025-08-18",endDate:"2025-09-16"}});
+  const result = buildPerformanceAudit({current:snapshot(),previous:prior,comparison:{mode:"year",yearsBack:1},goal:"sales",asOf:"2026-09-17",platform:"google",adAccountId:"fixture-account"});
+  expect(result.summaries[0].previous?.roas).toBe(4);
+  expect(result.comparisonWindow).toEqual(prior.window);
+  expect(result.comparison.label).toContain("1 year");
+  expect(auditMarkdown(result,{brand:"Fixture",account:"Fixture",providerAccountId:"1",market:"all"})).toContain("2025-08-18");
+});
+it("withholds unequal-length historical comparisons and watch rules", () => {
+  const result = buildPerformanceAudit({current:snapshot(),previous:snapshot([row({totalConversionValue:10000})],{window:{startDate:"2020-01-01",endDate:"2020-01-07"}}),
+    comparison:{mode:"custom",window:{startDate:"2020-01-01",endDate:"2020-01-07"}},goal:"sales",asOf:"2026-09-17",platform:"google",adAccountId:"fixture-account"});
+  expect(result.summaries[0].previous).toBeNull();
+  expect(result.findings.some(f=>f.code==="roas_drop")).toBe(false);
+  expect(result.comparison.equalDays).toBe(false);
+});
+it("exposes all supported sums and ratios without mislabelling conversion rate or AOV", () => {
+  const result = run();
+  expect(result.summaries[0]).toMatchObject({clicks:100,impressions:1000,cpc:1,ctr:10,cpm:100});
+  expect(result.kpis.find(k=>k.id==="cpm")).toMatchObject({status:"stored_subset",values:[{currency:"EUR",current:100,baseline:null}]});
+  expect(result.kpis.find(k=>k.id==="purchase_roas")).toMatchObject({status:"unavailable",values:[]});
+  expect(result.kpis.find(k=>k.id==="conversion_rate")).toMatchObject({status:"unavailable",values:[]});
+  expect(result.kpis.find(k=>k.id==="aov")).toBeUndefined();
+  const md = auditMarkdown(result,{brand:"Fixture",account:"Fixture",providerAccountId:"1",market:"all"});
+  expect(md).toContain("KPI definitions and availability");
+  expect(md).toContain("CPM");
+  expect(md).toContain("Clicks");
+  expect(md).toContain("https://support.google.com/google-ads/answer/6270625?hl=en");
+});
+it.each(["branding","wholesale"] as const)("does not fabricate primary %s outcomes from generic conversions", goal => {
+  const result=run(snapshot(),undefined,goal);
+  expect(result.kpis.filter(k=>k.role==="primary").length).toBeGreaterThan(0);
+  expect(result.kpis.filter(k=>k.role==="primary").every(k=>k.status==="unavailable" && !k.values.length)).toBe(true);
 });
 it.each(["sales","branding","wholesale"] as const)("includes objective-specific evidence gaps and a decision plan for %s", goal => {
   const result = run(snapshot(),undefined,goal);
