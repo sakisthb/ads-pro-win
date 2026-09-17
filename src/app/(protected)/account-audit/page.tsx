@@ -12,6 +12,7 @@ import { auditMarkdown, auditProviderAccountLabel, buildPerformanceAudit, preced
 import { projectContextEntries } from "@/lib/project-context";
 import { auditPresetWindow, resolveAuditPeriods, type AuditComparison, type AuditPreset } from "@/lib/audit-periods";
 import { AUDIT_KPI_REFERENCES } from "@/lib/audit-kpis";
+import { GoogleResearchDesk } from "@/components/audit/google-research-desk";
 
 const control = "max-w-full min-w-0 rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-400";
 const section = "rounded-2xl border border-white/10 bg-white/[0.025] p-5 space-y-4";
@@ -272,6 +273,9 @@ export default function AccountAuditPage() {
           <p className="text-sm text-zinc-400">These datasets are not loaded by this desk. Generic conversion totals do not validate purchases, profitable acquisition, brand lift or qualified wholesale buyers.</p>
           <ul className="list-disc space-y-2 pl-5 text-sm">{audit.unavailableEvidence.map(p => <li key={p}>{p}</li>)}</ul>
         </section>
+
+        {platform === "google" && brandId && <GoogleResearchDesk key={JSON.stringify({brandId,accountId,market,goal,window,comparison})}
+          brandId={brandId} adAccountId={accountId} market={market} goal={goal} window={window} comparison={comparison} />}
 
         <section className={section}>
           <h2 className="text-lg font-semibold">Decision plan</h2>
