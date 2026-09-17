@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AccountAuditPage from "../page";
 import { api } from "@/components/providers/trpc-provider";
+import { GoogleResearchDesk } from "@/components/audit/google-research-desk";
 
 jest.mock("@/components/providers/trpc-provider", () => ({api:{marketing:{
   getCampaignPerformance:{useQuery:jest.fn()},getCampaignReportAccounts:{useQuery:jest.fn()},
@@ -10,10 +11,16 @@ jest.mock("@/hooks/use-active-brand", () => ({useActiveBrand:()=>({brandId:"bran
 jest.mock("@/hooks/use-active-market", () => ({useActiveMarket:()=>({market:"all"})}));
 jest.mock("@/components/brands/desk-filters",()=>({DeskFilterRow:()=>null}));
 jest.mock("recharts",()=>({ResponsiveContainer:()=>null,BarChart:()=>null,Bar:()=>null,XAxis:()=>null,YAxis:()=>null,Tooltip:()=>null,CartesianGrid:()=>null}));
+jest.mock("@/components/audit/google-research-desk",()=>({GoogleResearchDesk:jest.fn(()=> <div>Google research fixture</div>)}));
 
 const query = api.marketing.getCampaignPerformance.useQuery;
 const accounts = api.marketing.getCampaignReportAccounts.useQuery;
 const businessContext = api.onboarding.getBrandContext.useQuery;
+
+it("mounts the Google research/review workflow only for the exact selected valid Google audit scope",()=>{
+  render(<AccountAuditPage/>);
+  expect(GoogleResearchDesk).toHaveBeenCalledWith(expect.objectContaining({brandId:"brand-1",adAccountId:"account-google",market:"all",goal:"sales",comparison:{mode:"previous"}}),undefined);
+});
 
 it("loads the selected completed preset and historical baseline with unchanged owned scope", async()=>{
   render(<AccountAuditPage/>);

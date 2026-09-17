@@ -16,6 +16,7 @@ import { emailCampaignsRouter } from "./routers/email";
 import { invitationsRouter } from "./routers/invitations";
 import { metaOpsRouter } from "./routers/meta-ops";
 import { growthRouter } from "./routers/growth";
+import { googleResearchRouter } from "./routers/google-research";
 
 /**
  * This is the primary router for your server.
@@ -37,6 +38,7 @@ export const appRouter = createTRPCRouter({
   alerts: alertsRouter,
   metaOps: metaOpsRouter,
   growth: growthRouter,
+  googleResearch: googleResearchRouter,
 });
 
 // Export type definition of API
