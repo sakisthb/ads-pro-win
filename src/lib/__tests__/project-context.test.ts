@@ -7,9 +7,20 @@ import {
   parseObjective,
   parseOrgSettings,
   parseProjectContext,
+  strictContextForBrand,
 } from "@/lib/project-context";
 
 describe("project context", () => {
+  it("reads only the exact brand context, never the last-saved organization fallback", () => {
+    const own = { ...emptyProjectContext(), constraints: "Owned shop constraints" };
+    const parsed = parseOrgSettings({
+      projectContext: { ...emptyProjectContext(), notes: "Other shop private notes" },
+      brandContexts: { "brand-a": own },
+    });
+    expect(strictContextForBrand(parsed, "brand-a")).toEqual(own);
+    expect(strictContextForBrand(parsed, "brand-b")).toBeNull();
+    expect(strictContextForBrand(parsed, "")).toBeNull();
+  });
   it("parses known objectives and defaults unknown ones", () => {
     expect(parseObjective("leads")).toBe("leads");
     expect(parseObjective("not-a-goal")).toBe("sales");

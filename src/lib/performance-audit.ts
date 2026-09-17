@@ -1,7 +1,10 @@
 import { validCampaignWindow } from "./campaign-reporting";
+import { projectContextEntries, type ProjectContext } from "./project-context";
 
 export type AuditGoal = "sales" | "branding" | "wholesale";
 export type AuditWindow = { startDate: string; endDate: string };
+export type AuditBusinessContext = { source: "brand" | "missing" | "unavailable"; context: ProjectContext | null };
+export const BUSINESS_CONTEXT_CAUTION = "Saved inputs may be outdated; revalidate connections, economics and dates before decisions. They never override measured coverage.";
 export interface AuditCampaign {
   reportRowId: string; adAccountId: string; campaignId: string; campaignName: string;
   platform: string; currency: string; status: string; metricState: string;
@@ -102,8 +105,11 @@ function calendar(asOf: string) {
 export function buildPerformanceAudit(input: {
   current: AuditSnapshot; previous?: AuditSnapshot; goal: AuditGoal; asOf: string;
   platform: string; adAccountId: string;
+  businessContext?: AuditBusinessContext;
 }) {
   const { current, previous } = input;
+  const businessContext: AuditBusinessContext = input.businessContext?.source === "brand" && input.businessContext.context
+    ? input.businessContext : { source: input.businessContext?.source === "unavailable" ? "unavailable" : "missing", context: null };
   const comparisonWindow = precedingAuditWindow(current.window);
   const findings: AuditFinding[] = [];
   const add = (f: Omit<AuditFinding, "id">, suffix = "") => findings.push({ ...f, id: `${f.code}:${suffix}` });
@@ -170,6 +176,7 @@ export function buildPerformanceAudit(input: {
     coverage: current.coverage, truncated: current.truncated, inventoryTotals: current.totals,
     verdict: findings.some(f => f.severity === "blocker") ? "blocked" as const : "review" as const,
     activationAllowed: false as const,
+    businessContext,
     findings, summaries,
     inventory: current.campaigns.filter(inScope).map(r => ({ id: key(r), campaignId: r.campaignId, name: r.campaignName,
       status: r.status, currency: r.currency, objective: r.objective ?? "Unknown", metricState: r.metricState,
@@ -198,6 +205,14 @@ export function auditMarkdown(audit: PerformanceAudit, context: { brand: string;
     `Window (UTC): ${audit.window.startDate} → ${audit.window.endDate}`,
     `Comparison (UTC): ${audit.comparisonWindow.startDate} → ${audit.comparisonWindow.endDate}`,
     `Coverage: ${audit.coverage} · Verdict: ${audit.verdict} · Live activation: locked / read-only`, "",
+    "## Business Context (brand-level)", "",
+    `Business context source: ${audit.businessContext.source}`,
+    "Operator inputs, not verified business economics; shared across accounts and markets, not an account/wholesale-specific profile.",
+    "No verified economics or numeric targets are inferred. The selected audit objective remains separate from the saved objective.", "",
+    BUSINESS_CONTEXT_CAUTION, "",
+    ...(audit.businessContext.context ? projectContextEntries(audit.businessContext.context).map(([label, value]) => `${label}: ${mdCell(value || "Not provided")}`) : [
+      audit.businessContext.source === "unavailable" ? "Could not load the exact brand context. No legacy fallback is used." : "No context saved for this brand. No legacy fallback is used.",
+    ]), "",
     "## Stored performance by currency", "", "Attributed conversion value is not store revenue, purchase-only proof or incremental profit.", "",
     "| Currency | Spend | Attributed value | Conversions | ROAS | Previous stored ROAS | CPA | CTR (%) |", "|---|---:|---:|---:|---:|---:|---:|---:|",
     ...audit.summaries.map(s => `| ${s.currency} | ${n(s.spend)} | ${n(s.value)} | ${n(s.conversions)} | ${n(s.roas)} | ${n(s.previous?.roas ?? null)} | ${n(s.cpa)} | ${n(s.ctr)} |`),

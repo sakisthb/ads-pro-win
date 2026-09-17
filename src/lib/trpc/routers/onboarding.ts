@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { Prisma } from "@prisma/client";
 import {
   createTRPCRouter,
@@ -12,6 +13,7 @@ import {
   mergeOrgSettings,
   parseObjective,
   parseOrgSettings,
+  strictContextForBrand,
   type ProjectContext,
 } from "@/lib/project-context";
 import { adAccountIsConnected } from "@/lib/connection-status";
@@ -36,6 +38,17 @@ function toNumber(value: Prisma.Decimal | null | undefined): number {
 }
 
 export const onboardingRouter = createTRPCRouter({
+  getBrandContext: organizationProcedure
+    .input(z.object({ brandId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const brand = await ctx.prisma.brand.findFirst({
+        where: { id: input.brandId, organizationId: ctx.organizationId }, select: { id: true },
+      });
+      if (!brand) throw new TRPCError({ code: "NOT_FOUND", message: "Brand not found" });
+      const context = strictContextForBrand(parseOrgSettings(ctx.organization.settings), input.brandId);
+      return { brandId: input.brandId, source: context ? "brand" as const : "missing" as const, context };
+    }),
+
   getStatus: organizationProcedure.query(async ({ ctx }) => {
     const parsed = parseOrgSettings(ctx.organization.settings);
     const accounts = await ctx.prisma.adAccount.findMany({
@@ -112,6 +125,12 @@ export const onboardingRouter = createTRPCRouter({
   saveContext: organizationAdminProcedure
     .input(contextInputSchema)
     .mutation(async ({ ctx, input }) => {
+      if (input.brandId) {
+        const brand = await ctx.prisma.brand.findFirst({
+          where: { id: input.brandId, organizationId: ctx.organizationId }, select: { id: true },
+        });
+        if (!brand) throw new TRPCError({ code: "NOT_FOUND", message: "Brand not found" });
+      }
       const projectContext: ProjectContext = {
         objective: parseObjective(input.objective),
         targetResult: input.targetResult.trim(),
