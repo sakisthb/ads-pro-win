@@ -459,19 +459,28 @@ export async function GET(
     // Meta only: resolve the REAL ad account id via the /me/adaccounts edge.
     // The sync fetcher calls graph.facebook.com/{version}/act_<accountId>/insights,
     // so `accountId` must be the numeric Meta ad account id (without the `act_`
-    // prefix that the Graph API itself prepends in URLs). Selection prefers an
-    // account whose name matches one of the org's brand names (case-insensitive),
-    // falling back to the first account in the list.
+    // prefix that the Graph API itself prepends in URLs). Reconnect must retain
+    // the selected account identity, not relabel its historical metrics.
     let metaAccounts: MetaAdAccount[] = [];
     if (platform === "meta") {
       const accountsUrl = new URL(`https://graph.facebook.com/${META_GRAPH_VERSION}/me/adaccounts`);
       accountsUrl.searchParams.set("fields", "id,name,account_status");
       accountsUrl.searchParams.set("access_token", tokens.accessToken);
+      accountsUrl.searchParams.set("limit", "100");
 
-      const accountsJson = await safeFetchJson<{
-        data?: MetaAdAccount[];
-      }>(accountsUrl.toString(), { method: "GET" });
-      metaAccounts = Array.isArray(accountsJson.data) ? accountsJson.data : [];
+      // Build subsequent requests from the cursor, never an arbitrary paging URL.
+      // Fail closed on incomplete discovery instead of selecting from a partial list.
+      for (let page = 0; page < 10; page += 1) {
+        const accountsJson = await safeFetchJson<{
+          data?: MetaAdAccount[];
+          paging?: { next?: string; cursors?: { after?: string } };
+        }>(accountsUrl.toString(), { method: "GET" });
+        if (Array.isArray(accountsJson.data)) metaAccounts.push(...accountsJson.data);
+        if (!accountsJson.paging?.next) break;
+        const after = accountsJson.paging.cursors?.after;
+        if (!after || page === 9) throw new Error("Meta account discovery incomplete");
+        accountsUrl.searchParams.set("after", after);
+      }
       if (metaAccounts.length === 0) {
         logSecurityEvent("oauth_failure", "warn", {
           code: "no_meta_accounts",
@@ -504,17 +513,30 @@ export async function GET(
       : null;
     const tokenExpiry = new Date(Date.now() + tokens.expiresIn * 1000);
 
-    // Meta only: pick the ad account to persist — prefer one whose name
-    // matches the target brand, else the first Meta account the user granted.
+    // Meta only: preserve an existing selection. A reconnect refreshes credentials;
+    // it must never switch brands or silently reuse historical data for another ID.
     let chosenMetaAccount: MetaAdAccount | undefined;
     if (platform === "meta") {
       const brandName = targetBrand.name.trim().toLowerCase();
-      chosenMetaAccount =
-        metaAccounts.find(
-          (acc) =>
-            typeof acc.name === "string" &&
-            acc.name.trim().toLowerCase() === brandName,
-        ) ?? metaAccounts[0];
+      if (adAccount?.accountId) {
+        const selectedId = adAccount.accountId.replace(/^act_/, "");
+        chosenMetaAccount = metaAccounts.find((acc) => acc.id.replace(/^act_/, "") === selectedId);
+        if (!chosenMetaAccount) {
+          logSecurityEvent("oauth_failure", "warn", { code: "meta_account_unavailable", platform });
+          return NextResponse.redirect(`${origin}/connections?error=meta-account-unavailable`);
+        }
+      } else {
+        const matchingAccounts = metaAccounts.filter(
+          (acc) => typeof acc.name === "string" && acc.name.trim().toLowerCase() === brandName,
+        );
+        chosenMetaAccount = matchingAccounts.length === 1
+          ? matchingAccounts[0]
+          : metaAccounts.length === 1 ? metaAccounts[0] : undefined;
+        if (!chosenMetaAccount) {
+          logSecurityEvent("oauth_failure", "warn", { code: "meta_ambiguous_accounts", platform });
+          return NextResponse.redirect(`${origin}/connections?error=meta-ambiguous-accounts`);
+        }
+      }
     }
 
     // Resolve the accountId / name to persist for this platform.

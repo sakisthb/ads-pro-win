@@ -148,6 +148,8 @@ describe("GET /api/auth/[platform]/callback", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedSafeFetch.mockReset();
+    mockedSafeFetchJson.mockReset();
     // getOrigin() prefers NEXT_PUBLIC_SITE_URL; drop it so the origin comes
     // from the request URL and assertions hold in any environment (CI sets it).
     delete process.env.NEXT_PUBLIC_SITE_URL;
@@ -359,6 +361,88 @@ describe("GET /api/auth/[platform]/callback", () => {
         }),
       }),
     );
+  });
+
+  describe("Meta account identity", () => {
+    function setupMetaAccounts(
+      existing: { id: string; platform: string; accountId: string; name: string }[] = [],
+    ) {
+      mockedPrisma.organization.findUnique.mockResolvedValue({
+        id: "org-1",
+        brands: [{
+          id: "brand-1", name: "BAGTOBAG", website: "https://bagtobag.com.gr",
+          adAccounts: existing,
+        }],
+      });
+      mockedSafeFetchJson
+        .mockResolvedValueOnce({ access_token: "short-token" })
+        .mockResolvedValueOnce({ access_token: "long-token", expires_in: 5_184_000 });
+      mockedPrisma.adAccount.update.mockResolvedValue({});
+    }
+
+    const btbConnection = {
+      id: "existing-btb", platform: "meta", accountId: "377992403045602", name: "BTB - B2C",
+    };
+    const maria = { id: "act_291262437741369", name: "Maria boudoir" };
+    const btb = { id: "act_377992403045602", name: "BTB - B2C" };
+
+    it("preserves the selected account on reconnect instead of taking the first account", async () => {
+      setupMetaAccounts([btbConnection]);
+      mockedSafeFetchJson.mockResolvedValueOnce({ data: [maria, btb] });
+
+      const response = await callbackOAuth(callbackRequest("meta", "valid-state"), {
+        params: Promise.resolve({ platform: "meta" }),
+      });
+
+      expect(response.headers.get("Location")).toContain("connected=meta");
+      expect(mockedPrisma.adAccount.update).toHaveBeenCalledWith({
+        where: { id: "existing-btb" },
+        data: expect.objectContaining({ accountId: "377992403045602", name: "BTB - B2C" }),
+      });
+    });
+
+    it("does not replace an existing account when the new grant cannot access it", async () => {
+      setupMetaAccounts([btbConnection]);
+      mockedSafeFetchJson.mockResolvedValueOnce({ data: [maria] });
+
+      const response = await callbackOAuth(callbackRequest("meta", "valid-state"), {
+        params: Promise.resolve({ platform: "meta" }),
+      });
+
+      expect(response.headers.get("Location")).toContain("error=meta-account-unavailable");
+      expect(mockedPrisma.adAccount.update).not.toHaveBeenCalled();
+      expect(mockedPrisma.adAccount.create).not.toHaveBeenCalled();
+    });
+
+    it("fails closed on an ambiguous first connection rather than guessing the first account", async () => {
+      setupMetaAccounts();
+      mockedSafeFetchJson.mockResolvedValueOnce({ data: [maria, btb] });
+
+      const response = await callbackOAuth(callbackRequest("meta", "valid-state"), {
+        params: Promise.resolve({ platform: "meta" }),
+      });
+
+      expect(response.headers.get("Location")).toContain("error=meta-ambiguous-accounts");
+      expect(mockedPrisma.adAccount.update).not.toHaveBeenCalled();
+      expect(mockedPrisma.adAccount.create).not.toHaveBeenCalled();
+    });
+
+    it("finds the selected account beyond the first provider page", async () => {
+      setupMetaAccounts([btbConnection]);
+      mockedSafeFetchJson
+        .mockResolvedValueOnce({ data: [maria], paging: { next: "https://graph.facebook.com/v18.0/me/adaccounts?after=page2", cursors: { after: "page2" } } })
+        .mockResolvedValueOnce({ data: [btb] });
+
+      const response = await callbackOAuth(callbackRequest("meta", "valid-state"), {
+        params: Promise.resolve({ platform: "meta" }),
+      });
+
+      expect(response.headers.get("Location")).toContain("connected=meta");
+      expect(mockedSafeFetchJson).toHaveBeenCalledTimes(4);
+      expect(mockedPrisma.adAccount.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ accountId: "377992403045602" }),
+      }));
+    });
   });
 
   it("passes the stored code verifier to Google token exchange", async () => {

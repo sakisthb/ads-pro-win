@@ -10,6 +10,7 @@ import { useState } from "react";
 import superjson from "superjson";
 
 import { api } from "@/lib/trpc/react";
+import { fetchPrivateApi } from "@/lib/trpc/private-api-fetch";
 
 const createQueryClient = () =>
   new QueryClient({
@@ -75,8 +76,7 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
           // Explicitly send cookies (e.g. the x-active-org cookie consumed by
           // organizationProcedure). Same-origin defaults already do this, but
           // setting `credentials` ensures it across environments.
-          fetch: (url, options) =>
-            fetch(url, { ...options, credentials: "include" }),
+          fetch: fetchPrivateApi,
           headers() {
             const headers = new Map<string, string>();
             headers.set("x-trpc-source", "nextjs-react");

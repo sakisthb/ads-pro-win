@@ -758,6 +758,10 @@ export default function ConnectionsPage() {
       toast.error(
         error === "meta-no-accounts"
           ? "Facebook returned no ad accounts. Reconnect and approve ads management."
+          : error === "meta-account-unavailable"
+            ? "Meta cannot access the selected ad account. The existing connection was not changed. Check account access before reconnecting."
+          : error === "meta-ambiguous-accounts"
+            ? "Meta returned multiple accounts without a unique brand match. No account was connected. Explicit account selection is required."
           : reason === "brand"
             ? "That shop is not in this workspace."
             : `Could not connect ${error}. Use Reconnect and approve every permission.`,
