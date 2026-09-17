@@ -1,6 +1,7 @@
 import { adsManagerUrl, friendlyPlatformError, mapTikTokObjective, type LiveStatus } from "./mapping";
 import type { LaunchSpec, PlatformLaunchResult, ScaleResult, StatusResult } from "./types";
 import { safeFetch } from "@/lib/safe-fetch";
+import { campaignCreationBlockReason, readOnlyAdWriteReason } from "./write-policy";
 
 const TIKTOK_API = "https://business-api.tiktok.com/open_api/v1.3";
 
@@ -35,6 +36,8 @@ export async function launchTikTokCampaign(
   advertiserId: string,
   spec: LaunchSpec,
 ): Promise<PlatformLaunchResult> {
+  const blocked = campaignCreationBlockReason("tiktok");
+  if (blocked) return { platform: "tiktok", ok: false, message: blocked, warnings: [] };
   try {
     const body = await tiktokPost("/campaign/create/", accessToken, {
       advertiser_id: advertiserId,
@@ -74,6 +77,8 @@ export async function updateTikTokCampaignStatus(
   campaignId: string,
   status: LiveStatus,
 ): Promise<StatusResult> {
+  const blocked = readOnlyAdWriteReason("tiktok");
+  if (blocked) return { platform: "tiktok", ok: false, campaignId, status, message: blocked };
   try {
     await tiktokPost("/campaign/status/update/", accessToken, {
       advertiser_id: advertiserId,
@@ -104,6 +109,8 @@ export async function scaleTikTokCampaignBudget(
   campaignId: string,
   nextDailyBudget: number,
 ): Promise<ScaleResult> {
+  const blocked = readOnlyAdWriteReason("tiktok");
+  if (blocked) return { platform: "tiktok", ok: false, campaignId, message: blocked };
   try {
     await tiktokPost("/campaign/update/", accessToken, {
       advertiser_id: advertiserId,

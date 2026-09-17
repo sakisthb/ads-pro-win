@@ -7,6 +7,7 @@ import {
 import type { LaunchSpec, PlatformLaunchResult, ScaleResult, StatusResult } from "./types";
 import { googleAdsLoginCustomerId, googleAdsSearchRows, parseGoogleAdsCustomerId } from "@/lib/google-ads-accounts";
 import { safeFetch } from "@/lib/safe-fetch";
+import { campaignCreationBlockReason, readOnlyAdWriteReason } from "./write-policy";
 
 const GOOGLE_ADS_API_VERSION = "v25";
 
@@ -67,7 +68,7 @@ async function googleSearch<T>(
 }
 
 export function googleWriteConfigured(): boolean {
-  return true;
+  return readOnlyAdWriteReason("google") === null;
 }
 
 export async function launchGoogleCampaign(
@@ -75,11 +76,12 @@ export async function launchGoogleCampaign(
   accountId: string,
   spec: LaunchSpec,
 ): Promise<PlatformLaunchResult> {
-  if (!googleWriteConfigured()) {
+  const blocked = campaignCreationBlockReason("google");
+  if (blocked) {
     return {
       platform: "google",
       ok: false,
-      message: "GOOGLE_ADS_DEVELOPER_TOKEN is not set, so Google campaign writes are disabled.",
+      message: blocked,
       warnings: [],
     };
   }
@@ -151,6 +153,8 @@ export async function updateGoogleCampaignStatus(
   campaignId: string,
   status: LiveStatus,
 ): Promise<StatusResult> {
+  const blocked = readOnlyAdWriteReason("google");
+  if (blocked) return { platform: "google", ok: false, campaignId, status, message: blocked };
   const cid = bareCustomerId(accountId);
   try {
     await googleMutate(accessToken, accountId, "campaigns", {
@@ -188,6 +192,8 @@ export async function scaleGoogleCampaignBudget(
   campaignId: string,
   multiplier: number,
 ): Promise<ScaleResult> {
+  const blocked = readOnlyAdWriteReason("google");
+  if (blocked) return { platform: "google", ok: false, campaignId, message: blocked };
   const cid = bareCustomerId(accountId);
   try {
     const rows = await googleSearch<{

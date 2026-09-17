@@ -24,6 +24,7 @@ import { fetchCampaignBudgetSnapshot, setMetaBudget } from "@/lib/meta/operator"
 import { META_GRAPH_VERSION } from "@/lib/meta/actions";
 import { resolveBudgetEditTarget } from "@/lib/meta/operator-logic";
 import { safeFetch } from "@/lib/safe-fetch";
+import { campaignCreationBlockReason } from "./write-policy";
 
 const GRAPH = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
 
@@ -177,6 +178,8 @@ export async function launchMetaCampaign(
   accountId: string,
   spec: LaunchSpec,
 ): Promise<PlatformLaunchResult> {
+  const blocked = campaignCreationBlockReason("meta");
+  if (blocked) return { platform: "meta", ok: false, message: blocked, warnings: [] };
   const warnings: string[] = [];
   const status: LiveStatus = spec.goLive ? "ACTIVE" : "PAUSED";
   const objective = effectiveObjective(spec);

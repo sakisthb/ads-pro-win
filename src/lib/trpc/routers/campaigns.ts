@@ -11,7 +11,6 @@ import {
 import {
   generateLaunchPlan,
   getMetaGrantedPermissions,
-  googleWriteConfigured,
   launchGoogleCampaign,
   launchMetaCampaign,
   launchTikTokCampaign,
@@ -32,6 +31,7 @@ import {
   type PlatformLaunchResult,
 } from "@/lib/platform-launch";
 import { contextForBrand, contextToPromptBlock, parseOrgSettings } from "@/lib/project-context";
+import { campaignCreationBlockReason, readOnlyAdWriteReason } from "@/lib/platform-launch/write-policy";
 
 // Input validation schemas
 const createCampaignSchema = z.object({
@@ -637,10 +637,6 @@ export const campaignsRouter = createTRPCRouter({
           } catch {
             canWrite = false;
           }
-        } else if (isConnected && a.platform === "google") {
-          canWrite = googleWriteConfigured();
-        } else if (isConnected && a.platform === "tiktok") {
-          canWrite = true;
         }
         return {
           id: a.id,
@@ -652,6 +648,9 @@ export const campaignsRouter = createTRPCRouter({
           isActive: a.isActive,
           isConnected,
           canWrite,
+          writeBlockedReason: readOnlyAdWriteReason(a.platform),
+          canLaunch: campaignCreationBlockReason(a.platform) === null,
+          launchBlockedReason: campaignCreationBlockReason(a.platform),
           lastSyncAt: a.lastSyncAt,
           grantedPermissions: granted,
         };
@@ -744,6 +743,11 @@ export const campaignsRouter = createTRPCRouter({
     .input(launchInputSchema)
     .mutation(async ({ ctx, input }) => {
       assertNotDemoOrg(ctx.organization.slug);
+      // Preflight every platform before any account refresh, provider call or draft write.
+      for (const platform of input.platforms) {
+        const blocked = campaignCreationBlockReason(platform);
+        if (blocked) throw new TRPCError({ code: "FORBIDDEN", message: blocked });
+      }
       const spec = toLaunchSpec(input);
       const results: PlatformLaunchResult[] = [];
 
@@ -828,6 +832,8 @@ export const campaignsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       assertNotDemoOrg(ctx.organization.slug);
+      const blocked = readOnlyAdWriteReason(input.platform);
+      if (blocked) throw new TRPCError({ code: "FORBIDDEN", message: blocked });
       const resolved = await resolveLaunchAccount(
         ctx.prisma,
         ctx.organizationId,
@@ -891,6 +897,8 @@ export const campaignsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       assertNotDemoOrg(ctx.organization.slug);
+      const blocked = readOnlyAdWriteReason(input.platform);
+      if (blocked) throw new TRPCError({ code: "FORBIDDEN", message: blocked });
       const resolved = await resolveLaunchAccount(
         ctx.prisma,
         ctx.organizationId,

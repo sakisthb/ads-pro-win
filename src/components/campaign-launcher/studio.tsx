@@ -34,6 +34,7 @@ import { consumeLaunchDraft } from "@/lib/creative-fatigue";
 import { useCurrency } from "@/components/providers/currency";
 import type { LaunchObjective, LaunchPlatform } from "@/lib/platform-launch/mapping";
 import { canSubmitLaunch } from "@/lib/platform-launch/mapping";
+import { campaignCreationBlockReason, readOnlyAdWriteReason } from "@/lib/platform-launch/write-policy";
 
 type StudioMode = "create" | "launch" | "automation" | "scale";
 
@@ -169,7 +170,7 @@ export function CampaignLauncherStudio() {
       }
       setMode("automation");
       setStep(5);
-      toast.success("Plan ready — review the hierarchy, then apply paused");
+      toast.success("Plan ready — draft only; live creation is locked by policy");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -252,7 +253,8 @@ export function CampaignLauncherStudio() {
     return map;
   }, [connections]);
 
-  const canLaunch = canSubmitLaunch({
+  const creationBlockedReason = platforms.map(campaignCreationBlockReason).find(Boolean);
+  const canLaunch = !creationBlockedReason && canSubmitLaunch({
     name,
     headline,
     primaryText,
@@ -327,7 +329,7 @@ export function CampaignLauncherStudio() {
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-sky-400" />
               <span className="text-[11px] font-medium uppercase tracking-widest text-white/40">
-                Create · Automation · Scale
+                Plan · Review · Existing Meta edits
               </span>
             </div>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-white">
@@ -337,7 +339,7 @@ export function CampaignLauncherStudio() {
               </span>
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-zinc-400">
-              Live create, paused review, and confirm-before-scale for the selected shop. Demo workspace is StyleVault sample data only.
+              Prepare and review plans for the selected shop. Live creation stays locked; Google/TikTok remain read-only. Demo workspace is StyleVault sample data only.
             </p>
             {!isDemo && (
               <div className="mt-3">
@@ -355,7 +357,7 @@ export function CampaignLauncherStudio() {
                   mode === id ? "bg-sky-500/20 text-white" : "text-zinc-400 hover:text-white"
                 }`}
               >
-                {id === "launch" ? "Plan" : id}
+                {id === "launch" ? "Plan" : id === "create" ? "Draft" : id === "automation" ? "Hierarchy" : "scale"}
               </button>
             ))}
           </div>
@@ -373,9 +375,9 @@ export function CampaignLauncherStudio() {
                 {isDemo ? (
                   <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Demo</span>
                 ) : info.canWrite ? (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Can write</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Existing Meta edits</span>
                 ) : info.connected ? (
-                  <Link href={connectionsHref} className="text-[10px] font-bold uppercase tracking-wider text-amber-400 hover:underline">
+                  readOnlyAdWriteReason(p) ? <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Read-only</span> : <Link href={connectionsHref} className="text-[10px] font-bold uppercase tracking-wider text-amber-400 hover:underline">
                     Reconnect to write
                   </Link>
                 ) : (
@@ -388,15 +390,19 @@ export function CampaignLauncherStudio() {
           })}
         </motion.div>
 
+        <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          Planning only — campaign creation is locked. Google/TikTok remain read-only; Meta permits existing-object edits, not new campaigns/ad sets/ads. Reconnect does not unlock creation.
+        </div>
+
         {isDemo && (
           <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-            This is the Demo workspace (StyleVault sample). Switch to your real workspace to launch for live shops.
+            This is the Demo workspace (StyleVault sample). Switch to your real workspace to prepare plans for your shop; live creation remains locked.
           </div>
         )}
 
         {fromFatigue && (
           <div className="flex items-start justify-between gap-3 rounded-2xl border border-sky-400/25 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">
-            <p>Prefills from Creative Fatigue. Review the copy, then launch a replacement campaign as paused.</p>
+            <p>Planning inputs from Creative Fatigue. Review the proposed replacement copy; no campaign is created.</p>
             <Link href="/creative-fatigue" className="shrink-0 text-xs font-semibold text-sky-200 hover:underline">
               Back to fatigue
             </Link>
@@ -578,7 +584,7 @@ export function CampaignLauncherStudio() {
                       </div>
                     </div>
                     <div>
-                      <p className="mb-2 text-xs font-medium text-white/50">Launch on</p>
+                      <p className="mb-2 text-xs font-medium text-white/50">Plan for</p>
                       <div className="space-y-2">
                         {(["meta", "google", "tiktok"] as LaunchPlatform[]).map((p) => {
                           const conn = connections.find((c) => c.platform === p && c.isConnected);
@@ -601,7 +607,7 @@ export function CampaignLauncherStudio() {
                                 <p className="text-sm font-semibold text-white">{PLATFORM_META[p].name}</p>
                                 <p className="text-[11px] text-zinc-500">
                                   {conn ? conn.name : "Not connected"}
-                                  {conn && !conn.canWrite ? " · reconnect for write access" : ""}
+                                  {conn && !conn.canWrite ? readOnlyAdWriteReason(p) ? " · read-only" : " · reconnect for existing Meta edits" : ""}
                                 </p>
                               </div>
                               {platforms.includes(p) && <Check className="h-4 w-4 text-sky-300" />}
@@ -673,7 +679,7 @@ export function CampaignLauncherStudio() {
                       </label>
                     </div>
                     <p className="text-xs leading-relaxed text-zinc-500">
-                      Meta launches with Advantage-style broad targeting (geo + age). Interest names are stored on the draft; Meta no longer wants you to pick 40 interest IDs by hand.
+                      Geo, age and interest labels are planning inputs. No provider audience is applied by this plan.
                     </p>
                   </>
                 )}
@@ -742,7 +748,7 @@ export function CampaignLauncherStudio() {
                             onChange={(e) => setPixelId(e.target.value)}
                             className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white [color-scheme:dark]"
                           >
-                            <option value="">None — launch as Traffic</option>
+                            <option value="">Not selected — sales tracking unverified</option>
                             {pixels.map((p) => (
                               <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
@@ -766,19 +772,20 @@ export function CampaignLauncherStudio() {
                       />
                     </label>
                     <p className="text-xs text-zinc-500">
-                      ≈ {format(Number(budget || 0) * 30)} / month across selected platforms (same daily budget per platform).
+                      Planning estimate: ≈ {format(Number(budget || 0) * 30 * platforms.length)} / month across selected platforms (same daily budget per platform). No budget is applied.
                     </p>
                     <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
                       <input
                         type="checkbox"
                         checked={goLive}
+                        disabled={Boolean(creationBlockedReason)}
                         onChange={(e) => setGoLive(e.target.checked)}
                         className="mt-1"
                       />
                       <span>
-                        <span className="block text-sm font-semibold text-white">Go live immediately</span>
+                        <span className="block text-sm font-semibold text-white">Plan an ACTIVE status (not applied)</span>
                         <span className="text-xs text-zinc-500">
-                          Off = create as PAUSED (recommended). On = start spending as soon as the platforms approve the ads.
+                          Planned PAUSED/ACTIVE status is not applied. Live creation is locked by the current action policy.
                         </span>
                       </span>
                     </label>
@@ -792,7 +799,7 @@ export function CampaignLauncherStudio() {
                     <Row label="Platforms" value={platforms.map((p) => PLATFORM_META[p].name).join(", ")} />
                     <Row label="Audience" value={`${countries.join(", ")} · ${ageMin}–${ageMax}`} />
                     <Row label="Budget" value={`${format(Number(budget || 0))} / day`} />
-                    <Row label="Status" value={goLive ? "ACTIVE on push" : "PAUSED on push"} />
+                    <Row label="Status" value={creationBlockedReason ? "Plan only — not applied" : goLive ? "ACTIVE on push" : "PAUSED on push"} />
                     <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                       <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Ad preview</p>
                       <p className="mt-2 font-semibold text-white">{headline || "Headline"}</p>
@@ -807,7 +814,7 @@ export function CampaignLauncherStudio() {
                       className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {launch.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-                      {goLive ? "Confirm live launch" : "Review & create paused"}
+                      {creationBlockedReason ? "Creation locked" : goLive ? "Confirm live launch" : "Review & create paused"}
                     </button>
                   </div>
                 )}
@@ -872,7 +879,7 @@ export function CampaignLauncherStudio() {
                     <h3 className="text-sm font-semibold text-white">Workspace drafts</h3>
                   </div>
                   {drafts.length === 0 ? (
-                    <p className="text-xs text-zinc-500">Launched campaigns land here and on the Campaigns page.</p>
+                    <p className="text-xs text-zinc-500">Local workspace plans are separate from synced provider inventory.</p>
                   ) : (
                     <div className="max-h-64 space-y-2 overflow-y-auto">
                       {drafts.map((d) => (
@@ -908,7 +915,7 @@ export function CampaignLauncherStudio() {
                   Continue <ArrowRight className="h-4 w-4" />
                 </button>
               ) : (
-                <span className="text-xs text-zinc-500">Review, then launch above.</span>
+                <span className="text-xs text-zinc-500">Review this local plan; live creation remains locked.</span>
               )}
             </motion.div>
           </>
@@ -922,7 +929,7 @@ export function CampaignLauncherStudio() {
                 <h2 className="text-base font-semibold text-white">Hierarchy review</h2>
               </div>
               <p className="text-xs text-zinc-500">
-                Same order as Ads Manager. New structures stay PAUSED. Tick only the layers to apply, then confirm.
+                Review the planned hierarchy in Ads Manager order. These layers are planning inputs; no new structure is applied to a provider.
               </p>
               {[
                 { key: "campaign", label: "Campaign", detail: `${name || "Untitled"} · ${objective} · ${format(Number(budget || 0))}/day`, locked: true },
@@ -945,7 +952,7 @@ export function CampaignLauncherStudio() {
               ))}
               <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm">
                 <p className="font-semibold text-white">{headline || "Headline"}</p>
-                <p className="mt-1 whitespace-pre-wrap text-zinc-300">{primaryText || "Generate a plan in Create first."}</p>
+                <p className="mt-1 whitespace-pre-wrap text-zinc-300">{primaryText || "Generate a plan in Draft first."}</p>
               </div>
               <button
                 type="button"
@@ -954,7 +961,7 @@ export function CampaignLauncherStudio() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {launch.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-                Apply selected layers as paused
+                {creationBlockedReason ? "Creation locked" : "Apply selected layers as paused"}
               </button>
             </div>
             <div className="space-y-4 lg:col-span-2">
@@ -1006,7 +1013,7 @@ export function CampaignLauncherStudio() {
                   const platform = (c.platform === "facebook" ? "meta" : c.platform) as LaunchPlatform;
                   if (platform !== "meta" && platform !== "google" && platform !== "tiktok") return null;
                   return (
-                    <div key={c.campaignId} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center">
+                    <div key={c.reportRowId} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-white">{c.campaignName}</p>
                         <p className="text-[11px] text-zinc-500">
@@ -1016,7 +1023,7 @@ export function CampaignLauncherStudio() {
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          disabled={isDemo || liveStatus.isPending}
+                          disabled={isDemo || liveStatus.isPending || Boolean(readOnlyAdWriteReason(platform))}
                           onClick={() =>
                             setPending({
                               platform,
@@ -1031,7 +1038,7 @@ export function CampaignLauncherStudio() {
                         </button>
                         <button
                           type="button"
-                          disabled={isDemo || liveStatus.isPending}
+                          disabled={isDemo || liveStatus.isPending || Boolean(readOnlyAdWriteReason(platform))}
                           onClick={() =>
                             setPending({
                               platform,
@@ -1048,7 +1055,7 @@ export function CampaignLauncherStudio() {
                           <button
                             key={m}
                             type="button"
-                            disabled={isDemo || scaleBudget.isPending}
+                            disabled={isDemo || scaleBudget.isPending || Boolean(readOnlyAdWriteReason(platform))}
                             onClick={() =>
                               setPending({
                                 kind: "scale",
@@ -1075,7 +1082,7 @@ export function CampaignLauncherStudio() {
         {connections.every((c) => !c.isConnected) && !isDemo && (
           <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-5 py-4">
             <div className="flex items-center gap-2 text-sm text-zinc-400">
-              <Plug className="h-4 w-4" /> Connect Meta, Google, or TikTok to launch for real.
+              <Plug className="h-4 w-4" /> Connect accounts for reporting. Connection does not unlock live creation.
             </div>
             <Link href={connectionsHref} className="text-sm font-semibold text-sky-300">
               Open Connections
@@ -1089,9 +1096,7 @@ export function CampaignLauncherStudio() {
               <h3 className="text-base font-semibold text-white">Confirm before it hits the platform</h3>
               <p className="mt-2 text-sm leading-relaxed text-zinc-400">
                 {pending.kind === "launch" &&
-                  (mode === "automation" || !goLive
-                    ? "Create this structure as PAUSED. Nothing spends until you confirm activate."
-                    : "This will create the campaign as ACTIVE. Spend can start after platform review.")}
+                  "Live creation is locked by the current action policy. Review this as a plan only."}
                 {pending.kind === "status" &&
                   (pending.status === "PAUSED"
                     ? "Pause this campaign on the live ad account?"
