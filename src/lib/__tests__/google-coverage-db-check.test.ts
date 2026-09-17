@@ -99,4 +99,12 @@ describe("CI-only Google coverage database verification", () => {
     expect(prepare).toBeLessThan(migrate);
     expect(verify).toBeGreaterThan(drift);
   });
+
+  it("migrates and verifies the same disposable database used by the smoke container", () => {
+    const workflow = readFileSync(resolve(process.cwd(), ".github/workflows/ci.yml"), "utf8");
+    const smokeMigration = workflow.split("      - name: Apply migrations to smoke database")[1].split("      - name: Build application image")[0];
+    expect(smokeMigration).toContain("DATABASE_URL: ${{ env.SMOKE_DATABASE_URL }}");
+    expect(smokeMigration).toContain("DIRECT_DATABASE_URL: ${{ env.SMOKE_DATABASE_URL }}");
+    expect(smokeMigration.indexOf("npx prisma migrate status")).toBeGreaterThan(smokeMigration.indexOf("npx prisma migrate deploy"));
+  });
 });

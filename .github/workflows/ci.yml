@@ -183,9 +183,12 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
       - name: Apply migrations to smoke database
-        run: npx prisma migrate deploy
+        run: |
+          npx prisma migrate deploy
+          npx prisma migrate status
         env:
           DATABASE_URL: ${{ env.SMOKE_DATABASE_URL }}
+          DIRECT_DATABASE_URL: ${{ env.SMOKE_DATABASE_URL }}
       - name: Build application image
         run: |
           docker build \
