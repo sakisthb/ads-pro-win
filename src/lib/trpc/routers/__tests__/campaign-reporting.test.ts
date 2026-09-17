@@ -95,6 +95,17 @@ it("returns exact storage window and marks inventory without metrics as unverifi
   expect(data.campaigns[0]).toMatchObject({ adAccountId: "acc-a", metricState: "no_stored_metrics", currency: "EUR" });
 });
 
+it("supports a bounded complete audit inventory above the legacy 200-row display cap", async () => {
+  jest.mocked(prisma.adCampaign.findMany).mockResolvedValue(Array.from({length:300},(_,i)=>({
+    ...object("acc-a", `Fixture campaign ${i}`), platformCampaignId:`fixture-${i}`,
+  })) as never);
+  const {data}=await caller().getCampaignPerformance({...windowInput,limit:1000});
+  expect(data.campaigns).toHaveLength(300);
+  expect(data.truncated).toBe(false);
+  expect(data.totals.campaigns).toBe(300);
+  await expect(caller().getCampaignPerformance({...windowInput,limit:1001})).rejects.toMatchObject({code:"BAD_REQUEST"});
+});
+
 it("does not add different currencies into one spend total", async () => {
   jest.mocked(prisma.dailyMetric.groupBy).mockResolvedValue([metric("acc-a", 10), { ...metric("acc-b", 30), currency: "USD" }] as never);
   const { data } = await caller().getCampaignPerformance(windowInput);
