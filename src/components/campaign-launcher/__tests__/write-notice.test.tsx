@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { CampaignLauncherStudio } from "../studio";
 
 jest.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams("mode=launch") }));
@@ -22,4 +22,12 @@ it("explains planning-only creation lock without asking read-only Google to reco
   expect(screen.queryByText("Reconnect to write")).not.toBeInTheDocument();
   expect(screen.queryByText(/Live create, paused review/)).not.toBeInTheDocument();
   expect(screen.getByText(/Prepare and review plans for the selected shop/)).toBeInTheDocument();
+  expect(screen.queryByText("Launch on")).not.toBeInTheDocument();
+  expect(screen.getByText("Plan for")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Budget", exact: true }));
+  expect(screen.getByRole("checkbox", { name: /Plan an ACTIVE status/ })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Review", exact: true }));
+  expect(screen.getByRole("button", { name: "Creation locked", exact: true })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Hierarchy", exact: true }));
+  expect(screen.getByRole("button", { name: "Creation locked", exact: true })).toBeDisabled();
 });
