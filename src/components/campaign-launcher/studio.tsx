@@ -329,7 +329,7 @@ export function CampaignLauncherStudio() {
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-sky-400" />
               <span className="text-[11px] font-medium uppercase tracking-widest text-white/40">
-                Create · Automation · Scale
+                Plan · Review · Existing Meta edits
               </span>
             </div>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-white">
@@ -339,7 +339,7 @@ export function CampaignLauncherStudio() {
               </span>
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-zinc-400">
-              Live create, paused review, and confirm-before-scale for the selected shop. Demo workspace is StyleVault sample data only.
+              Prepare and review plans for the selected shop. Live creation stays locked; Google/TikTok remain read-only. Demo workspace is StyleVault sample data only.
             </p>
             {!isDemo && (
               <div className="mt-3">
@@ -914,7 +914,7 @@ export function CampaignLauncherStudio() {
                   Continue <ArrowRight className="h-4 w-4" />
                 </button>
               ) : (
-                <span className="text-xs text-zinc-500">Review, then launch above.</span>
+                <span className="text-xs text-zinc-500">Review this local plan; live creation remains locked.</span>
               )}
             </motion.div>
           </>
@@ -928,7 +928,7 @@ export function CampaignLauncherStudio() {
                 <h2 className="text-base font-semibold text-white">Hierarchy review</h2>
               </div>
               <p className="text-xs text-zinc-500">
-                Same order as Ads Manager. New structures stay PAUSED. Tick only the layers to apply, then confirm.
+                Review the planned hierarchy in Ads Manager order. These layers are planning inputs; no new structure is applied to a provider.
               </p>
               {[
                 { key: "campaign", label: "Campaign", detail: `${name || "Untitled"} · ${objective} · ${format(Number(budget || 0))}/day`, locked: true },
@@ -1081,7 +1081,7 @@ export function CampaignLauncherStudio() {
         {connections.every((c) => !c.isConnected) && !isDemo && (
           <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-5 py-4">
             <div className="flex items-center gap-2 text-sm text-zinc-400">
-              <Plug className="h-4 w-4" /> Connect Meta, Google, or TikTok to launch for real.
+              <Plug className="h-4 w-4" /> Connect accounts for reporting. Connection does not unlock live creation.
             </div>
             <Link href={connectionsHref} className="text-sm font-semibold text-sky-300">
               Open Connections
@@ -1095,9 +1095,7 @@ export function CampaignLauncherStudio() {
               <h3 className="text-base font-semibold text-white">Confirm before it hits the platform</h3>
               <p className="mt-2 text-sm leading-relaxed text-zinc-400">
                 {pending.kind === "launch" &&
-                  (mode === "automation" || !goLive
-                    ? "Create this structure as PAUSED. Nothing spends until you confirm activate."
-                    : "This will create the campaign as ACTIVE. Spend can start after platform review.")}
+                  "Live creation is locked by the current action policy. Review this as a plan only."}
                 {pending.kind === "status" &&
                   (pending.status === "PAUSED"
                     ? "Pause this campaign on the live ad account?"

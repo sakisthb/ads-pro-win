@@ -20,4 +20,6 @@ it("explains planning-only creation lock without asking read-only Google to reco
   expect(screen.getByText(/Planning only/)).toBeInTheDocument();
   expect(screen.getByText("Read-only")).toBeInTheDocument();
   expect(screen.queryByText("Reconnect to write")).not.toBeInTheDocument();
+  expect(screen.queryByText(/Live create, paused review/)).not.toBeInTheDocument();
+  expect(screen.getByText(/Prepare and review plans for the selected shop/)).toBeInTheDocument();
 });
