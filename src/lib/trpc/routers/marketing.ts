@@ -105,6 +105,7 @@ import {
   parseGoogleAdsCustomerId,
 } from "@/lib/google-ads-accounts";
 
+import { campaignReportKey, campaignReportPlatformWhere, validCampaignWindow } from "@/lib/campaign-reporting";
 const META_GRAPH = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
 
 // ============================================================================
@@ -2255,11 +2256,26 @@ export const marketingRouter = createTRPCRouter({
   // --------------------------------------------------------------------------
   // Get per-campaign performance (optional date window; defaults to all time)
   // --------------------------------------------------------------------------
+  getCampaignReportAccounts: organizationProcedure
+    .input(z.object({ brandId: z.string().min(1).optional(), platform: z.enum(["all", "meta", "facebook", "instagram", "google", "tiktok"]).optional() }))
+    .query(async ({ input, ctx }) => {
+      await validateBrandAccess(ctx.prisma, ctx.organizationId, input.brandId);
+      const accounts = await ctx.prisma.adAccount.findMany({
+        where: { ...campaignReportPlatformWhere(input.platform), brand: { organizationId: ctx.organizationId, ...(input.brandId ? { id: input.brandId } : {}) } },
+        select: { id: true, accountId: true, name: true, platform: true, currency: true }, orderBy: { name: "asc" },
+      });
+      return { accounts };
+    }),
+
   getCampaignPerformance: organizationProcedure
     .input(
       z.object({
         limit: z.number().min(1).max(200).default(200),
         brandId: z.string().min(1).optional(),
+        adAccountId: z.string().min(1).optional(),
+        platform: z.enum(["all", "meta", "facebook", "instagram", "google", "tiktok"]).optional(),
+        status: z.enum(["active", "paused", "archived", "learning", "ended", "draft", "completed", "unknown"]).optional(),
+        search: z.string().max(200).optional(),
         startDate: z
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -2274,6 +2290,23 @@ export const marketingRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       try {
         await validateBrandAccess(ctx.prisma, ctx.organizationId, input.brandId);
+        const window = {
+          startDate: input.startDate ?? "2000-01-01",
+          endDate: input.endDate ?? new Date().toISOString().slice(0, 10),
+        };
+        if (!validCampaignWindow(window.startDate, window.endDate)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or reversed campaign reporting window." });
+        }
+        const accountScope = {
+          brand: { organizationId: ctx.organizationId, ...(input.brandId ? { id: input.brandId } : {}) },
+        };
+        const platformScope = campaignReportPlatformWhere(input.platform);
+        if (input.adAccountId) {
+          const ownedAccount = await ctx.prisma.adAccount.findFirst({
+            where: { id: input.adAccountId, ...accountScope, ...platformScope }, select: { id: true },
+          });
+          if (!ownedAccount) throw new TRPCError({ code: "NOT_FOUND", message: "Campaign report account not found in this scope." });
+        }
         const mode = await loadShopMarketMode({
           prisma: ctx.prisma,
           organizationId: ctx.organizationId,
@@ -2281,13 +2314,12 @@ export const marketingRouter = createTRPCRouter({
           brandId: input.brandId,
         });
         const filter = (input.market ?? "all") as MarketFilter;
-        const today = new Date().toISOString().slice(0, 10);
         const where = buildDailyMetricWhere({
           organizationId: ctx.organizationId,
-          startDate: input.startDate ?? "2000-01-01",
-          endDate: input.endDate ?? today,
+          ...window,
           brandId: input.brandId,
         });
+        Object.assign(where, platformScope, input.adAccountId ? { adAccountId: input.adAccountId } : {});
 
         const groupedSumWithoutReach = {
           spend: true,
@@ -2306,22 +2338,25 @@ export const marketingRouter = createTRPCRouter({
         let grouped;
         try {
           grouped = await ctx.prisma.dailyMetric.groupBy({
-            by: ["campaignId", "campaignName", "platform"],
+            by: ["adAccountId", "campaignId", "platform", "currency"],
             where: { ...where, campaignId: { not: "" } },
             _sum: { ...groupedSumWithoutReach, reach: true },
           });
         } catch (error) {
           if (!isPrismaMissingColumn(error, "reach")) throw error;
           grouped = await ctx.prisma.dailyMetric.groupBy({
-            by: ["campaignId", "campaignName", "platform"],
+            by: ["adAccountId", "campaignId", "platform", "currency"],
             where: { ...where, campaignId: { not: "" } },
             _sum: groupedSumWithoutReach,
           });
         }
 
         let freqRows: Array<{
+          adAccountId: string;
           campaignId: string | null;
+          campaignName: string | null;
           platform: string;
+          currency: string;
           impressions: number;
           frequency: Prisma.Decimal | number | null;
           reach: number;
@@ -2331,9 +2366,13 @@ export const marketingRouter = createTRPCRouter({
         try {
           freqRows = await ctx.prisma.dailyMetric.findMany({
             where: { ...where, campaignId: { not: "" } },
+            orderBy: { date: "desc" },
             select: {
+              adAccountId: true,
               campaignId: true,
+              campaignName: true,
               platform: true,
+              currency: true,
               impressions: true,
               frequency: true,
               reach: true,
@@ -2350,9 +2389,13 @@ export const marketingRouter = createTRPCRouter({
           }
           const fallback = await ctx.prisma.dailyMetric.findMany({
             where: { ...where, campaignId: { not: "" } },
+            orderBy: { date: "desc" },
             select: {
+              adAccountId: true,
               campaignId: true,
+              campaignName: true,
               platform: true,
+              currency: true,
               impressions: true,
               resultType: true,
               attributionSetting: true,
@@ -2363,8 +2406,10 @@ export const marketingRouter = createTRPCRouter({
         const freqByKey = new Map<string, { impressions: number; frequency: number; reach: number }[]>();
         const resultTypeByKey = new Map<string, string>();
         const attributionByKey = new Map<string, string>();
+        const nameByKey = new Map<string, string>();
         for (const row of freqRows) {
-          const key = `${row.platform}:${row.campaignId}`;
+          const key = campaignReportKey(row.adAccountId, row.platform, row.campaignId, row.currency);
+          if (row.campaignName && !nameByKey.has(key)) nameByKey.set(key, row.campaignName);
           const list = freqByKey.get(key) ?? [];
           list.push({
             impressions: row.impressions,
@@ -2380,16 +2425,14 @@ export const marketingRouter = createTRPCRouter({
 
         const objects = await ctx.prisma.adCampaign.findMany({
           where: {
-            adAccount: {
-              brand: {
-                organizationId: ctx.organizationId,
-                ...(input.brandId ? { id: input.brandId } : {}),
-              },
-            },
+            adAccount: accountScope,
+            ...platformScope,
+            ...(input.adAccountId ? { adAccountId: input.adAccountId } : {}),
           },
+          include: { adAccount: { select: { id: true, accountId: true, name: true, currency: true } } },
         });
         const objectByKey = new Map(
-          objects.map((o) => [`${o.platform}:${o.platformCampaignId}`, o]),
+          objects.map((o) => [campaignReportKey(o.adAccountId, o.platform, o.platformCampaignId, o.currency), o]),
         );
 
         const campaigns = grouped.map((g) => {
@@ -2398,15 +2441,20 @@ export const marketingRouter = createTRPCRouter({
           const totalClicks = g._sum.clicks ?? 0;
           const totalConversions = toNumber(g._sum.conversions);
           const totalConversionValue = toNumber(g._sum.conversionValue);
-          const key = `${g.platform}:${g.campaignId}`;
+          const key = campaignReportKey(g.adAccountId, g.platform, g.campaignId, g.currency);
           const rolled = rollupReachFrequency(freqByKey.get(key) ?? []);
           const obj = objectByKey.get(key);
           const totalLinkClicks = g._sum.linkClicks ?? 0;
           const totalResults = toNumber(g._sum.results);
           return {
+            reportRowId: key,
+            adAccountId: g.adAccountId,
+            adAccountName: obj?.adAccount.name ?? g.adAccountId,
+            currency: g.currency,
+            metricState: "stored_metrics" as "stored_metrics" | "no_stored_metrics",
             campaignId: g.campaignId ?? "",
-            campaignName: g.campaignName ?? obj?.name ?? "Unknown campaign",
-            market: adDeskForName(g.campaignName ?? obj?.name, mode),
+            campaignName: obj?.name ?? nameByKey.get(key) ?? "Unknown campaign",
+            market: adDeskForName(obj?.name ?? nameByKey.get(key), mode),
             platform: g.platform,
             status: obj?.status ?? "unknown",
             objective: obj?.objective ?? null,
@@ -2442,11 +2490,16 @@ export const marketingRouter = createTRPCRouter({
           };
         });
 
-        const seen = new Set(campaigns.map((c) => `${c.platform}:${c.campaignId}`));
+        const seen = new Set(campaigns.map((c) => c.reportRowId));
         for (const obj of objects) {
-          const key = `${obj.platform}:${obj.platformCampaignId}`;
+          const key = campaignReportKey(obj.adAccountId, obj.platform, obj.platformCampaignId, obj.currency);
           if (seen.has(key)) continue;
           campaigns.push({
+            reportRowId: key,
+            adAccountId: obj.adAccountId,
+            adAccountName: obj.adAccount.name,
+            currency: obj.currency,
+            metricState: "no_stored_metrics",
             campaignId: obj.platformCampaignId,
             campaignName: obj.name,
             market: adDeskForName(obj.name, mode),
@@ -2491,12 +2544,28 @@ export const marketingRouter = createTRPCRouter({
           return a.campaignName.localeCompare(b.campaignName);
         });
 
-        const scoped =
-          filter === "all" ? campaigns : campaigns.filter((row) => row.market === filter);
+        const search = input.search?.trim().toLowerCase();
+        const scoped = campaigns.filter((row) =>
+          (filter === "all" || row.market === filter) &&
+          (!input.status || row.status === input.status) &&
+          (!search || row.campaignName.toLowerCase().includes(search) || row.campaignId.includes(search)),
+        );
+        const spendByCurrency: Record<string, number> = {};
+        for (const row of scoped) spendByCurrency[row.currency] = (spendByCurrency[row.currency] ?? 0) + row.totalSpend;
+        const uniqueCount = (rows: typeof scoped) => new Set(rows.map((row) => JSON.stringify([row.adAccountId, row.platform, row.campaignId]))).size;
 
         return {
           success: true,
-          data: { campaigns: scoped.slice(0, input.limit) },
+          data: {
+            campaigns: scoped.slice(0, input.limit), window,
+            coverage: "stored_only_not_provider_verified" as const,
+            truncated: scoped.length > input.limit,
+            totals: {
+              campaigns: uniqueCount(scoped), active: uniqueCount(scoped.filter((row) => row.status === "active")),
+              spendByCurrency, storedMetricCampaigns: uniqueCount(scoped.filter((row) => row.metricState === "stored_metrics")),
+              unverifiedCampaigns: uniqueCount(scoped.filter((row) => row.metricState === "no_stored_metrics")),
+            },
+          },
           timestamp: new Date(),
         };
       } catch (error) {

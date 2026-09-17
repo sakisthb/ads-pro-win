@@ -41,6 +41,13 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { fromPrismaPlatform } from "@/lib/platform-launch/mapping";
 import { labelMetaResultType } from "@/lib/meta/labels";
 import { MetaOperatorDesk } from "@/components/campaigns/meta-operator-desk";
+import { lastCompletedCampaignWindow, validCampaignWindow } from "@/lib/campaign-reporting";
+import { readOnlyAdWriteReason } from "@/lib/platform-launch/write-policy";
+
+function formatScopedMoney(amount: number, currency: string) {
+  try { return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount); }
+  catch { return `${amount.toFixed(2)} ${currency || "unknown currency"}`; }
+}
 
 function parseCampaignSettings(raw: unknown): Record<string, unknown> {
   if (!raw) return {};
@@ -178,12 +185,17 @@ function FilterSelect({ value, onChange, options, label }: { value: string; onCh
 // Page component
 // ---------------------------------------------------------------------------
 export default function CampaignsPage() {
-  const { format: fmtEuro, formatExact: fmtEuroExact, symbol } = useCurrency();
+  const { format: fmtEuro } = useCurrency();
   const { brands, brandId, setBrandId } = useActiveBrand();
   const { market } = useActiveMarket();
   const [platformFilter, setPlatformFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [reportWindow, setReportWindow] = useState(() => lastCompletedCampaignWindow());
+  const [accountSelection, setAccountSelection] = useState({ scopeKey: "", id: "all" });
+  const scopeKey = `${brandId ?? ""}:${platformFilter}`;
+  const accountFilter = accountSelection.scopeKey === scopeKey ? accountSelection.id : "all";
+  const validWindow = validCampaignWindow(reportWindow.startDate, reportWindow.endDate);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkMenu, setShowBulkMenu] = useState(false);
   const [syncedView, setSyncedView] = useState<"cards" | "table">("cards");
@@ -199,19 +211,27 @@ export default function CampaignsPage() {
   const [deskCampaignId, setDeskCampaignId] = useState<string | null>(null);
 
   // tRPC queries
-  const statsQuery = api.campaigns.getStatistics.useQuery();
   const campaignsQuery = api.campaigns.getAll.useQuery({
     limit: 100,
     ...(statusFilter !== "all" ? { status: statusFilter as any } : {}),
     ...(platformFilter !== "all" ? { platform: platformFilter as any } : {}),
   });
 
-  // Org-scoped synced campaign performance (Meta pull from task #37).
+  const reportAccountsQuery = api.marketing.getCampaignReportAccounts.useQuery({
+    brandId: brandId || undefined, platform: platformFilter as "all" | "facebook" | "google" | "tiktok",
+  });
+
+  // Stored reporting only: no provider fetch, Sync or credential refresh.
   const syncedQuery = api.marketing.getCampaignPerformance.useQuery({
     limit: 200,
     brandId: brandId || undefined,
+    platform: platformFilter as "all" | "facebook" | "google" | "tiktok",
+    adAccountId: accountFilter !== "all" ? accountFilter : undefined,
+    ...reportWindow,
+    ...(statusFilter !== "all" ? { status: statusFilter as "active" | "paused" | "draft" | "completed" } : {}),
+    search: search.trim() || undefined,
     ...(market !== "all" ? { market } : {}),
-  });
+  }, { enabled: validWindow });
 
   const liveStatus = api.campaigns.updateLiveStatus.useMutation({
     onSuccess: (res) => {
@@ -230,39 +250,10 @@ export default function CampaignsPage() {
   });
 
   const campaigns = campaignsQuery.data?.data?.campaigns ?? [];
-  const stats = statsQuery.data?.data?.totals;
-  const syncedCampaigns = syncedQuery.data?.data?.campaigns ?? [];
-
-  const headerKpis = useMemo(() => {
-    const localCount = Number(stats?.campaigns ?? 0);
-    const localSpend = Number(stats?.spent ?? 0);
-    if (localCount > 0 || localSpend > 0) {
-      return {
-        campaigns: localCount,
-        active: Number(stats?.active ?? 0),
-        spent: localSpend,
-        budget: Number(stats?.budget ?? 0),
-        fromSync: false,
-      };
-    }
-    const spent = syncedCampaigns.reduce(
-      (a: number, c: { totalSpend?: number }) => a + Number(c.totalSpend ?? 0),
-      0,
-    );
-    const active = syncedCampaigns.filter(
-      (c: { status?: string }) => c.status === "active",
-    ).length;
-    return {
-      campaigns: syncedCampaigns.length,
-      active,
-      spent,
-      budget: syncedCampaigns.reduce(
-        (a: number, c: { dailyBudget?: number | null }) => a + Number(c.dailyBudget ?? 0),
-        0,
-      ),
-      fromSync: syncedCampaigns.length > 0,
-    };
-  }, [stats, syncedCampaigns]);
+  const report = validWindow && !syncedQuery.error ? syncedQuery.data?.data : undefined;
+  const syncedCampaigns = report?.campaigns ?? [];
+  const headerKpis = report?.totals;
+  const spendEntries = Object.entries(headerKpis?.spendByCurrency ?? {});
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -285,7 +276,7 @@ export default function CampaignsPage() {
 
   const allSelected = filtered.length > 0 && selectedIds.size === filtered.length;
 
-  const isLoading = campaignsQuery.isLoading || statsQuery.isLoading;
+  const isLoading = validWindow && syncedQuery.isLoading;
 
   const requestLiveStatus = (
     platformRaw: string,
@@ -295,6 +286,8 @@ export default function CampaignsPage() {
     campaignName?: string,
   ) => {
     const platform = fromPrismaPlatform(platformRaw);
+    const blocked = platform && readOnlyAdWriteReason(platform);
+    if (blocked) { toast.error(blocked); return; }
     if (!platform || !campaignId) {
       toast.error("This campaign is not linked to a live platform ID yet.");
       return;
@@ -320,6 +313,8 @@ export default function CampaignsPage() {
     campaignName?: string,
   ) => {
     const platform = fromPrismaPlatform(platformRaw);
+    const blocked = platform && readOnlyAdWriteReason(platform);
+    if (blocked) { toast.error(blocked); return; }
     if (!platform || !campaignId) {
       toast.error("This campaign is not linked to a live platform ID yet.");
       return;
@@ -396,40 +391,39 @@ export default function CampaignsPage() {
               href="/campaign-launcher"
               className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition-all duration-200 hover:shadow-blue-500/40 hover:brightness-110"
             >
-              <Plus className="h-4 w-4" /> Create Campaign
+              <Plus className="h-4 w-4" /> Plan Campaign
             </Link>
           </div>
         </div>
       </AnimatedSection>
 
-      {/* KPI bar */}
+      <div aria-label="Synced campaign summary">
+      {/* KPI bar — never substitutes local drafts for provider inventory. */}
       {isLoading ? (
         <CardSkeleton count={4} />
       ) : (
         <StaggerContainer className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Total Campaigns" icon={Target} iconColor="#1877F2">
-            <AnimatedCounter target={headerKpis.campaigns} className="tabular-nums" />
+          <KpiCard label="Synced campaigns" icon={Target} iconColor="#1877F2">
+            {headerKpis ? <AnimatedCounter target={headerKpis.campaigns} className="tabular-nums" /> : "—"}
           </KpiCard>
           <KpiCard label="Active" icon={Activity} iconColor="#10B981">
             <span className="flex items-baseline gap-2">
-              <AnimatedCounter target={headerKpis.active} className="tabular-nums" />
+              {headerKpis ? <AnimatedCounter target={headerKpis.active} className="tabular-nums" /> : "—"}
               <span className="text-sm font-medium text-emerald-400/70">
-                {headerKpis.fromSync ? "synced" : "running"}
+                inventory status, not serving proof
               </span>
             </span>
           </KpiCard>
-          <KpiCard label="Total Spend" icon={DollarSign} iconColor="#F59E0B">
-            <AnimatedCounter target={headerKpis.spent} prefix={symbol} className="tabular-nums" />
+          <KpiCard label="Recorded spend" icon={DollarSign} iconColor="#F59E0B">
+            {!headerKpis || headerKpis.storedMetricCampaigns === 0 ? <span className="text-lg">Unverified</span> :
+              spendEntries.length === 1 ? formatScopedMoney(spendEntries[0][1], spendEntries[0][0]) : <span className="text-lg">Mixed currencies</span>}
           </KpiCard>
-          <KpiCard label="Budget" icon={TrendingUp} iconColor="#8B5CF6">
-            {headerKpis.fromSync ? (
-              <span className="text-lg font-semibold text-white/40">—</span>
-            ) : (
-              <AnimatedCounter target={headerKpis.budget} prefix={symbol} className="tabular-nums" />
-            )}
+          <KpiCard label="Without stored metrics" icon={TrendingUp} iconColor="#8B5CF6">
+            {headerKpis ? headerKpis.unverifiedCampaigns : "—"}
           </KpiCard>
         </StaggerContainer>
       )}
+      </div>
 
       {/* Filters */}
       <AnimatedSection>
@@ -441,6 +435,16 @@ export default function CampaignsPage() {
             <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={[
               { value: "all", label: "All Statuses" }, { value: "active", label: "Active" }, { value: "paused", label: "Paused" }, { value: "draft", label: "Draft" }, { value: "completed", label: "Completed" },
             ]} />
+            <FilterSelect label="Ad account" value={accountFilter} onChange={(id) => setAccountSelection({ scopeKey, id })} options={[
+              { value: "all", label: "All owned accounts" },
+              ...(reportAccountsQuery.data?.accounts ?? []).map((account) => ({ value: account.id, label: `${account.name} · ${account.accountId} · ${account.currency}` })),
+            ]} />
+            <label className="text-xs text-white/60">From (UTC)
+              <input aria-label="Report start date" type="date" value={reportWindow.startDate} onChange={(e) => setReportWindow((prev) => ({ ...prev, startDate: e.target.value }))} className="ml-2 rounded-lg bg-gray-900 px-2 py-1.5" />
+            </label>
+            <label className="text-xs text-white/60">To (UTC)
+              <input aria-label="Report end date" type="date" value={reportWindow.endDate} onChange={(e) => setReportWindow((prev) => ({ ...prev, endDate: e.target.value }))} className="ml-2 rounded-lg bg-gray-900 px-2 py-1.5" />
+            </label>
           </div>
           <div className="relative flex items-center">
             <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-white/30" />
@@ -450,14 +454,19 @@ export default function CampaignsPage() {
         </div>
       </AnimatedSection>
 
+      {!validWindow ? <p role="alert" className="text-sm text-amber-300">Choose a valid date window; start must not follow end.</p> : null}
+      {syncedQuery.error ? <p role="alert" className="text-sm text-amber-300">Could not load synced campaigns. Reporting is unverified, not empty.</p> : null}
+      {reportAccountsQuery.error ? <p role="alert" className="text-sm text-amber-300">Could not load owned report accounts.</p> : null}
+      <p className="text-xs text-white/50">Stored report: {reportWindow.startDate} — {reportWindow.endDate} (UTC date keys). Provider coverage is not verified here. Local drafts are outside this report. {report?.truncated ? "Showing first 200 rows; summary includes all matches." : ""}</p>
+
       {/* Synced Campaigns (Meta) — real org-scoped data from ad platform sync */}
       <AnimatedSection>
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-5 py-4">
             <div>
-              <h2 className="text-sm font-semibold text-white">Synced Campaigns (Meta)</h2>
+              <h2 className="text-sm font-semibold text-white">Synced Campaigns</h2>
               <p className="mt-0.5 text-xs text-white/40">
-                Campaign objects + daily insights. Open Edit on Meta for status, budget, and rename (needs ads_management).
+                Scoped inventory + stored metrics. Google/TikTok are read-only. Meta existing-object edits require operator confirmation and ads_management.
               </p>
             </div>
             <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-400">
@@ -487,10 +496,11 @@ export default function CampaignsPage() {
 
           {syncedQuery.isLoading ? (
             <DataLoadingState message="Loading synced campaigns..." />
+          ) : !report ? (
+            <p className="px-5 py-6 text-center text-xs text-white/40">Report unavailable. No performance conclusion can be drawn.</p>
           ) : syncedCampaigns.length === 0 ? (
             <p className="px-5 py-6 text-center text-xs text-white/40">
-              No synced campaigns yet — run a sync from{" "}
-              <span className="font-semibold text-white/70">Connections</span>.
+              No stored campaigns match this scope. This does not prove zero provider activity; coverage/import requires a separately approved check.
             </p>
           ) : syncedView === "table" ? (
             <div className="overflow-x-auto">
@@ -504,8 +514,8 @@ export default function CampaignsPage() {
                     <th className="px-4 py-3 font-medium text-right">Reach</th>
                     <th className="px-4 py-3 font-medium text-right">Freq</th>
                     <th className="px-4 py-3 font-medium text-right">Link CTR</th>
-                    <th className="px-4 py-3 font-medium text-right">Pixel ROAS</th>
-                    <th className="px-4 py-3 font-medium text-right">Pixel purchases</th>
+                    <th className="px-4 py-3 font-medium text-right">Platform ROAS</th>
+                    <th className="px-4 py-3 font-medium text-right">Conversions</th>
                     <th className="px-4 py-3 font-medium text-right">Results</th>
                     <th className="px-4 py-3 font-medium text-right">Edit</th>
                   </tr>
@@ -523,7 +533,7 @@ export default function CampaignsPage() {
                     const frequency = Number(c.frequency ?? 0);
                     const results = Number(c.totalResults ?? conversions);
                     return (
-                      <tr key={`${c.platform}-${c.campaignId || c.campaignName}`} className="border-b border-white/5 hover:bg-white/[0.03]">
+                      <tr key={c.reportRowId} className="border-b border-white/5 hover:bg-white/[0.03]">
                         <td className="max-w-[220px] px-4 py-3">
                           <p className="truncate font-medium text-white">{c.campaignName}</p>
                           {c.attributionSetting ? (
@@ -532,24 +542,24 @@ export default function CampaignsPage() {
                         </td>
                         <td className="px-4 py-3"><StatusBadge status={c.status || "unknown"} /></td>
                         <td className="px-4 py-3 text-white/60">{normalizePlatform(c.platform)}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-white/80">{fmtEuro(spend)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-white/80">{c.metricState === "no_stored_metrics" ? "Unverified" : formatScopedMoney(spend, c.currency)}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-white/80">{reach.toLocaleString()}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-white/80">{frequency.toFixed(2)}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-white/80">{linkCtr.toFixed(2)}%</td>
-                        <td className="px-4 py-3 text-right tabular-nums font-semibold text-emerald-400">{roas.toFixed(2)}x</td>
+                        <td className="px-4 py-3 text-right tabular-nums font-semibold text-emerald-400">{c.metricState === "no_stored_metrics" ? "—" : `${roas.toFixed(2)}x`}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-white/80">{conversions.toFixed(0)}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-white/80">
                           <span>{results.toFixed(0)}</span>
                           <p className="text-[10px] text-white/35">Meta result · {labelMetaResultType(c.resultType)}</p>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
+                          {fromPrismaPlatform(c.platform) === "meta" ? <button
                             type="button"
                             onClick={() => c.campaignId && setDeskCampaignId(String(c.campaignId))}
                             className="text-[11px] font-semibold text-blue-300 hover:text-blue-200"
                           >
                             Edit
-                          </button>
+                          </button> : <span>Read-only</span>}
                           {" · "}
                           <a href="/chat" className="text-[11px] font-semibold text-violet-300 hover:text-violet-200">AI</a>
                         </td>
@@ -573,7 +583,7 @@ export default function CampaignsPage() {
                 const frequency = Number(c.frequency ?? 0);
                 const lpv = Number(c.totalLandingPageViews ?? 0);
                 const maxSpend = Math.max(
-                  ...syncedCampaigns.map((row: any) => Number(row.totalSpend ?? 0)),
+                  ...syncedCampaigns.filter((row: any) => row.currency === c.currency).map((row: any) => Number(row.totalSpend ?? 0)),
                   1,
                 );
                 const share = (spend / maxSpend) * 100;
@@ -582,12 +592,14 @@ export default function CampaignsPage() {
 
                 return (
                   <div
-                    key={`${c.platform}-${c.campaignId || c.campaignName}`}
+                    key={c.reportRowId}
+                    data-report-row={c.reportRowId}
                     className="flex flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-white/20"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-white">{c.campaignName}</p>
+                        <p className="truncate text-[10px] text-white/40">{c.adAccountName} · {c.currency} · {c.metricState === "no_stored_metrics" ? "No stored metrics — unverified" : "Stored metrics only"}</p>
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <PlatformBadge platform={platform} />
                           <StatusBadge status={c.status || "unknown"} />
@@ -597,15 +609,15 @@ export default function CampaignsPage() {
                         ) : null}
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-[9px] uppercase tracking-wider text-white/35">Pixel ROAS</p>
+                        <p className="text-[9px] uppercase tracking-wider text-white/35">Platform ROAS</p>
                         <p className="text-sm font-bold tabular-nums text-emerald-400">
-                          {roas.toFixed(2)}x
+                          {c.metricState === "no_stored_metrics" ? "—" : `${roas.toFixed(2)}x`}
                         </p>
                       </div>
                     </div>
                     <div className="mt-3">
                       <div className="mb-1 flex justify-between text-[10px] text-white/40">
-                        <span>Share of synced spend</span>
+                        <span>Relative spend (same currency)</span>
                         <span>{share.toFixed(0)}%</span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
@@ -618,7 +630,7 @@ export default function CampaignsPage() {
                     <div className="mt-3 grid grid-cols-4 gap-2 text-center">
                       <div>
                         <p className="text-[10px] text-white/35">Spend</p>
-                        <p className="text-xs font-semibold text-white/80">{fmtEuro(spend)}</p>
+                        <p className="text-xs font-semibold text-white/80">{c.metricState === "no_stored_metrics" ? "Unverified" : formatScopedMoney(spend, c.currency)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-white/35">Reach</p>
@@ -629,7 +641,7 @@ export default function CampaignsPage() {
                         <p className="text-xs font-semibold text-white/80">{frequency.toFixed(2)}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-white/35">Pixel purchases</p>
+                        <p className="text-[10px] text-white/35">Conversions</p>
                         <p className="text-xs font-semibold text-white/80">{conversions.toFixed(0)}</p>
                       </div>
                     </div>
@@ -640,7 +652,7 @@ export default function CampaignsPage() {
                       </div>
                       <div>
                         <p className="text-[10px] text-white/35">CPC</p>
-                        <p className="text-xs font-semibold text-white/80">{fmtEuroExact(cpc)}</p>
+                        <p className="text-xs font-semibold text-white/80">{formatScopedMoney(cpc, c.currency)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-white/35">LPV</p>
@@ -651,7 +663,7 @@ export default function CampaignsPage() {
                         <p className="text-xs font-semibold text-white/80">{Number(c.totalResults ?? 0).toFixed(0)}</p>
                       </div>
                     </div>
-                    <div className="mt-3 flex items-center gap-1.5">
+                    {fromPrismaPlatform(c.platform) === "meta" ? <div className="mt-3 flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => c.campaignId && setDeskCampaignId(String(c.campaignId))}
@@ -683,7 +695,7 @@ export default function CampaignsPage() {
                       >
                         <TrendingUp className="h-3.5 w-3.5" /> +20%
                       </button>
-                    </div>
+                    </div> : <p className="mt-3 text-xs text-white/50">Read-only — live writes are not authorized.</p>}
                   </div>
                 );
               })}
@@ -698,8 +710,8 @@ export default function CampaignsPage() {
       ) : filtered.length === 0 && syncedCampaigns.length === 0 ? (
         <div className="space-y-4">
           <EmptyDataState
-            title="No campaigns found"
-            description="Create your first campaign to start advertising across Meta, Google, and TikTok."
+            title="No local plans match these filters"
+            description="Local organization plans are outside the synced report. Campaign Studio can prepare drafts; live creation remains locked by policy."
           />
           <div className="flex justify-center">
             <Link href="/campaign-launcher" className="text-sm font-semibold text-sky-300">

@@ -34,6 +34,7 @@ import { consumeLaunchDraft } from "@/lib/creative-fatigue";
 import { useCurrency } from "@/components/providers/currency";
 import type { LaunchObjective, LaunchPlatform } from "@/lib/platform-launch/mapping";
 import { canSubmitLaunch } from "@/lib/platform-launch/mapping";
+import { campaignCreationBlockReason, readOnlyAdWriteReason } from "@/lib/platform-launch/write-policy";
 
 type StudioMode = "create" | "launch" | "automation" | "scale";
 
@@ -169,7 +170,7 @@ export function CampaignLauncherStudio() {
       }
       setMode("automation");
       setStep(5);
-      toast.success("Plan ready — review the hierarchy, then apply paused");
+      toast.success("Plan ready — draft only; live creation is locked by policy");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -252,7 +253,8 @@ export function CampaignLauncherStudio() {
     return map;
   }, [connections]);
 
-  const canLaunch = canSubmitLaunch({
+  const creationBlockedReason = platforms.map(campaignCreationBlockReason).find(Boolean);
+  const canLaunch = !creationBlockedReason && canSubmitLaunch({
     name,
     headline,
     primaryText,
@@ -373,9 +375,9 @@ export function CampaignLauncherStudio() {
                 {isDemo ? (
                   <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Demo</span>
                 ) : info.canWrite ? (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Can write</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Existing Meta edits</span>
                 ) : info.connected ? (
-                  <Link href={connectionsHref} className="text-[10px] font-bold uppercase tracking-wider text-amber-400 hover:underline">
+                  readOnlyAdWriteReason(p) ? <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Read-only</span> : <Link href={connectionsHref} className="text-[10px] font-bold uppercase tracking-wider text-amber-400 hover:underline">
                     Reconnect to write
                   </Link>
                 ) : (
@@ -387,6 +389,10 @@ export function CampaignLauncherStudio() {
             );
           })}
         </motion.div>
+
+        <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          Planning only — campaign creation is locked. Google/TikTok remain read-only; Meta permits existing-object edits, not new campaigns/ad sets/ads. Reconnect does not unlock creation.
+        </div>
 
         {isDemo && (
           <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
@@ -601,7 +607,7 @@ export function CampaignLauncherStudio() {
                                 <p className="text-sm font-semibold text-white">{PLATFORM_META[p].name}</p>
                                 <p className="text-[11px] text-zinc-500">
                                   {conn ? conn.name : "Not connected"}
-                                  {conn && !conn.canWrite ? " · reconnect for write access" : ""}
+                                  {conn && !conn.canWrite ? readOnlyAdWriteReason(p) ? " · read-only" : " · reconnect for existing Meta edits" : ""}
                                 </p>
                               </div>
                               {platforms.includes(p) && <Check className="h-4 w-4 text-sky-300" />}
@@ -1006,7 +1012,7 @@ export function CampaignLauncherStudio() {
                   const platform = (c.platform === "facebook" ? "meta" : c.platform) as LaunchPlatform;
                   if (platform !== "meta" && platform !== "google" && platform !== "tiktok") return null;
                   return (
-                    <div key={c.campaignId} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center">
+                    <div key={c.reportRowId} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-white">{c.campaignName}</p>
                         <p className="text-[11px] text-zinc-500">
@@ -1016,7 +1022,7 @@ export function CampaignLauncherStudio() {
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          disabled={isDemo || liveStatus.isPending}
+                          disabled={isDemo || liveStatus.isPending || Boolean(readOnlyAdWriteReason(platform))}
                           onClick={() =>
                             setPending({
                               platform,
@@ -1031,7 +1037,7 @@ export function CampaignLauncherStudio() {
                         </button>
                         <button
                           type="button"
-                          disabled={isDemo || liveStatus.isPending}
+                          disabled={isDemo || liveStatus.isPending || Boolean(readOnlyAdWriteReason(platform))}
                           onClick={() =>
                             setPending({
                               platform,
@@ -1048,7 +1054,7 @@ export function CampaignLauncherStudio() {
                           <button
                             key={m}
                             type="button"
-                            disabled={isDemo || scaleBudget.isPending}
+                            disabled={isDemo || scaleBudget.isPending || Boolean(readOnlyAdWriteReason(platform))}
                             onClick={() =>
                               setPending({
                                 kind: "scale",
