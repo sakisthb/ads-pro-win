@@ -66,6 +66,7 @@ describe("deriveOperatorClocks", () => {
       emailConnected: true,
       emailDelivered: 0,
       emailCampaigns: 0,
+      emailSyncState: "ready",
     });
     const email = quiet.find((c) => c.id === "email");
     expect(email?.connected).toBe(true);
@@ -127,6 +128,7 @@ describe("deriveOperatorBlockers", () => {
       emailConnected: true,
       emailDelivered: 0,
       tax: 0,
+      emailSyncState: "ready",
       ga4Sessions: 8000,
       ga4Purchases: 40,
       ga4UnassignedSessions: 900,
@@ -141,7 +143,7 @@ describe("deriveOperatorBlockers", () => {
     ]);
     expect(blockers.find((b) => b.id === "email-quiet")?.detail).toMatch(/not 0 influence/);
     expect(blockers.find((b) => b.id === "woo-vat")?.detail).toMatch(/ΦΠΑ/);
-    expect(blockers.find((b) => b.id === "google-ads-api")?.href).toBe("/connections?connect=google-ads");
+    expect(blockers.find((b) => b.id === "google-ads-api")?.href).toBe("/connections");
   });
 
   it("stays quiet when clocks already agree and Google Ads has spend", () => {
@@ -153,6 +155,7 @@ describe("deriveOperatorBlockers", () => {
         googleAdsSpend: 120,
         emailConnected: true,
         emailDelivered: 4000,
+        emailSyncState: "ready",
         tax: 480,
         ga4Sessions: 200,
         ga4Purchases: 39,
@@ -177,7 +180,7 @@ describe("buildOperatorDesk", () => {
       },
       ga4: { connected: true, totals: { sessions: 10172, purchases: 97 }, channels: [] },
       gsc: { connected: true, totals: { clicks: 3635, impressions: 60078 } },
-      email: { connected: true, totalSent: 0, campaignCount: 0 },
+      email: { connected: true, totalSent: 0, campaignCount: 0, syncState: "ready" },
       googleAdsConnected: true,
       googleAdsSpend: 0,
       currency: "EUR",
@@ -190,4 +193,15 @@ describe("buildOperatorDesk", () => {
       expect.arrayContaining(["capi-emq", "google-ads-api", "woo-vat", "email-quiet"]),
     );
   });
+});
+
+it.each(["failed", "stale", "unknown", "syncing"] as const)("does not call %s email data a quiet window on the operator desk", (syncState) => {
+  const desk = buildOperatorDesk({ email: { connected: true, totalSent: 0, campaignCount: 0, syncState }, googleAdsConnected: true, googleAdsSpend: 0 });
+  expect(desk.clocks.find((c) => c.id === "email")?.primary).toBe("—");
+  expect(desk.clocks.find((c) => c.id === "email")?.secondary).toMatch(/unverified/);
+  expect(desk.blockers.map((b) => b.id)).toContain("email-sync");
+  expect(desk.blockers.map((b) => b.id)).not.toContain("email-quiet");
+  const google = desk.blockers.find((b) => b.id === "google-ads-api");
+  expect(google?.title).toMatch(/coverage/);
+  expect(google?.href).toBe("/connections");
 });

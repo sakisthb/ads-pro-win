@@ -6,6 +6,7 @@
 import { formatMoney, type ReportingCurrency } from "@/lib/currency";
 import { type TrackingWorkstreamId, trackingWorkstream } from "@/lib/tracking-ops";
 import type { MarketMode } from "@/lib/market-desk";
+import { syncStateNotice, type SyncState } from "@/lib/sync-health";
 
 export type OperatorClockId = "pixel" | "till" | "ga4" | "gsc" | "email";
 
@@ -19,7 +20,7 @@ export interface OperatorClock {
   not: string;
 }
 
-export type OperatorBlockerId = TrackingWorkstreamId | "email-quiet";
+export type OperatorBlockerId = TrackingWorkstreamId | "email-quiet" | "email-sync";
 
 export interface OperatorBlocker {
   id: OperatorBlockerId;
@@ -53,6 +54,7 @@ export function deriveOperatorClocks(args: {
   emailConnected: boolean;
   emailDelivered: number;
   emailCampaigns: number;
+  emailSyncState?: SyncState;
   currency?: ReportingCurrency;
   marketMode?: MarketMode;
   retailOrders?: number;
@@ -64,6 +66,7 @@ export function deriveOperatorClocks(args: {
   const tillLive = args.storeOrders > 0;
   const ga4Live = args.ga4Connected || args.ga4Sessions > 0 || args.ga4Purchases > 0;
   const emailQuiet = args.emailConnected && args.emailDelivered <= 0;
+  const emailRecentSuccess = args.emailSyncState === "ready";
   const retailOrders = args.retailOrders ?? 0;
   const wholesaleOrders = args.wholesaleOrders ?? 0;
   const splitTill =
@@ -121,12 +124,14 @@ export function deriveOperatorClocks(args: {
       label: "Email",
       href: "/email",
       connected: args.emailConnected,
-      primary: args.emailConnected ? fmtInt(args.emailDelivered) : "—",
-      secondary: emailQuiet
-        ? "0 delivered in this window — not 0 influence"
-        : args.emailConnected
-          ? `${fmtInt(args.emailCampaigns)} sent campaigns · ESP delivered`
-          : "Brevo / Omnisend not connected",
+      primary: args.emailConnected && emailRecentSuccess ? fmtInt(args.emailDelivered) : "—",
+      secondary: args.emailConnected && !emailRecentSuccess
+        ? syncStateNotice(args.emailSyncState ?? "unknown")
+        : emailQuiet
+          ? "0 stored deliveries in this window — coverage unverified, not 0 influence"
+          : args.emailConnected
+            ? `${fmtInt(args.emailCampaigns)} sent campaigns · stored ESP metrics`
+            : "Brevo / Omnisend not connected",
       not: "not Pixel ROAS · not till",
     },
   ];
@@ -139,6 +144,7 @@ export function deriveOperatorBlockers(args: {
   googleAdsSpend: number;
   emailConnected: boolean;
   emailDelivered: number;
+  emailSyncState?: SyncState;
   tax: number;
   ga4Sessions: number;
   ga4Purchases: number;
@@ -164,14 +170,13 @@ export function deriveOperatorBlockers(args: {
   }
 
   if (args.googleAdsConnected && args.googleAdsSpend <= 0) {
-    const ads = trackingWorkstream("google-ads-api");
     out.push({
       id: "google-ads-api",
-      title: ads.title,
-      detail: "OAuth is on and DailyMetric google spend is €0. Woo last-click Google is till, not Ads spend.",
-      href: "/connections?connect=google-ads",
+      title: "Google Ads reporting coverage",
+      detail: "No Google spend is stored in this window. This does not prove zero activity or a Connect failure. Check the customer and reporting dates. Woo last-click Google is till, not Ads spend.",
+      href: "/connections",
       actionLabel: "Connections",
-      severity: "high",
+      severity: "medium",
     });
   }
 
@@ -211,12 +216,21 @@ export function deriveOperatorBlockers(args: {
     });
   }
 
-  if (args.emailConnected && args.emailDelivered <= 0) {
+  if (args.emailConnected && args.emailSyncState !== "ready") {
+    out.push({
+      id: "email-sync",
+      title: "Email reporting is unverified",
+      detail: syncStateNotice(args.emailSyncState ?? "unknown"),
+      href: "/connections",
+      actionLabel: "Connections",
+      severity: "high",
+    });
+  } else if (args.emailConnected && args.emailDelivered <= 0) {
     out.push({
       id: "email-quiet",
-      title: "Email window is quiet",
+      title: "No stored email deliveries",
       detail:
-        "Brevo is connected and this range has 0 delivered. That is a quiet window, not 0 influence. Widen to 180 days on Email.",
+        "The stored range has 0 delivered, not 0 influence. A recent successful sync does not prove coverage of this selected range. Check the window on Email (180 days).",
       href: "/email",
       actionLabel: "Email desk",
       severity: "medium",
@@ -255,6 +269,7 @@ export function buildOperatorDesk(input: {
     connected?: boolean;
     totalSent?: unknown;
     campaignCount?: unknown;
+    syncState?: SyncState;
   } | null;
   googleAdsConnected: boolean;
   googleAdsSpend: unknown;
@@ -286,6 +301,7 @@ export function buildOperatorDesk(input: {
     emailConnected: Boolean(input.email?.connected),
     emailDelivered: asClockNumber(input.email?.totalSent),
     emailCampaigns: asClockNumber(input.email?.campaignCount),
+    emailSyncState: input.email?.syncState,
     currency: input.currency,
   });
   const blockers = deriveOperatorBlockers({
@@ -295,6 +311,7 @@ export function buildOperatorDesk(input: {
     googleAdsSpend: asClockNumber(input.googleAdsSpend),
     emailConnected: Boolean(input.email?.connected),
     emailDelivered: asClockNumber(input.email?.totalSent),
+    emailSyncState: input.email?.syncState,
     tax: asClockNumber(input.mer?.tax),
     ga4Sessions,
     ga4Purchases,

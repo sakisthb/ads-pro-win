@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/animated-section";
 import { cn } from "@/lib/utils";
 import { EmailMetricsPanel } from "@/components/dashboard/EmailMetricsPanel";
+import { platformSyncState } from "@/lib/sync-health";
 import { ExportToolbar } from "@/components/dashboard/ExportToolbar";
 import {
   ActivityFeed,
@@ -863,6 +864,11 @@ export function DashboardClient() {
   const syncStatusQuery = api.syncStatus.getStatus.useQuery(
     brandId ? { brandId } : {},
   );
+  const emailSyncState = syncStatusQuery.isError ? "unknown" : platformSyncState(
+    (syncStatusQuery.data?.platforms ?? [])
+      .filter((p) => p.platform === "brevo" || p.platform === "omnisend")
+      .flatMap((p) => p.accounts),
+  );
   const growthDeskQuery = api.growth.desk.useQuery(
     { brandId },
     { enabled: Boolean(brandId) && !isDemo, retry: false },
@@ -1147,6 +1153,7 @@ export function DashboardClient() {
       tax: merPayload?.tax,
       emailConnected: Boolean(emailMetrics.data?.data?.connected),
       emailDelivered: emailMetrics.data?.data?.totalSent ?? 0,
+      emailSyncState,
       googleAdsSpend: googlePerf.data?.data?.totals?.totalSpend ?? 0,
       marketMode: merPayload?.marketMode,
       markets: merPayload?.markets
@@ -1177,6 +1184,7 @@ export function DashboardClient() {
     ga4MixData,
     ga4Channels,
     emailMetrics.data,
+    emailSyncState,
     syncStatusQuery.data,
   ]);
 
@@ -1247,12 +1255,13 @@ export function DashboardClient() {
         emailConnected: Boolean(emailMetrics.data?.data?.connected),
         emailDelivered: emailMetrics.data?.data?.totalSent ?? 0,
         emailCampaigns: emailMetrics.data?.data?.campaignCount ?? 0,
+        emailSyncState,
         currency,
         marketMode: merPayload?.marketMode,
         retailOrders: merPayload?.markets?.retail.orders,
         wholesaleOrders: merPayload?.markets?.wholesale.orders,
       }),
-    [merPayload, blendedData, ga4MixData, gscQuery.data, emailMetrics.data, currency],
+    [merPayload, blendedData, ga4MixData, gscQuery.data, emailMetrics.data, emailSyncState, currency],
   );
 
   const operatorBlockers = useMemo(
@@ -1267,6 +1276,7 @@ export function DashboardClient() {
         googleAdsSpend: googlePerf.data?.data?.totals?.totalSpend ?? 0,
         emailConnected: Boolean(emailMetrics.data?.data?.connected),
         emailDelivered: emailMetrics.data?.data?.totalSent ?? 0,
+        emailSyncState,
         tax: merPayload?.tax ?? 0,
         ga4Sessions: ga4MixData?.totals.sessions ?? 0,
         ga4Purchases: ga4MixData?.totals.purchases ?? 0,
@@ -1279,6 +1289,7 @@ export function DashboardClient() {
       accounts,
       googlePerf.data,
       emailMetrics.data,
+      emailSyncState,
       ga4MixData,
       ga4Channels,
     ],
@@ -1303,7 +1314,7 @@ export function DashboardClient() {
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
               </span>
               <span className="text-[11px] font-medium uppercase tracking-widest text-white/40">
-                {loading ? "Syncing your data…" : hasConnections ? "Live · Synced data" : "Awaiting first sync"}
+                {loading ? "Loading stored data…" : hasConnections ? "Stored data · Check sync status" : "Awaiting first sync"}
               </span>
             </div>
             <h1 className="mt-2 text-3xl font-bold tracking-tight">
@@ -1861,7 +1872,7 @@ export function DashboardClient() {
                         <div>
                           <span className="text-lg font-bold text-white tabular-nums">{fmtCurrency(p.spend)}</span>
                           {p.spend <= 0 && p.name === "Google" ? (
-                            <p className="mt-0.5 text-[10px] text-white/40">OAuth on · no spend rows</p>
+                            <p className="mt-0.5 text-[10px] text-white/40">No stored spend · check coverage</p>
                           ) : null}
                         </div>
                         {p.spend > 0 ? (
@@ -1882,7 +1893,7 @@ export function DashboardClient() {
 
         {/* Email Marketing Panel */}
         <AnimatedSection variant="fadeInUp" delay={0.24}>
-          <EmailMetricsPanel startDate={start} endDate={end} brandId={brandId || undefined} />
+          <EmailMetricsPanel startDate={start} endDate={end} brandId={brandId || undefined} syncState={emailSyncState} />
         </AnimatedSection>
 
         {/* Recent Activity Feed */}
