@@ -41,11 +41,9 @@ import { decrypt } from '@/lib/crypto'
 import { logSecurityEvent } from '@/lib/security-events'
 import { defaultSyncLookbackDays } from '@/lib/meta/actions'
 import { isGoogleAdsAccountReady } from '@/lib/google-ads-accounts'
-import { ensureFreshGoogleAccessToken } from '@/lib/oauth/google-refresh'
+import { syncGoogleReporting } from '@/lib/sync/google-coverage-import'
 import {
   campaignFromNormalized,
-  fetchGoogleAccountData,
-  cleanupAccountLevelRows,
   fetchOpenCartData,
   fetchWooProducts,
   metricFromNormalized,
@@ -175,17 +173,9 @@ export async function processMetricSync(job: Job<MetricSyncJobData>): Promise<vo
     }
     let recordsProcessed = 0
     if (platform === 'google') {
-      if (!adAccount.accessToken) throw new Error('No Google Ads access token stored')
-      const accessToken = await ensureFreshGoogleAccessToken({
-        id: adAccount.id,
-        accessToken: adAccount.accessToken,
-        refreshToken: adAccount.refreshToken,
-        tokenExpiry: adAccount.tokenExpiry,
-      }, 'ads')
-      const { metrics, campaigns } = await fetchGoogleAccountData(accessToken, adAccount.accountId, dateRange)
-      recordsProcessed = await upsertDailyMetrics(metrics, adAccountId, platform)
-      recordsProcessed += await upsertAdCampaigns(campaigns, adAccountId, platform, adAccount.currency)
-      if (metrics.length > 0) await cleanupAccountLevelRows(adAccountId, platform)
+      const result = await syncGoogleReporting({ syncJobId: syncJob.id, executionPath: 'worker', account: adAccount, dateRange })
+      console.log(`[Worker:metrics] Google scoped reporting completed: ${result.recordsProcessed} records`)
+      return
     } else {
       const credentials = buildMetricCredentials(adAccount, platform)
       adapter = createMetricAdapter(platform, credentials)

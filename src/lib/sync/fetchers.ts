@@ -267,7 +267,7 @@ function validGoogleDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-function validateGoogleDateRange({ startDate, endDate }: DateRange): void {
+export function validateGoogleDateRange({ startDate, endDate }: DateRange): void {
   if (!validGoogleDate(startDate) || !validGoogleDate(endDate) || startDate > endDate) {
     throw new Error("Invalid Google Ads date range");
   }
@@ -316,14 +316,37 @@ export async function fetchGoogleCampaigns(accessToken: string, accountId: strin
   });
 }
 
-/** Both manual and scheduled sync must successfully fetch metrics AND inventory. */
-export async function fetchGoogleAccountData(accessToken: string, accountId: string, dateRange: DateRange): Promise<{ metrics: DailyMetricInput[]; campaigns: AdCampaignInput[] }> {
+export interface GoogleReportingAccount {
+  customerId: string;
+  timezone: string;
+  currency: string;
+}
+
+async function fetchGoogleReportingAccount(accessToken: string, accountId: string): Promise<GoogleReportingAccount> {
+  const customerId = parseGoogleAdsCustomerId(accountId);
+  if (!customerId) throw new Error("Invalid Google Ads customer identity");
+  const rows = await googleAdsSearchRows<{ customer: { id: string; timeZone: string; currencyCode: string } }>(
+    accessToken, customerId, "SELECT customer.id, customer.time_zone, customer.currency_code FROM customer LIMIT 1",
+    googleAdsLoginCustomerId(accountId),
+  );
+  const customer = rows.length === 1 ? rows[0]?.customer : null;
+  if (!customer || customer.id !== customerId || typeof customer.timeZone !== "string" || !customer.timeZone.trim() || typeof customer.currencyCode !== "string" || !/^[A-Z]{3}$/.test(customer.currencyCode)) {
+    throw new Error("Invalid Google Ads customer identity");
+  }
+  try { new Intl.DateTimeFormat("en", { timeZone: customer.timeZone }); }
+  catch { throw new Error("Invalid Google Ads customer timezone"); }
+  return { customerId, timezone: customer.timeZone, currency: customer.currencyCode };
+}
+
+/** All three fetches must validate before either manual or worker persistence. */
+export async function fetchGoogleAccountData(accessToken: string, accountId: string, dateRange: DateRange): Promise<{ metrics: DailyMetricInput[]; campaigns: AdCampaignInput[]; account: GoogleReportingAccount }> {
   validateGoogleDateRange(dateRange);
-  const [metrics, campaigns] = await Promise.all([
+  const [metrics, campaigns, account] = await Promise.all([
     fetchGoogleMetrics(accessToken, accountId, dateRange),
     fetchGoogleCampaigns(accessToken, accountId),
+    fetchGoogleReportingAccount(accessToken, accountId),
   ]);
-  return { metrics, campaigns };
+  return { metrics, campaigns, account };
 }
 
 // ---------------------------------------------------------------------------

@@ -106,6 +106,8 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npx prisma generate
+      - name: Prepare disposable coverage security roles
+        run: node scripts/verify-google-coverage-db.cjs prepare
       - name: Validate migrations apply cleanly
         run: npx prisma migrate deploy
       - name: Confirm migration status
@@ -116,6 +118,8 @@ jobs:
             --from-schema-datamodel prisma/schema.prisma \
             --to-url "$DATABASE_URL" \
             --exit-code
+      - name: Verify receipt privacy and trusted-server access
+        run: node scripts/verify-google-coverage-db.cjs verify
 
   build-production:
     runs-on: ubuntu-latest
@@ -179,9 +183,12 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
       - name: Apply migrations to smoke database
-        run: npx prisma migrate deploy
+        run: |
+          npx prisma migrate deploy
+          npx prisma migrate status
         env:
           DATABASE_URL: ${{ env.SMOKE_DATABASE_URL }}
+          DIRECT_DATABASE_URL: ${{ env.SMOKE_DATABASE_URL }}
       - name: Build application image
         run: |
           docker build \

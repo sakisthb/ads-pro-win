@@ -485,10 +485,37 @@ model SyncJob {
   error            String?
   recordsProcessed Int        @default(0)
   createdAt        DateTime   @default(now())
+  coverageReceipt  SyncCoverageReceipt?
 
   @@index([adAccountId])
   @@index([status])
   @@index([createdAt])
+}
+
+// Per-run Google reporting evidence. Legacy jobs intentionally have no receipt.
+model SyncCoverageReceipt {
+  syncJobId             String   @id
+  syncJob               SyncJob  @relation(fields: [syncJobId], references: [id], onDelete: Cascade)
+  version               Int      @default(1)
+  customerId            String
+  loginCustomerId       String?
+  startDate             String   @db.VarChar(10)
+  endDate               String   @db.VarChar(10)
+  executionPath         String // manual | worker
+  providerApiVersion    String   @default("v25")
+  transport             String   @default("google_ads_search_stream")
+  queryScope            String   @default("non_removed_campaigns")
+  providerTimezone      String?
+  providerCurrency      String?
+  status                String   @default("running") // running | completed | failed | partial
+  stage                 String   @default("credentials")
+  metricRowsFetched     Int?
+  campaignRowsFetched   Int?
+  metricRowsPersisted   Int?
+  campaignRowsPersisted Int?
+  storageMayBePartial   Boolean  @default(false)
+  startedAt             DateTime @default(now())
+  completedAt           DateTime?
 }
 
 model MetaWriteLog {

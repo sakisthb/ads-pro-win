@@ -9,10 +9,13 @@ jest.mock("@/lib/crypto", () => ({ decrypt: jest.fn(() => "test-token") }));
 jest.mock("@/lib/db", () => ({ prisma: {
   adAccount: { findUnique: jest.fn(), update: jest.fn() },
   syncJob: { create: jest.fn().mockResolvedValue({ id: "job-1" }), update: jest.fn() },
+  syncCoverageReceipt: { create: jest.fn(), update: jest.fn() },
+  $transaction: jest.fn(async (ops: unknown[]) => Promise.all(ops)),
 } }));
 jest.mock("@/lib/oauth/google-refresh", () => ({ ensureFreshGoogleAccessToken: jest.fn().mockResolvedValue("fresh-test-token") }));
 jest.mock("@/lib/mcp/adapters/google-ads", () => ({ GoogleAdsAdapter: jest.fn(() => { throw new Error("Google worker must not depend on MCP"); }) }));
 jest.mock("@/lib/sync/fetchers", () => ({
+  validateGoogleDateRange: jest.requireActual("@/lib/sync/fetchers").validateGoogleDateRange,
   fetchGoogleAccountData: jest.fn(), upsertDailyMetrics: jest.fn().mockResolvedValue(0),
   upsertAdCampaigns: jest.fn().mockResolvedValue(1), cleanupAccountLevelRows: jest.fn(),
 }));
@@ -29,7 +32,7 @@ const job = { data: { adAccountId: "acc-1", platform: "google", startDate: "2026
 beforeEach(() => {
   jest.clearAllMocks();
   jest.mocked(prisma.adAccount.findUnique).mockResolvedValue(account as never);
-  jest.mocked(fetchGoogleAccountData).mockResolvedValue({ metrics: [], campaigns });
+  jest.mocked(fetchGoogleAccountData).mockResolvedValue({ metrics: [], campaigns, account: { customerId: "1234567890", timezone: "Europe/Athens", currency: "EUR" } });
 });
 
 it("uses refreshed direct Google reporting with the stored MCC hint and persists inventory even for zero metrics", async () => {
@@ -62,5 +65,6 @@ it("resolves repeatable Google job dates relative to execution time", async () =
   try {
     await processMetricSync({ data: { ...job.data, startDate: "", endDate: "" } } as Job<MetricSyncJobData>);
     expect(fetchGoogleAccountData).toHaveBeenCalledWith("fresh-test-token", account.accountId, { startDate: "2026-08-18", endDate: "2026-09-17" });
+    expect(prisma.syncCoverageReceipt.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ executionPath: "worker", startDate: "2026-08-18", endDate: "2026-09-17" }) }));
   } finally { jest.useRealTimers(); }
 });
