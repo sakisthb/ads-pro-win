@@ -31,6 +31,7 @@
     "db:reset": "prisma db push --force-reset && npm run db:seed",
     "db:studio": "prisma studio",
     "security:audit": "npm audit --audit-level=high",
+    "check:staged": "tsx scripts/check-staged-content.ts --staged",
     "test:security": "npm run security:audit",
     "test:api": "jest --testPathPattern=api",
     "test:uat": "npm run test:e2e"

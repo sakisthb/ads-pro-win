@@ -34,6 +34,21 @@ env:
   NEXT_PUBLIC_SITE_URL: https://ci.example.com
 
 jobs:
+  content-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Guard changed content
+        run: npx tsx scripts/check-staged-content.ts --base origin/main
+
   install-and-audit:
     runs-on: ubuntu-latest
     steps:
