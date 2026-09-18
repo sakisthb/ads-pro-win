@@ -11,6 +11,7 @@ import { parseOrgSettings, strictContextForBrand } from "@/lib/project-context";
 import { MARKET_FILTER_SCHEMA } from "@/lib/market-desk";
 import { auditEvidenceReferenceSchema, type AuditEvidenceReference } from "@/lib/audit-evidence-reference";
 import { explainGoogleResearch } from "@/lib/google-evidence-explanation";
+import { adAccountIsConnected } from "@/lib/connection-status";
 
 const recordType = GOOGLE_RESEARCH_RECORD_TYPE;
 const windowSchema = z.object({ startDate: z.string(), endDate: z.string() }).strict();
@@ -116,8 +117,15 @@ export const googleResearchRouter = createTRPCRouter({
       // Baseline failure is an explicit unavailable comparison, never invented zero.
       const previous = await reader.getCampaignPerformance({ ...reportInput, ...periods.window }).catch(() => undefined);
       const context = strictContextForBrand(parseOrgSettings(ctx.organization.settings), input.brandId);
+      const brandAccounts = await ctx.prisma.adAccount.findMany({
+        where: { brandId: input.brandId },
+        select: { platform: true, accessToken: true, refreshToken: true, tokenExpiry: true, createdAt: true },
+      });
+      const contextConnections = brandAccounts
+        .filter(adAccountIsConnected)
+        .map((a) => ({ platform: a.platform, connectedAt: a.createdAt.toISOString().slice(0, 10) }));
       const audit = buildPerformanceAudit({ current: current.data, previous: previous?.data, asOf, platform: "google", adAccountId: input.adAccountId,
-        goal: input.goal, comparison: input.comparison, businessContext: { source: context ? "brand" : "missing", context } });
+        goal: input.goal, comparison: input.comparison, businessContext: { source: context ? "brand" : "missing", context }, contextConnections });
       const scope = { brandId: input.brandId, adAccountId: input.adAccountId, platform: "google" as const, market: input.market, goal: input.goal,
         window: input.window, comparison: input.comparison, baselineWindow: periods.window, brandName: account.brand.name,
         accountName: account.name, providerAccountId: auditProviderAccountLabel("google", account.accountId) };

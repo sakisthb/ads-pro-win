@@ -1,5 +1,5 @@
 import { validCampaignWindow } from "./campaign-reporting";
-import { projectContextEntries, type ProjectContext } from "./project-context";
+import { contextConnectionStaleness, projectContextEntries, type ContextConnectionRef, type ProjectContext } from "./project-context";
 import { resolveAuditPeriods, type AuditComparison } from "./audit-periods";
 import { auditKpis, AUDIT_KPI_REFERENCES, type AuditMeasures } from "./audit-kpis";
 import { googleCampaignAdaptation, GOOGLE_ADAPTATION_REFERENCES } from './google-campaign-adaptation';
@@ -109,11 +109,13 @@ export function buildPerformanceAudit(input: {
   current: AuditSnapshot; previous?: AuditSnapshot; goal: AuditGoal; asOf: string;
   platform: string; adAccountId: string;
   businessContext?: AuditBusinessContext;
+  contextConnections?: ContextConnectionRef[];
   comparison?: AuditComparison;
 }) {
   const { current, previous } = input;
   const businessContext: AuditBusinessContext = input.businessContext?.source === "brand" && input.businessContext.context
     ? input.businessContext : { source: input.businessContext?.source === "unavailable" ? "unavailable" : "missing", context: null };
+  const businessContextStaleness = contextConnectionStaleness(businessContext.context, input.contextConnections ?? []);
   const comparison = resolveAuditPeriods(current.window, input.comparison, input.asOf);
   const comparisonWindow = comparison.window;
   const findings: AuditFinding[] = [];
@@ -181,7 +183,7 @@ export function buildPerformanceAudit(input: {
     coverage: current.coverage, truncated: current.truncated, inventoryTotals: current.totals,
     verdict: findings.some(f => f.severity === "blocker") ? "blocked" as const : "review" as const,
     activationAllowed: false as const,
-    businessContext,
+    businessContext, businessContextStaleness,
     findings, summaries, kpis: auditKpis(input.goal, summaries),
     inventory: current.campaigns.filter(inScope).map(r => ({ id: key(r), campaignId: r.campaignId, name: r.campaignName,
       status: r.status, currency: r.currency, objective: r.objective ?? "Unknown", metricState: r.metricState,
@@ -223,6 +225,7 @@ export function auditMarkdown(audit: PerformanceAudit, context: { brand: string;
     "Operator inputs, not verified business economics; shared across accounts and markets, not an account/wholesale-specific profile.",
     "No verified economics or numeric targets are inferred. The selected audit objective remains separate from the saved objective.", "",
     BUSINESS_CONTEXT_CAUTION, "",
+    ...(audit.businessContextStaleness ? [audit.businessContextStaleness, ""] : []),
     ...(audit.businessContext.context ? projectContextEntries(audit.businessContext.context).map(([label, value]) => `${label}: ${mdCell(value || "Not provided")}`) : [
       audit.businessContext.source === "unavailable" ? "Could not load the exact brand context. No legacy fallback is used." : "No context saved for this brand. No legacy fallback is used.",
     ]), "",

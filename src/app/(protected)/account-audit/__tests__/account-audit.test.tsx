@@ -109,6 +109,22 @@ it("shows the shared saved brand inputs separately from measured evidence and th
   expect(screen.getByRole("combobox",{name:"Business objective"})).toHaveValue("sales");
   expect(businessContext).toHaveBeenCalledWith({brandId:"brand-1"},expect.objectContaining({enabled:true}));
 });
+it("flags saved business context that predates a live connection as stale claims, not current truth",()=>{
+  jest.mocked(businessContext).mockReturnValue({isLoading:false,data:{brandId:"brand-1",source:"brand",context:{
+    objective:"sales",notes:"Google not connected yet; Meta only",updatedAt:"2026-08-28T10:00:00Z",
+  },connections:[{platform:"google",connectedAt:"2026-09-17"}]}} as never);
+  render(<AccountAuditPage/>);
+  const region=screen.getByRole("region",{name:"Business Context (brand-level)"});
+  expect(region).toHaveTextContent("Saved on 2026-08-28, before the google connection");
+  expect(region).toHaveTextContent("historical, not current truth");
+});
+it("stays silent on staleness when connections predate the saved context or none exist",()=>{
+  jest.mocked(businessContext).mockReturnValue({isLoading:false,data:{brandId:"brand-1",source:"brand",context:{
+    objective:"sales",notes:"Current platform mix",updatedAt:"2026-09-17T10:00:00Z",
+  },connections:[{platform:"google",connectedAt:"2026-08-01"}]}} as never);
+  render(<AccountAuditPage/>);
+  expect(screen.queryByText(/before the google connection/)).not.toBeInTheDocument();
+});
 it("keeps a context read error explicit while preserving valid stored diagnostics",()=>{
   jest.mocked(businessContext).mockReturnValue({isLoading:false,error:{message:"Fixture context failure"}} as never);
   render(<AccountAuditPage/>);

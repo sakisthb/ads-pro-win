@@ -63,6 +63,7 @@ export default function AccountAuditPage() {
   const audit = enabled && !currentError && !loading && current && currentWindowMatches ? buildPerformanceAudit({ current,
     previous: previousQuery.error ? undefined : previousQuery.data?.data,
     goal, asOf, platform, adAccountId: accountId, businessContext, comparison,
+    contextConnections: contextQuery.data?.brandId === brandId ? contextQuery.data.connections ?? [] : [],
   }) : null;
   const chartScope = `${scope}:${accountId}:${market}:${window.startDate}:${window.endDate}:${comparisonSelection}:${previousWindow?.startDate}:${previousWindow?.endDate}`;
   const downloadScope = `${chartScope}:${goal}:${JSON.stringify(businessContext)}`;
@@ -177,6 +178,7 @@ export default function AccountAuditPage() {
           <p className="text-sm text-zinc-400">Operator inputs, not verified business economics; shared across accounts and markets, not an account/wholesale-specific profile.</p>
           <p className="text-xs text-zinc-400">No verified economics or numeric targets are inferred. The selected audit objective remains separate from the saved objective.</p>
           <p className="text-sm text-amber-200">{BUSINESS_CONTEXT_CAUTION}</p>
+          {audit.businessContextStaleness && <p className="text-sm text-amber-200">{audit.businessContextStaleness}</p>}
           {audit.businessContext.context ? <dl className="grid gap-3 sm:grid-cols-2">
             {projectContextEntries(audit.businessContext.context).map(([label, value]) => <div key={label} className="min-w-0">
               <dt className="text-xs text-zinc-400">{label}</dt><dd className="whitespace-pre-wrap break-words text-sm">{value || "Not provided"}</dd>

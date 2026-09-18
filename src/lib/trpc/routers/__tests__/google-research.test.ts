@@ -3,7 +3,7 @@ jest.mock("superjson", () => ({ __esModule: true, default: { serialize: (v: unkn
 jest.mock("@/lib/auth", () => ({ getSession: jest.fn() }));
 jest.mock("@/lib/db", () => ({ prisma: {
   organization: { findUnique: jest.fn() }, brand: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
-  adAccount: { findFirst: jest.fn() }, dailyMetric: { groupBy: jest.fn(), findMany: jest.fn() }, adCampaign: { findMany: jest.fn() },
+  adAccount: { findFirst: jest.fn(), findMany: jest.fn() }, dailyMetric: { groupBy: jest.fn(), findMany: jest.fn() }, adCampaign: { findMany: jest.fn() },
   analysis: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
 } }));
 jest.mock("@/lib/organization-authorization", () => ({ OrganizationAuthorizationError: class extends Error {},
@@ -23,6 +23,7 @@ beforeEach(() => {
   jest.mocked(requireOrganizationRoleForUser).mockResolvedValue({ organizationId: "fixture-org", membership: { role: "admin" } } as never);
   jest.mocked(prisma.organization.findUnique).mockResolvedValue({ id: "fixture-org", settings: null } as never);
   jest.mocked(prisma.adAccount.findFirst).mockResolvedValue({ id: "fixture-account", accountId: "1111111111", name: "Fixture Google", platform: "google", brand: { name: "Fixture shop" } } as never);
+  jest.mocked(prisma.adAccount.findMany).mockResolvedValue([] as never);
   jest.mocked(prisma.brand.findUnique).mockResolvedValue({ id: "fixture-brand", organizationId: "fixture-org" } as never);
   jest.mocked(prisma.brand.findFirst).mockResolvedValue({ marketMode: "mixed" } as never);
   jest.mocked(prisma.brand.findMany).mockResolvedValue([]);
@@ -37,6 +38,31 @@ afterEach(() => jest.useRealTimers());
 const operatorStudy = { customerId: '1111111111', title: 'Historical study <draft>', observedAt: '2026-09-17T11:00:00.000Z',
   markdown: '# Original account study\nBefore → proposed change → why.\nHypothesis, not provider-verified metrics.',
   sourceUrls: ['https://support.google.com/google-ads/answer/16260130?hl=en'], confirmOperatorSource: true as const };
+describe('business context staleness', () => {
+  it('marks stale saved brand context in the frozen report when it predates a live connection', async () => {
+    jest.mocked(prisma.organization.findUnique).mockResolvedValue({ id: "fixture-org", settings: {
+      brandContexts: { "fixture-brand": { objective: "sales", targetResult: "", priorities: "", constraints: "", seasonality: "",
+        notes: "Google not connected yet; Meta only", updatedAt: "2026-08-28T10:00:00Z" } },
+    } } as never);
+    jest.mocked(prisma.adAccount.findMany).mockResolvedValue([
+      { id: "fixture-account", brandId: "fixture-brand", platform: "google", accessToken: "fixture-ciphertext", tokenExpiry: new Date("2099-01-01"), createdAt: new Date("2026-09-17T09:00:00Z") },
+    ] as never);
+    const record = await caller().save(input);
+    expect(record.snapshot.reportMarkdown).toContain("Saved on 2026-08-28, before the google connection");
+    expect(record.snapshot.reportMarkdown).toContain("historical, not current truth");
+  });
+  it('stays silent when the saved context is newer than every connection', async () => {
+    jest.mocked(prisma.organization.findUnique).mockResolvedValue({ id: "fixture-org", settings: {
+      brandContexts: { "fixture-brand": { objective: "sales", targetResult: "", priorities: "", constraints: "", seasonality: "",
+        notes: "Current platform mix", updatedAt: "2026-09-17T10:00:00Z" } },
+    } } as never);
+    jest.mocked(prisma.adAccount.findMany).mockResolvedValue([
+      { id: "fixture-account", brandId: "fixture-brand", platform: "google", accessToken: "fixture-ciphertext", tokenExpiry: new Date("2099-01-01"), createdAt: new Date("2026-09-01T09:00:00Z") },
+    ] as never);
+    const record = await caller().save(input);
+    expect(record.snapshot.reportMarkdown).not.toContain("before the google connection");
+  });
+});
 describe('retained operator study', () => {
   it('preserves the complete original study with source/time labels inside the frozen report without treating it as canonical metrics', async () => {
     const record = await caller().save({ ...input, operatorStudy } as never);

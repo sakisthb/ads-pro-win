@@ -32,6 +32,7 @@ beforeEach(() => {
   ] as never);
   jest.mocked(prisma.adAccount.findMany).mockResolvedValue([{ id: "account-1", brandId: "brand-1", platform: "google",
     name: "Fixture Google", accountId: "1234567890", accessToken: "fixture-ciphertext", tokenExpiry: new Date("2099-01-01"),
+    createdAt: new Date("2026-09-17T09:00:00Z"),
   }] as never);
   jest.mocked(prisma.dailyMetric.count).mockResolvedValue(0);
   jest.mocked(prisma.dailyMetric.groupBy).mockResolvedValue([]);
@@ -77,12 +78,22 @@ it("does not combine one brand connection with another brand inputs into setup r
 
 it("reads the exact owned brand context with provenance and no raw settings", async () => {
   const result = await caller().getBrandContext({ brandId: "brand-1" });
-  expect(result).toEqual({ brandId: "brand-1", source: "brand", context });
+  expect(result).toEqual({ brandId: "brand-1", source: "brand", context,
+    connections: [{ platform: "google", connectedAt: "2026-09-17" }] });
   expect(prisma.brand.findFirst).toHaveBeenCalledWith({ where: { id: "brand-1", organizationId: "org-1" }, select: { id: true } });
   expect(prisma.organization.update).not.toHaveBeenCalled();
 });
+it("returns the brand connection dates that revalidate stale saved claims, live accounts only", async () => {
+  jest.mocked(prisma.adAccount.findMany).mockResolvedValue([
+    { id: "account-1", brandId: "brand-1", platform: "google", accessToken: "fixture-ciphertext", tokenExpiry: new Date("2099-01-01"), createdAt: new Date("2026-09-17T09:00:00Z") },
+    { id: "account-2", brandId: "brand-1", platform: "meta", accessToken: null, createdAt: new Date("2026-09-18T09:00:00Z") },
+  ] as never);
+  const result = await caller().getBrandContext({ brandId: "brand-1" });
+  expect(result.connections).toEqual([{ platform: "google", connectedAt: "2026-09-17" }]);
+  expect(JSON.stringify(result)).not.toContain("fixture-ciphertext");
+});
 it("does not substitute organization legacy context when a brand has no saved input", async () => {
-  expect(await caller().getBrandContext({ brandId: "brand-without-context" })).toEqual({ brandId: "brand-without-context", source: "missing", context: null });
+  expect(await caller().getBrandContext({ brandId: "brand-without-context" })).toEqual({ brandId: "brand-without-context", source: "missing", context: null, connections: [{ platform: "google", connectedAt: "2026-09-17" }] });
 });
 it("rejects a foreign brand read without disclosing its context", async () => {
   jest.mocked(prisma.brand.findFirst).mockResolvedValue(null);

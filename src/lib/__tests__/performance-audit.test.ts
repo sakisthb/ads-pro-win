@@ -195,6 +195,27 @@ it("carries saved business inputs into the audit and export without inventing nu
   expect(md).toContain("2026-09-17T10:00:00Z");
   expect(md).not.toContain("\n## injected heading");
 });
+it("marks saved business context that predates a live connection as stale claims on the desk and in the export", () => {
+  const context = { ...emptyProjectContext(), notes: "Google not connected yet; Meta only", updatedAt: "2026-08-28T10:00:00Z" };
+  const result = buildPerformanceAudit({ current: snapshot(), goal: "sales", asOf: "2026-09-17", platform: "google", adAccountId: "fixture-account",
+    businessContext: { source: "brand", context }, contextConnections: [{ platform: "google", connectedAt: "2026-09-17" }] });
+  expect(result.businessContextStaleness).toContain("Saved on 2026-08-28, before the google connection");
+  const md = auditMarkdown(result, { brand: "Fixture", account: "Fixture", providerAccountId: "1", market: "all" });
+  expect(md).toContain("Saved on 2026-08-28, before the google connection");
+  expect(md).toContain("historical, not current truth");
+});
+
+it("keeps business context staleness silent when connections predate the save or none are provided", () => {
+  const context = { ...emptyProjectContext(), notes: "Meta only", updatedAt: "2026-08-28T10:00:00Z" };
+  const stale = buildPerformanceAudit({ current: snapshot(), goal: "sales", asOf: "2026-09-17", platform: "google", adAccountId: "fixture-account",
+    businessContext: { source: "brand", context }, contextConnections: [{ platform: "google", connectedAt: "2026-08-01" }] });
+  expect(stale.businessContextStaleness).toBeNull();
+  expect(auditMarkdown(stale, { brand: "Fixture", account: "Fixture", providerAccountId: "1", market: "all" })).not.toContain("before the google connection");
+  const none = buildPerformanceAudit({ current: snapshot(), goal: "sales", asOf: "2026-09-17", platform: "google", adAccountId: "fixture-account",
+    businessContext: { source: "brand", context } });
+  expect(none.businessContextStaleness).toBeNull();
+});
+
 it.each(["missing", "unavailable"] as const)("exports %s business context as a gap, not a legacy or invented profile", source => {
   const result = buildPerformanceAudit({ current: snapshot(), goal: "sales", asOf: "2026-09-17", platform: "google", adAccountId: "fixture-account",
     businessContext: { source, context: null } });
