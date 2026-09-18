@@ -70,6 +70,7 @@ export interface DailyMetricInput {
   results?: number;
   resultType?: string | null;
   attributionSetting?: string | null;
+  currency?: string;
 }
 
 export interface AdCampaignInput {
@@ -1403,6 +1404,7 @@ export async function upsertDailyMetrics(
   metrics: DailyMetricInput[],
   adAccountId: string,
   platform: string,
+  currency = "EUR",
 ): Promise<number> {
   if (metrics.length === 0) return 0;
 
@@ -1417,7 +1419,7 @@ export async function upsertDailyMetrics(
   let written = 0;
   for (const dateWindow of windowSortedDates([...byDate.keys()], DAILY_METRIC_DATE_WINDOW)) {
     const rows = dateWindow.flatMap((date) => byDate.get(date) ?? []);
-    const data = rows.map((row) => toDailyMetricCreateData(row, adAccountId, platform));
+    const data = rows.map((row) => toDailyMetricCreateData(row, adAccountId, platform, currency));
     const dateObjs = dateWindow.map((date) => new Date(date));
 
     await withSerializableRetry(() =>
@@ -1483,6 +1485,7 @@ export function metricFromNormalized(metric: NormalizedMetric): DailyMetricInput
     results: metric.results,
     resultType: metric.resultType,
     attributionSetting: metric.attributionSetting,
+    currency: metric.currency,
   };
 }
 

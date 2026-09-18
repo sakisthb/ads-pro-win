@@ -339,7 +339,7 @@ export async function POST(
         adAccount.accountId,
         dateRange,
       );
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
       const campaignCount = await upsertAdCampaigns(
         campaigns,
         adAccount.id,
@@ -369,7 +369,7 @@ export async function POST(
         throw new Error("Pick a GA4 property on Connections before syncing Google Analytics.");
       }
       const rows = await fetchGa4Metrics(gaAccessToken, propertyId, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
     } else if (platform === "google-search-console") {
       const gscAccessToken = await ensureFreshGoogleAccessToken(
         {
@@ -385,7 +385,7 @@ export async function POST(
         throw new Error("Pick a Search Console property on Connections before syncing.");
       }
       const rows = await fetchGscMetrics(gscAccessToken, siteUrl, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
     } else if (platform === "tiktok") {
       // Refresh the ~24 h access token when it is expired or within 5
       // minutes of expiry, persist the rotated tokens, then fetch.
@@ -397,13 +397,13 @@ export async function POST(
       }
 
       const rows = await fetchTikTokMetrics(tiktokAccessToken, adAccount.accountId, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
     } else if (platform === "omnisend") {
       const rows = await fetchOmnisendData(accessToken, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
     } else if (platform === "brevo") {
       const rows = await fetchBrevoData(accessToken, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
     } else if (platform === "woocommerce") {
       // For WooCommerce, accessToken = encrypted consumerKey, refreshToken = encrypted consumerSecret,
       // accountId = storeUrl (set by the connections route).
@@ -437,7 +437,7 @@ export async function POST(
       );
 
       // Aggregate order revenue into DailyMetric (platform "opencart")
-      await upsertDailyMetrics(result.metrics, adAccount.id, "opencart");
+      await upsertDailyMetrics(result.metrics, adAccount.id, "opencart", adAccount.currency);
 
       recordsSynced = orderCount + productCount;
     }

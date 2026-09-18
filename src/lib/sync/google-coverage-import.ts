@@ -55,7 +55,7 @@ export async function syncGoogleReporting({ syncJobId, executionPath, account, d
     // Persist the risk flag BEFORE entering a non-atomic batched import.
     storageMayBePartial = true;
     await checkpoint();
-    evidence.metricRowsPersisted = await upsertDailyMetrics(metrics, account.id, "google");
+    evidence.metricRowsPersisted = await upsertDailyMetrics(metrics, account.id, "google", provider.currency);
     evidence.networkRowsPersisted = await upsertGoogleNetworkSplit(networkRows, account.id, provider.currency);
     stage = "campaigns";
     await checkpoint();

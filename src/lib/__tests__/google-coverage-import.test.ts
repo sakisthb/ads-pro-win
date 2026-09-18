@@ -92,6 +92,7 @@ it("uses provider currency and cleans up legacy aggregates only for actual metri
   jest.mocked(upsertDailyMetrics).mockResolvedValue(1);
   jest.mocked(upsertAdCampaigns).mockResolvedValue(0);
   await syncGoogleReporting({ ...input, account: { ...input.account, currency: "USD" } });
+  expect(upsertDailyMetrics).toHaveBeenCalledWith([metric], "acc-1", "google", "USD");
   expect(upsertAdCampaigns).toHaveBeenCalledWith([], "acc-1", "google", "USD");
   expect(cleanupAccountLevelRows).toHaveBeenCalledWith("acc-1", "google");
 });

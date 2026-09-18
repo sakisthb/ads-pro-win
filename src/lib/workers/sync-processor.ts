@@ -181,7 +181,7 @@ export async function processMetricSync(job: Job<MetricSyncJobData>): Promise<vo
       adapter = createMetricAdapter(platform, credentials)
       await adapter.connect(credentials)
       const metrics = await adapter.getPerformance(dateRange)
-      recordsProcessed = await upsertDailyMetrics(metrics.map(metricFromNormalized), adAccountId, platform)
+      recordsProcessed = await upsertDailyMetrics(metrics.map(metricFromNormalized), adAccountId, platform, adAccount.currency)
       try {
         const campaigns = await adapter.getCampaigns()
         recordsProcessed += await upsertAdCampaigns(
@@ -395,6 +395,7 @@ async function loadOpenCartAccount(adAccountId: string) {
     storeUrl: account.accountId,
     username: decrypt(account.accessToken),
     apiKey: decrypt(account.refreshToken),
+    currency: account.currency,
   }
 }
 
@@ -407,7 +408,7 @@ async function loadOpenCartAccount(adAccountId: string) {
 export async function processOpenCartSync(job: Job<OpenCartSyncJobData>): Promise<void> {
   const { adAccountId, startDate, endDate } = job.data
 
-  const { brandId, storeUrl, username, apiKey } = await loadOpenCartAccount(adAccountId)
+  const { brandId, storeUrl, username, apiKey, currency } = await loadOpenCartAccount(adAccountId)
 
   // Create SyncJob record
   const syncJob = await prisma.syncJob.create({
@@ -442,7 +443,7 @@ export async function processOpenCartSync(job: Job<OpenCartSyncJobData>): Promis
     )
 
     // Aggregate order revenue into DailyMetric (platform "opencart")
-    await upsertDailyMetrics(result.metrics, adAccountId, 'opencart')
+    await upsertDailyMetrics(result.metrics, adAccountId, 'opencart', currency)
 
     const recordsProcessed = orderCount + productCount
 

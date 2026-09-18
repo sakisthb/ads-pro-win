@@ -147,7 +147,7 @@ async function processEmailSync(job: Job<MetricSyncJobData>): Promise<void> {
     }
 
     // Batch-upsert the daily metrics
-    const recordsProcessed = await upsertDailyMetrics(metrics, adAccountId, platform)
+    const recordsProcessed = await upsertDailyMetrics(metrics, adAccountId, platform, adAccount.currency)
 
     // Mark SyncJob as completed
     await prisma.syncJob.update({
