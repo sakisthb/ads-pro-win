@@ -126,6 +126,39 @@ function ResultCaption({ platform, resultType }: { platform: string; resultType?
   );
 }
 
+const NETWORK_LABELS: Record<string, string> = {
+  SEARCH: "Search", SEARCH_PARTNERS: "Search partners", DISPLAY: "Display",
+  YOUTUBE_SEARCH: "YouTube Search", YOUTUBE_WATCH: "YouTube Watch", MIXED: "Mixed",
+};
+const NETWORK_COLORS: Record<string, string> = {
+  SEARCH: "bg-emerald-500", SEARCH_PARTNERS: "bg-teal-400", DISPLAY: "bg-sky-400",
+  YOUTUBE_SEARCH: "bg-red-400", YOUTUBE_WATCH: "bg-rose-500", MIXED: "bg-violet-400",
+};
+
+function NetworkSplitLine({ rows }: { rows: Array<{ networkType: string; spend: number }> }) {
+  const total = rows.reduce((sum, row) => sum + row.spend, 0);
+  if (total <= 0) return null;
+  const sorted = [...rows].sort((a, b) => b.spend - a.spend);
+  return (
+    <div className="mt-2 border-t border-white/5 pt-2" data-testid="network-split">
+      <div className="flex h-1.5 overflow-hidden rounded-full bg-white/5">
+        {sorted.map((row) => (
+          <div
+            key={row.networkType}
+            className={`h-full ${NETWORK_COLORS[row.networkType] ?? "bg-white/20"}`}
+            style={{ width: `${(row.spend / total) * 100}%` }}
+          />
+        ))}
+      </div>
+      <p className="mt-1 text-[10px] text-white/40">
+        {sorted
+          .map((row) => `${NETWORK_LABELS[row.networkType] ?? row.networkType} ${Math.round((row.spend / total) * 100)}%`)
+          .join(" · ")}
+      </p>
+    </div>
+  );
+}
+
 function normalizePlatform(p: string): string {
   if (PLATFORMS[p]) return p;
   const cap = p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
@@ -242,6 +275,13 @@ export default function CampaignsPage() {
     ...(market !== "all" ? { market } : {}),
   }, { enabled: validWindow });
 
+  // Search/Display split for Google rows, stored by the coverage import.
+  const networkSplitQuery = api.marketing.getGoogleNetworkSplit.useQuery({
+    brandId: brandId || undefined,
+    adAccountId: accountFilter !== "all" ? accountFilter : undefined,
+    ...reportWindow,
+  }, { enabled: validWindow });
+
   const liveStatus = api.campaigns.updateLiveStatus.useMutation({
     onSuccess: (res) => {
       toast.success(res.message);
@@ -263,6 +303,16 @@ export default function CampaignsPage() {
   const syncedCampaigns = report?.campaigns ?? [];
   const headerKpis = report?.totals;
   const spendEntries = Object.entries(headerKpis?.spendByCurrency ?? {});
+  const networkSplitByCampaign = useMemo(() => {
+    const map = new Map<string, Array<{ networkType: string; spend: number }>>();
+    for (const row of networkSplitQuery.data?.rows ?? []) {
+      const key = `${row.adAccountId}:${row.campaignId}`;
+      const list = map.get(key) ?? [];
+      list.push({ networkType: row.networkType, spend: row.spend });
+      map.set(key, list);
+    }
+    return map;
+  }, [networkSplitQuery.data?.rows]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -672,6 +722,9 @@ export default function CampaignsPage() {
                         <p className="text-xs font-semibold text-white/80">{Number(c.totalResults ?? 0).toFixed(0)}</p>
                       </div>
                     </div>
+                    {fromPrismaPlatform(c.platform) === "google" ? (
+                      <NetworkSplitLine rows={networkSplitByCampaign.get(`${c.adAccountId}:${c.campaignId}`) ?? []} />
+                    ) : null}
                     {fromPrismaPlatform(c.platform) === "meta" ? <div className="mt-3 flex items-center gap-1.5">
                       <button
                         type="button"

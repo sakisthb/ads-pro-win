@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { GOOGLE_ADS_API_VERSION, googleAdsLoginCustomerId, parseGoogleAdsCustomerId } from "@/lib/google-ads-accounts";
 import { ensureFreshGoogleAccessToken } from "@/lib/oauth/google-refresh";
 import { cleanupAccountLevelRows, fetchGoogleAccountData, upsertAdCampaigns, upsertDailyMetrics, validateGoogleDateRange } from "./fetchers";
+import { fetchGoogleNetworkSplit, upsertGoogleNetworkSplit } from "@/lib/sync/google-network-split";
 import type { DateRange } from "@/lib/mcp/types";
 
 interface GoogleImportInput {
@@ -43,12 +44,16 @@ export async function syncGoogleReporting({ syncJobId, executionPath, account, d
     if (provider.currency !== account.currency) {
       throw new Error("Google Ads currency differs from stored account; review connector identity before Sync");
     }
+    // Network split is fetched before any write so a provider failure here
+    // leaves stored reporting untouched (receipt stage stays "fetch").
+    const networkRows = await fetchGoogleNetworkSplit(accessToken, account.accountId, dateRange);
 
     stage = "metrics";
     // Persist the risk flag BEFORE entering a non-atomic batched import.
     storageMayBePartial = true;
     await checkpoint();
     evidence.metricRowsPersisted = await upsertDailyMetrics(metrics, account.id, "google");
+    const networkRowsPersisted = await upsertGoogleNetworkSplit(networkRows, account.id, provider.currency);
     stage = "campaigns";
     await checkpoint();
     evidence.campaignRowsPersisted = await upsertAdCampaigns(campaigns, account.id, "google", provider.currency);
@@ -56,7 +61,7 @@ export async function syncGoogleReporting({ syncJobId, executionPath, account, d
     await checkpoint();
     if (metrics.length > 0) await cleanupAccountLevelRows(account.id, "google");
 
-    const recordsProcessed = evidence.metricRowsPersisted + evidence.campaignRowsPersisted;
+    const recordsProcessed = evidence.metricRowsPersisted + evidence.campaignRowsPersisted + networkRowsPersisted;
     const completedAt = new Date();
     stage = "finalize";
     await checkpoint();

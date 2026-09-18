@@ -19,6 +19,7 @@ jest.mock("@/lib/sync/fetchers", () => ({
   fetchGoogleAccountData: jest.fn(), upsertDailyMetrics: jest.fn().mockResolvedValue(0),
   upsertAdCampaigns: jest.fn().mockResolvedValue(1), cleanupAccountLevelRows: jest.fn(),
 }));
+jest.mock("@/lib/sync/google-network-split", () => ({ fetchGoogleNetworkSplit: jest.fn().mockResolvedValue([]), upsertGoogleNetworkSplit: jest.fn().mockResolvedValue(0) }));
 
 import { prisma } from "@/lib/db";
 import { ensureFreshGoogleAccessToken } from "@/lib/oauth/google-refresh";

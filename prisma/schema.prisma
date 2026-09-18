@@ -339,6 +339,7 @@ model AdAccount {
   dailyMetrics DailyMetric[]
   campaigns    AdCampaign[]
   syncJobs     SyncJob[]
+  googleNetworkDailyMetrics GoogleNetworkDailyMetric[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -386,6 +387,29 @@ model DailyMetric {
   @@index([platform, date])
   @@index([campaignId])
   @@index([platform, adAccountId, date])
+}
+
+/// Google Ads campaign metrics segmented by `segments.ad_network_type`
+/// (SEARCH / SEARCH_PARTNERS / DISPLAY / YOUTUBE_* / MIXED). Kept out of
+/// DailyMetric so network detail never double-counts campaign totals.
+model GoogleNetworkDailyMetric {
+  id              String    @id @default(cuid())
+  date            DateTime  @db.Date
+  adAccountId     String
+  adAccount       AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaignId      String
+  campaignName    String?
+  networkType     String
+  currency        String    @default("EUR")
+  spend           Decimal   @default(0) @db.Decimal(12, 4)
+  impressions     Int       @default(0)
+  clicks          Int       @default(0)
+  conversions     Decimal   @default(0) @db.Decimal(10, 2)
+  conversionValue Decimal   @default(0) @db.Decimal(12, 4)
+  createdAt       DateTime  @default(now())
+
+  @@unique([date, adAccountId, campaignId, networkType])
+  @@index([adAccountId, date])
 }
 
 /// Platform-synced campaign object (Meta / Google / TikTok), separate from
