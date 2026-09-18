@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { createTRPCRouter, organizationAdminProcedure, organizationProcedure } from "../server";
 import {
   RESEARCH_MEMORY_RECORD_TYPE,
   ResearchMemoryError,
-  buildResearchMemoryEntry,
   decodeResearchMemoryRecord,
   type ResearchMemoryRecord,
 } from "@/lib/research-memory";
+import { importResearchMemory, storedResearchMemoryRecords } from "@/lib/research-memory-store";
 
 const brandScope = z.object({ brandId: z.string().min(1) }).strict();
 const importSchema = brandScope.extend({
@@ -31,25 +31,7 @@ async function ownedBrand(prisma: PrismaClient, organizationId: string, brandId:
 }
 
 async function storedRecords(prisma: PrismaClient, organizationId: string, brandId: string): Promise<ResearchMemoryRecord[]> {
-  const records = await prisma.analysis.findMany({
-    where: { organizationId, type: RESEARCH_MEMORY_RECORD_TYPE, AND: [{ data: { path: ["brandId"], equals: brandId } }] },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100, select: { id: true, data: true },
-  });
-  const decoded: ResearchMemoryRecord[] = [];
-  for (const record of records) {
-    try {
-      decoded.push(decodeResearchMemoryRecord(record, brandId));
-    } catch {
-      // Tampered records are withheld, never half-decoded into the list.
-    }
-  }
-  return decoded;
-}
-
-function sameImportedContent(record: ResearchMemoryRecord, input: z.infer<typeof importSchema>): boolean {
-  const entry = record.entry;
-  return entry.title === input.title && entry.sourceDoc === input.sourceDoc && entry.sourceDate === input.sourceDate &&
-    JSON.stringify(entry.sourceUrls) === JSON.stringify(input.sourceUrls) && entry.markdown === input.markdown;
+  return storedResearchMemoryRecords(prisma, organizationId, brandId);
 }
 
 export const researchMemoryRouter = createTRPCRouter({
@@ -71,18 +53,7 @@ export const researchMemoryRouter = createTRPCRouter({
     }),
   import: organizationAdminProcedure.input(importSchema).mutation(async ({ ctx, input }): Promise<ResearchMemoryRecord> => {
     await ownedBrand(ctx.prisma, ctx.organizationId, input.brandId);
-    const existing = (await storedRecords(ctx.prisma, ctx.organizationId, input.brandId))
-      .filter(record => record.entry.sourceDoc === input.sourceDoc)
-      .sort((a, b) => b.entry.version - a.entry.version);
-    const latest = existing[0];
-    if (latest && sameImportedContent(latest, input)) return latest;
-    const entry = buildResearchMemoryEntry({
-      title: input.title, sourceDoc: input.sourceDoc, sourceDate: input.sourceDate, sourceUrls: input.sourceUrls,
-      importedAt: new Date().toISOString(), importedBy: ctx.session.user.id, brandId: input.brandId,
-      markdown: input.markdown, version: latest ? latest.entry.version + 1 : 1, supersedesId: latest?.id ?? null,
-    });
-    const record = await ctx.prisma.analysis.create({ data: { organizationId: ctx.organizationId, type: RESEARCH_MEMORY_RECORD_TYPE,
-      title: entry.title, status: "research_imported", data: entry as Prisma.InputJsonValue }, select: { id: true, data: true } });
-    return decodeResearchMemoryRecord(record, input.brandId);
+    const result = await importResearchMemory(ctx.prisma, ctx.organizationId, input.brandId, ctx.session.user.id, input);
+    return result.record;
   }),
 });
