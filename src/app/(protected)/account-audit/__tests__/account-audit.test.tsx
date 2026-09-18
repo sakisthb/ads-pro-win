@@ -10,7 +10,7 @@ jest.mock('@/components/audit/google-history-import',()=>({GoogleHistoryImport:j
 
 jest.mock("@/components/providers/trpc-provider", () => ({api:{marketing:{
   getCampaignPerformance:{useQuery:jest.fn()},getCampaignReportAccounts:{useQuery:jest.fn()},
-},onboarding:{getBrandContext:{useQuery:jest.fn()}}}}));
+},onboarding:{getBrandContext:{useQuery:jest.fn()}},researchMemory:{list:{useQuery:jest.fn(()=>({data:[],isLoading:false}))}}}}));
 jest.mock("@/hooks/use-active-brand", () => ({useActiveBrand:()=>({brandId:"brand-1",brands:[{id:"brand-1",name:"Fixture shop"}],setBrandId:jest.fn(),isLoading:false})}));
 jest.mock("@/hooks/use-active-market", () => ({useActiveMarket:()=>({market:"all"})}));
 jest.mock("@/components/brands/desk-filters",()=>({DeskFilterRow:()=>null}));
