@@ -41,6 +41,11 @@ it("withholds incomplete scoped URLs instead of running workspace fallback", () 
   expect(screen.queryByText("DO NOT READ WORKSPACE")).not.toBeInTheDocument();
   expect(api.googleResearch.get.useQuery).not.toHaveBeenCalled();
 });
+it.each(["chat", "report"] as const)("shows the snapshot's frozen saved period, not the current Desk controls, in %s mode", mode => {
+  render(<AuditEvidenceRoute mode={mode} fallback={<p>Workspace fallback</p>} />);
+  expect(screen.getByText(/Saved current: 2026-08-18 → 2026-09-16 UTC · Saved baseline: 2026-07-19 → 2026-08-17 UTC/)).toBeInTheDocument();
+  expect(screen.getByText(/saved snapshot dates\/objective, not current Desk controls/)).toBeInTheDocument();
+});
 it.each(["chat", "report"] as const)("withholds stale or failed packet data in %s mode", mode => {
   jest.mocked(api.googleResearch.get.useQuery).mockReturnValue({ data: { ...record, snapshot: { ...record.snapshot, revision: 1 } }, isLoading: false, refetch } as never);
   const view = render(<AuditEvidenceRoute mode={mode} fallback={<p>Workspace fallback</p>} />);
