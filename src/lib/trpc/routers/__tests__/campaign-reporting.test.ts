@@ -5,6 +5,7 @@ jest.mock("@/lib/db", () => ({ prisma: {
   organization: { findUnique: jest.fn() }, brand: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
   adAccount: { findFirst: jest.fn(), findMany: jest.fn() },
   dailyMetric: { groupBy: jest.fn(), findMany: jest.fn() }, adCampaign: { findMany: jest.fn() },
+  googleNetworkDailyMetric: { groupBy: jest.fn() },
 } }));
 jest.mock("@/lib/organization-authorization", () => ({
   OrganizationAuthorizationError: class extends Error {}, organizationRoles: ["owner", "admin", "member", "viewer"],
@@ -36,6 +37,7 @@ beforeEach(() => {
   jest.mocked(prisma.dailyMetric.groupBy).mockResolvedValue([]);
   jest.mocked(prisma.dailyMetric.findMany).mockResolvedValue([]);
   jest.mocked(prisma.adCampaign.findMany).mockResolvedValue([]);
+  jest.mocked(prisma.googleNetworkDailyMetric.groupBy).mockResolvedValue([]);
 });
 
 it("applies platform/account/organization/date scope to metrics and inventory", async () => {
@@ -126,4 +128,39 @@ it("rejects foreign brands before listing report accounts", async () => {
   jest.mocked(prisma.brand.findUnique).mockResolvedValue({ id: "brand-1", organizationId: "foreign" } as never);
   await expect(caller().getCampaignReportAccounts({ brandId: "brand-1" })).rejects.toMatchObject({ code: "NOT_FOUND", message: "Brand not found" });
   expect(prisma.adAccount.findMany).not.toHaveBeenCalled();
+});
+
+const networkGroup = (networkType: string, spend: number) => ({
+  adAccountId: "acc-a", campaignId: "100", networkType, currency: "EUR",
+  _sum: { spend, impressions: 1000, clicks: 50, conversions: 2, conversionValue: 240 },
+});
+
+it("scopes the Google network split by organization, brand, account and window", async () => {
+  jest.mocked(prisma.googleNetworkDailyMetric.groupBy).mockResolvedValue([networkGroup("SEARCH", 150), networkGroup("DISPLAY", 50)] as never);
+  const { rows } = await caller().getGoogleNetworkSplit({ ...windowInput, brandId: "brand-1", adAccountId: "acc-a" });
+  expect(prisma.adAccount.findFirst).toHaveBeenCalledWith({ where: { id: "acc-a", platform: "google", brand: { organizationId: "org-1", id: "brand-1" } }, select: { id: true } });
+  expect(prisma.googleNetworkDailyMetric.groupBy).toHaveBeenCalledWith({
+    by: ["adAccountId", "campaignId", "networkType", "currency"],
+    where: {
+      adAccountId: "acc-a",
+      date: { gte: new Date("2026-08-17T00:00:00Z"), lte: new Date("2026-09-16T23:59:59.999Z") },
+      adAccount: { brand: { organizationId: "org-1", id: "brand-1" } },
+    },
+    _sum: { spend: true, impressions: true, clicks: true, conversions: true, conversionValue: true },
+  });
+  expect(rows).toEqual([
+    expect.objectContaining({ adAccountId: "acc-a", campaignId: "100", networkType: "SEARCH", spend: 150, currency: "EUR" }),
+    expect.objectContaining({ networkType: "DISPLAY", spend: 50 }),
+  ]);
+});
+
+it("rejects an out-of-scope account before reading the network split", async () => {
+  jest.mocked(prisma.adAccount.findFirst).mockResolvedValue(null);
+  await expect(caller().getGoogleNetworkSplit({ ...windowInput, adAccountId: "foreign" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  expect(prisma.googleNetworkDailyMetric.groupBy).not.toHaveBeenCalled();
+});
+
+it("rejects invalid network split windows before querying", async () => {
+  await expect(caller().getGoogleNetworkSplit({ startDate: "2026-09-17", endDate: "2026-09-16" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  expect(prisma.googleNetworkDailyMetric.groupBy).not.toHaveBeenCalled();
 });

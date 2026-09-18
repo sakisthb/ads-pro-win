@@ -9,9 +9,13 @@ jest.mock("@/lib/sync/fetchers", () => ({
   ...jest.requireActual("@/lib/sync/fetchers"),
   fetchGoogleAccountData: jest.fn(), upsertDailyMetrics: jest.fn(), upsertAdCampaigns: jest.fn(), cleanupAccountLevelRows: jest.fn(),
 }));
+jest.mock("@/lib/sync/google-network-split", () => ({
+  fetchGoogleNetworkSplit: jest.fn(), upsertGoogleNetworkSplit: jest.fn(),
+}));
 import { prisma } from "@/lib/db";
 import { ensureFreshGoogleAccessToken } from "@/lib/oauth/google-refresh";
 import { fetchGoogleAccountData, upsertDailyMetrics, upsertAdCampaigns, cleanupAccountLevelRows } from "@/lib/sync/fetchers";
+import { fetchGoogleNetworkSplit, upsertGoogleNetworkSplit } from "@/lib/sync/google-network-split";
 import { syncGoogleReporting } from "@/lib/sync/google-coverage-import";
 
 const input = {
@@ -27,6 +31,8 @@ beforeEach(() => {
   jest.mocked(fetchGoogleAccountData).mockResolvedValue({ metrics: [], campaigns: [{ platformCampaignId: "100", name: "Fixture campaign", status: "active" }], account: { customerId: "1234567890", timezone: "Europe/Athens", currency: "EUR" } });
   jest.mocked(upsertDailyMetrics).mockResolvedValue(0);
   jest.mocked(upsertAdCampaigns).mockResolvedValue(1);
+  jest.mocked(fetchGoogleNetworkSplit).mockResolvedValue([]);
+  jest.mocked(upsertGoogleNetworkSplit).mockResolvedValue(0);
 });
 
 it("completes inventory-only reporting without pretending inventory is metric coverage", async () => {
@@ -111,5 +117,29 @@ it("records cleanup failure as partial after both imports with known counts", as
   jest.mocked(cleanupAccountLevelRows).mockRejectedValueOnce(new Error("cleanup failed"));
   await expect(syncGoogleReporting(input)).rejects.toThrow("cleanup failed");
   expect(prisma.syncCoverageReceipt.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "partial", stage: "cleanup", metricRowsPersisted: 1, campaignRowsPersisted: 0 }) }));
+  expect(prisma.$transaction).not.toHaveBeenCalled();
+});
+
+const networkRows = [{ date: "2026-09-01", campaignId: "100", campaignName: "Fixture campaign", networkType: "SEARCH", spend: 1, impressions: 1, clicks: 1, conversions: 0, conversionValue: 0 }];
+
+it("persists the Search/Display network split with the same sync evidence", async () => {
+  jest.mocked(fetchGoogleAccountData).mockResolvedValue({ metrics: [metric], campaigns: [], account: { customerId: "1234567890", timezone: "Europe/Athens", currency: "EUR" } });
+  jest.mocked(upsertDailyMetrics).mockResolvedValue(1);
+  jest.mocked(upsertAdCampaigns).mockResolvedValue(0);
+  jest.mocked(fetchGoogleNetworkSplit).mockResolvedValue(networkRows);
+  jest.mocked(upsertGoogleNetworkSplit).mockResolvedValue(1);
+  expect(await syncGoogleReporting(input)).toEqual({ recordsProcessed: 2 });
+  expect(fetchGoogleNetworkSplit).toHaveBeenCalledWith("fresh-fixture-token", input.account.accountId, input.dateRange);
+  expect(upsertGoogleNetworkSplit).toHaveBeenCalledWith(networkRows, "acc-1", "EUR");
+});
+
+it("records network split persistence failure as partial before any finalization", async () => {
+  jest.mocked(fetchGoogleAccountData).mockResolvedValue({ metrics: [metric], campaigns: [], account: { customerId: "1234567890", timezone: "Europe/Athens", currency: "EUR" } });
+  jest.mocked(upsertDailyMetrics).mockResolvedValue(1);
+  jest.mocked(upsertAdCampaigns).mockResolvedValue(0);
+  jest.mocked(fetchGoogleNetworkSplit).mockResolvedValue(networkRows);
+  jest.mocked(upsertGoogleNetworkSplit).mockRejectedValueOnce(new Error("network batch failed"));
+  await expect(syncGoogleReporting(input)).rejects.toThrow("network batch failed");
+  expect(prisma.syncCoverageReceipt.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "partial", stage: "metrics", metricRowsPersisted: 1, storageMayBePartial: true }) }));
   expect(prisma.$transaction).not.toHaveBeenCalled();
 });

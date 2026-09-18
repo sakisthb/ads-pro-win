@@ -6,7 +6,7 @@ import { api } from "@/components/providers/trpc-provider";
 jest.mock("@/components/providers/trpc-provider", () => ({ api: {
   campaigns: { getAll: { useQuery: jest.fn() }, getStatistics: { useQuery: jest.fn() },
     updateLiveStatus: { useMutation: jest.fn() }, scaleBudget: { useMutation: jest.fn() } },
-  marketing: { getCampaignPerformance: { useQuery: jest.fn() }, getCampaignReportAccounts: { useQuery: jest.fn() } },
+  marketing: { getCampaignPerformance: { useQuery: jest.fn() }, getCampaignReportAccounts: { useQuery: jest.fn() }, getGoogleNetworkSplit: { useQuery: jest.fn() } },
 } }));
 jest.mock("@/hooks/use-active-brand", () => ({ useActiveBrand: () => ({ brands: [], brandId: "brand-1", setBrandId: jest.fn() }) }));
 jest.mock("@/hooks/use-active-market", () => ({ useActiveMarket: () => ({ market: "all" }) }));
@@ -31,6 +31,10 @@ beforeEach(() => {
   jest.mocked(api.campaigns.updateLiveStatus.useMutation).mockReturnValue({ mutate: jest.fn() } as never);
   jest.mocked(api.campaigns.scaleBudget.useMutation).mockReturnValue({ mutate: jest.fn() } as never);
   jest.mocked(api.marketing.getCampaignReportAccounts.useQuery).mockReturnValue({ data: { accounts: [{ id: "acc-google", name: "Fixture Google", accountId: "1111111111", currency: "EUR" }] } } as never);
+  jest.mocked(api.marketing.getGoogleNetworkSplit.useQuery).mockReturnValue({ isLoading: false, data: { rows: [
+    { adAccountId: "acc-google", campaignId: "123", networkType: "SEARCH", currency: "EUR", spend: 24, impressions: 800, clicks: 40, conversions: 1, conversionValue: 80 },
+    { adAccountId: "acc-google", campaignId: "123", networkType: "DISPLAY", currency: "EUR", spend: 6, impressions: 200, clicks: 5, conversions: 0, conversionValue: 0 },
+  ] } } as never);
   jest.mocked(api.marketing.getCampaignPerformance.useQuery).mockImplementation((input: unknown) => {
     const args = input as { platform?: string; startDate?: string; endDate?: string };
     const campaigns = args.platform === "google" ? [row("google", "Google fixture", 30)] : [row("meta", "Meta fixture", 10), row("google", "Google fixture", 30)];
@@ -88,6 +92,16 @@ it("keeps Google rows free of Meta result labels in table view", async () => {
   const googleRow = screen.getByText("Google fixture").closest("tr")!;
   expect(googleRow).not.toBeNull();
   expect(within(googleRow).queryByText(/Meta result/)).not.toBeInTheDocument();
+});
+
+it("shows the Search/Display network split on Google cards only", () => {
+  render(<CampaignsPage />);
+  const googleCard = screen.getByText("Google fixture").closest("[data-report-row]")!;
+  const split = within(googleCard).getByTestId("network-split");
+  expect(split).toHaveTextContent("Search 80%");
+  expect(split).toHaveTextContent("Display 20%");
+  const metaCard = screen.getByText("Meta fixture").closest("[data-report-row]")!;
+  expect(within(metaCard).queryByTestId("network-split")).not.toBeInTheDocument();
 });
 
 it("shows a reporting error rather than claiming empty campaigns", () => {

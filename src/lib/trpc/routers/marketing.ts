@@ -2582,6 +2582,68 @@ export const marketingRouter = createTRPCRouter({
     }),
 
   // --------------------------------------------------------------------------
+  // Google network split (Search / Display / …) per campaign for the window.
+  // Stored-only: served from GoogleNetworkDailyMetric populated by Sync.
+  // --------------------------------------------------------------------------
+  getGoogleNetworkSplit: organizationProcedure
+    .input(
+      z.object({
+        brandId: z.string().min(1).optional(),
+        adAccountId: z.string().min(1).optional(),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        if (!validCampaignWindow(input.startDate, input.endDate)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or reversed network split window." });
+        }
+        await validateBrandAccess(ctx.prisma, ctx.organizationId, input.brandId);
+        const accountScope = {
+          brand: { organizationId: ctx.organizationId, ...(input.brandId ? { id: input.brandId } : {}) },
+        };
+        if (input.adAccountId) {
+          const ownedAccount = await ctx.prisma.adAccount.findFirst({
+            where: { id: input.adAccountId, platform: "google", ...accountScope },
+            select: { id: true },
+          });
+          if (!ownedAccount) throw new TRPCError({ code: "NOT_FOUND", message: "Google account not found in this scope." });
+        }
+        const grouped = await ctx.prisma.googleNetworkDailyMetric.groupBy({
+          by: ["adAccountId", "campaignId", "networkType", "currency"],
+          where: {
+            ...(input.adAccountId ? { adAccountId: input.adAccountId } : {}),
+            date: { gte: startOfDay(input.startDate), lte: endOfDay(input.endDate) },
+            adAccount: accountScope,
+          },
+          _sum: { spend: true, impressions: true, clicks: true, conversions: true, conversionValue: true },
+        });
+        return {
+          rows: grouped.map((g) => ({
+            adAccountId: g.adAccountId,
+            campaignId: g.campaignId,
+            networkType: g.networkType,
+            currency: g.currency,
+            spend: toNumber(g._sum.spend),
+            impressions: g._sum.impressions ?? 0,
+            clicks: g._sum.clicks ?? 0,
+            conversions: toNumber(g._sum.conversions),
+            conversionValue: toNumber(g._sum.conversionValue),
+          })),
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("getGoogleNetworkSplit error:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to load Google network split",
+          cause: error,
+        });
+      }
+    }),
+
+  // --------------------------------------------------------------------------
   // Get today's (UTC) per-platform totals snapshot
   // --------------------------------------------------------------------------
   getTodaySnapshot: organizationProcedure
