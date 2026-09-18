@@ -57,7 +57,7 @@ it("records the exact manual window and separate zero-metric / nonzero-inventory
   }) }));
   expect(prisma.syncCoverageReceipt.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
     status: "completed", providerTimezone: "Europe/Athens", metricRowsFetched: 0, campaignRowsFetched: 1,
-    metricRowsPersisted: 0, campaignRowsPersisted: 1, storageMayBePartial: false,
+    metricRowsPersisted: 0, campaignRowsPersisted: 1, networkRowsFetched: 0, networkRowsPersisted: 0, storageMayBePartial: false,
   }) }));
   expect(jest.mocked(prisma.$transaction).mock.calls[0][0]).toHaveLength(3);
   expect(await response.json()).toEqual(expect.objectContaining({ syncJobId: "job-1", recordsSynced: 1 }));
