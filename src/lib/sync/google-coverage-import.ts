@@ -4,6 +4,7 @@ import { ensureFreshGoogleAccessToken } from "@/lib/oauth/google-refresh";
 import { cleanupAccountLevelRows, fetchGoogleAccountData, upsertAdCampaigns, upsertDailyMetrics, validateGoogleDateRange } from "./fetchers";
 import { fetchGoogleNetworkSplit, upsertGoogleNetworkSplit } from "@/lib/sync/google-network-split";
 import type { DateRange } from "@/lib/mcp/types";
+import { GOOGLE_REPORTING_QUERY_SCOPE } from "@/lib/google-reporting-scope";
 
 interface GoogleImportInput {
   syncJobId: string;
@@ -23,7 +24,7 @@ export async function syncGoogleReporting({ syncJobId, executionPath, account, d
     syncJobId, customerId, loginCustomerId: googleAdsLoginCustomerId(account.accountId) ?? null,
     startDate: dateRange.startDate, endDate: dateRange.endDate, executionPath,
     providerApiVersion: GOOGLE_ADS_API_VERSION, transport: "google_ads_search_stream",
-    queryScope: "non_removed_campaigns", status: "running", stage: "credentials",
+    queryScope: GOOGLE_REPORTING_QUERY_SCOPE, status: "running", stage: "credentials",
   } });
 
   let stage = "credentials";

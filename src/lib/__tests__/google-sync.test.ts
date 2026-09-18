@@ -34,9 +34,24 @@ it("fetches campaign inventory even when the metric window has valid zero activi
     expect(url).toContain("/customers/1234567890/googleAds:searchStream");
     expect(init?.headers).toEqual(expect.objectContaining({ "login-customer-id": "9876543210" }));
     const query = JSON.parse(String(init?.body)).query as string;
-    if (!query.includes("FROM customer")) expect(query).toContain("campaign.status != 'REMOVED'");
+    if (!query.includes("FROM customer")) expect(query).toContain("campaign.status IN ('ENABLED', 'PAUSED', 'REMOVED')");
     if (!query.includes("segments.date")) expect(query).not.toContain("BETWEEN");
   }
+});
+
+it("includes removed campaign history and preserves its non-serving inventory status", async () => {
+  fetchMock.mockImplementation(async (_url, init) => {
+    const query = JSON.parse(String(init?.body)).query as string;
+    if (query.includes("FROM customer")) return respond([{ customer: { id: "1234567890", timeZone: "Europe/Athens", currencyCode: "EUR" } }]);
+    const includesRemoved = query.includes("campaign.status IN ('ENABLED', 'PAUSED', 'REMOVED')");
+    if (!includesRemoved) return respond([]);
+    return query.includes("segments.date")
+      ? respond([{ campaign: { id: "102", name: "Old Search" }, segments: { date: "2026-09-01" }, metrics: { costMicros: "15000000", conversions: 1.5, conversionsValue: 45 } }])
+      : respond([{ campaign: { id: "102", name: "Old Search", status: "REMOVED", primaryStatus: "REMOVED", advertisingChannelType: "SEARCH" } }]);
+  });
+  const data = await fetchGoogleAccountData("test-token", "1234567890", range);
+  expect(data.metrics).toEqual([expect.objectContaining({ campaignId: "102", spend: 15, conversions: 1.5, conversionValue: 45 })]);
+  expect(data.campaigns).toEqual([expect.objectContaining({ platformCampaignId: "102", status: "archived", effectiveStatus: "REMOVED" })]);
 });
 
 it("fails the entire fetch if campaign inventory is unavailable", async () => {

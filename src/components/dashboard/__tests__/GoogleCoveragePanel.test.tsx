@@ -34,6 +34,24 @@ it("shows partial unknown persistence as unknown rather than zero", () => {
   expect(screen.getByText(/Storage may be partial/i)).toBeInTheDocument();
   expect(screen.queryByText("Completed scoped run")).not.toBeInTheDocument();
 });
+it("recognizes the wider historical scope without reclassifying older receipts", () => {
+  load({ availability: "available", jobs: [{ id: "job-1", status: "completed", coverageReceipt: { ...receipt, queryScope: "enabled_paused_removed_campaigns", campaignRowsFetched: 40, campaignRowsPersisted: 40 } }] });
+  render(<GoogleCoveragePanel adAccountId="acc-1" />);
+  expect(screen.getByText("Completed scoped run")).toBeInTheDocument();
+  expect(screen.getByText(/Campaign scope: ENABLED, PAUSED and REMOVED/i)).toBeInTheDocument();
+  expect(screen.getByText(/0 metric rows.*ENABLED, PAUSED and REMOVED/i)).toBeInTheDocument();
+  expect(screen.queryByText(/Removed campaigns are excluded/i)).not.toBeInTheDocument();
+});
+it("keeps earlier non-removed receipts explicitly narrower than historical coverage", () => {
+  load({ availability: "available", jobs: [{ id: "job-1", status: "completed", coverageReceipt: receipt }] });
+  render(<GoogleCoveragePanel adAccountId="acc-1" />);
+  expect(screen.getByText(/Campaign scope: non-removed only.*not complete historical campaign coverage/i)).toBeInTheDocument();
+});
+it("does not trust a completed receipt with an unknown query scope", () => {
+  load({ availability: "available", jobs: [{ id: "job-1", status: "completed", coverageReceipt: { ...receipt, queryScope: "unknown_scope" } }] });
+  render(<GoogleCoveragePanel adAccountId="acc-1" />);
+  expect(screen.getByText("Unverified run")).toBeInTheDocument();
+});
 it.each([{ status: "failed" }, { status: "running" }])("does not trust inconsistent job / completed receipt state %j", (job) => {
   load({ availability: "available", jobs: [{ id: "job-1", ...job, coverageReceipt: receipt }] });
   render(<GoogleCoveragePanel adAccountId="acc-1" />);

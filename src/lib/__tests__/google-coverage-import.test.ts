@@ -37,7 +37,7 @@ beforeEach(() => {
 
 it("completes inventory-only reporting without pretending inventory is metric coverage", async () => {
   expect(await syncGoogleReporting(input)).toEqual({ recordsProcessed: 1 });
-  expect(prisma.syncCoverageReceipt.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ providerApiVersion: "v25", transport: "google_ads_search_stream" }) }));
+  expect(prisma.syncCoverageReceipt.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ providerApiVersion: "v25", transport: "google_ads_search_stream", queryScope: "enabled_paused_removed_campaigns" }) }));
   expect(prisma.syncCoverageReceipt.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "completed", metricRowsFetched: 0, campaignRowsFetched: 1, metricRowsPersisted: 0, campaignRowsPersisted: 1, networkRowsFetched: 0, networkRowsPersisted: 0, providerTimezone: "Europe/Athens", storageMayBePartial: false }) }));
   expect(jest.mocked(prisma.$transaction).mock.calls[0][0]).toHaveLength(3);
   expect(cleanupAccountLevelRows).not.toHaveBeenCalled();

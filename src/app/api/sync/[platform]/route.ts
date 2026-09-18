@@ -25,7 +25,7 @@ import { defaultSyncLookbackDays } from "@/lib/meta/actions";
 import { costMapFromProducts } from "@/lib/woo-orders";
 import { fetchGa4Metrics, isGa4PropertyReady, parseGa4PropertyId } from "@/lib/ga4";
 import { fetchGscMetrics, isGscSiteReady, parseGscSiteUrl } from "@/lib/gsc";
-import { isGoogleAdsAccountReady } from "@/lib/google-ads-accounts";
+import { isGoogleAdsAccountReady, parseGoogleAdsCustomerId } from "@/lib/google-ads-accounts";
 import {
   ensureFreshGoogleAccessToken,
 } from "@/lib/oauth/google-refresh";
@@ -49,8 +49,12 @@ function isSupportedPlatform(value: string): value is Platform {
 
 const syncBodySchema = z.object({
   brandId: z.string().min(1, "brandId is required"),
+  adAccountId: z.string().min(1).optional(),
+  expectedGoogleCustomerId: z.string().regex(/^\d{6,}$/).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+}).refine(body => !body.expectedGoogleCustomerId || Boolean(body.adAccountId), {
+  message: "An explicit adAccountId is required when pinning a Google customer",
 });
 
 // ---------------------------------------------------------------------------
@@ -250,7 +254,7 @@ export async function POST(
   try {
     // 4. Resolve the AdAccount for this brand + platform
     const adAccount = await prisma.adAccount.findFirst({
-      where: { brandId, platform, isActive: true },
+      where: { brandId, platform, isActive: true, ...(body.adAccountId ? { id: body.adAccountId } : {}) },
     });
 
     if (!adAccount) {
@@ -258,6 +262,10 @@ export async function POST(
         { success: false, error: `No active ${platform} account found for brand ${brandId}` },
         404,
       );
+    }
+
+    if (platform === "google" && body.expectedGoogleCustomerId && parseGoogleAdsCustomerId(adAccount.accountId) !== body.expectedGoogleCustomerId) {
+      return json({ success: false, error: "Google account changed. Review the selected customer before importing history." }, 409);
     }
 
     if (!adAccount.accessToken) {
@@ -344,7 +352,8 @@ export async function POST(
       }
     } else if (platform === "google") {
       const { recordsProcessed } = await syncGoogleReporting({ syncJobId: syncJob.id, executionPath: "manual", account: adAccount, dateRange });
-      return json({ success: true, platform, recordsSynced: recordsProcessed, syncJobId: syncJob.id });
+      return json({ success: true, platform, recordsSynced: recordsProcessed, syncJobId: syncJob.id,
+        adAccountId: adAccount.id, customerId: parseGoogleAdsCustomerId(adAccount.accountId), startDate, endDate });
     } else if (platform === "google-analytics") {
       const gaAccessToken = await ensureFreshGoogleAccessToken(
         {
