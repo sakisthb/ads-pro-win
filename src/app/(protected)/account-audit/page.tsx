@@ -17,6 +17,7 @@ import { GoogleRepairDesk } from "@/components/audit/google-repair-desk";
 import { GoogleHistoryImport } from "@/components/audit/google-history-import";
 import { GoogleCampaignAdaptationReview } from '@/components/audit/google-campaign-adaptation-review';
 import { ResearchMemoryPanel } from "@/components/audit/research-memory-panel";
+import { CampaignStudyDesk } from "@/components/audit/campaign-study-desk";
 
 const control = "max-w-full min-w-0 rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-400";
 const section = "rounded-2xl border border-white/10 bg-white/[0.025] p-5 space-y-4";
@@ -173,6 +174,7 @@ export default function AccountAuditPage() {
         onImported={() => { void currentQuery.refetch(); void previousQuery.refetch(); }} />}
       {platform === "google" && brandId && accountId && <GoogleRepairDesk brandId={brandId} adAccountId={accountId} />}
       {brandId && <ResearchMemoryPanel key={brandId} brandId={brandId} />}
+      {brandId && <CampaignStudyDesk key={brandId} brandId={brandId} />}
       {audit && <>
         <section className={section} aria-label="Business Context (brand-level)">
           <h2 className="text-lg font-semibold">Business Context (brand-level)</h2>

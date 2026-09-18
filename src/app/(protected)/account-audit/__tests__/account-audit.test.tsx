@@ -16,6 +16,7 @@ jest.mock("@/hooks/use-active-market", () => ({useActiveMarket:()=>({market:"all
 jest.mock("@/components/brands/desk-filters",()=>({DeskFilterRow:()=>null}));
 jest.mock("recharts",()=>({ResponsiveContainer:()=>null,BarChart:()=>null,Bar:()=>null,XAxis:()=>null,YAxis:()=>null,Tooltip:()=>null,CartesianGrid:()=>null}));
 jest.mock("@/components/audit/google-research-desk",()=>({GoogleResearchDesk:jest.fn(()=> <div>Google research fixture</div>)}));
+jest.mock("@/components/audit/campaign-study-desk",()=>({CampaignStudyDesk:jest.fn(()=> <div>Campaign study fixture</div>)}));
 
 const query = api.marketing.getCampaignPerformance.useQuery;
 const accounts = api.marketing.getCampaignReportAccounts.useQuery;
