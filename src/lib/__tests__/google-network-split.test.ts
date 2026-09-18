@@ -48,7 +48,7 @@ it("queries segments.ad_network_type and keeps every network row of a campaign-d
   expect(query).toContain("segments.ad_network_type");
   expect(query).toContain("FROM campaign");
   expect(query).toContain("segments.date BETWEEN '2026-08-17' AND '2026-09-16'");
-  expect(query).toContain("campaign.status != 'REMOVED'");
+  expect(query).toContain("campaign.status IN ('ENABLED', 'PAUSED', 'REMOVED')");
 });
 
 it.each([

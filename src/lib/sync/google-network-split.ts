@@ -26,6 +26,7 @@ import {
   windowSortedDates,
 } from "@/lib/sync/daily-metric-rows";
 import { validateGoogleDateRange } from "./fetchers";
+import { GOOGLE_REPORTING_STATUS_FILTER } from "@/lib/google-reporting-scope";
 
 export interface GoogleNetworkMetricInput {
   date: string;
@@ -104,7 +105,7 @@ export async function fetchGoogleNetworkSplit(
     SELECT segments.date, segments.ad_network_type, campaign.id, campaign.name, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value
     FROM campaign
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-      AND campaign.status != 'REMOVED'
+      AND ${GOOGLE_REPORTING_STATUS_FILTER}
   `.trim();
 
   const rows = await googleAdsSearchRows<GoogleNetworkMetricRow>(
