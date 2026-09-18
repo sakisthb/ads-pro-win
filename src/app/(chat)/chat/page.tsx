@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -33,6 +34,7 @@ import { SAKI_PLAYBOOKS, PLAYBOOK_CATEGORIES } from "@/lib/saki-playbooks";
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AuditEvidenceRoute } from "@/components/audit/audit-evidence-route";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -662,6 +664,12 @@ function MessageBubble({ msg, onSuggestionClick, isSending }: {
 // ---------------------------------------------------------------------------
 
 export default function ChatPage() {
+  return <Suspense fallback={<p role="status">Loading audit route…</p>}>
+    <AuditEvidenceRoute mode="chat" fallback={<WorkspaceChatPage />} />
+  </Suspense>;
+}
+
+function WorkspaceChatPage() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const searchParams = useSearchParams();

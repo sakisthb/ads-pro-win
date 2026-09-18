@@ -6,7 +6,8 @@
 // client-side CSV/PDF generation (no server-side rendering of documents).
 // Data comes from the existing org-scoped marketing tRPC queries.
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { AuditEvidenceRoute } from "@/components/audit/audit-evidence-route";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -261,6 +262,12 @@ function SectionLabel({ step, title }: { step: string; title: string }) {
 // Page
 // ---------------------------------------------------------------------------
 export default function ReportsPage() {
+  return <Suspense fallback={<p role="status">Loading audit route…</p>}>
+    <AuditEvidenceRoute mode="report" fallback={<WorkspaceReportsPage />} />
+  </Suspense>;
+}
+
+function WorkspaceReportsPage() {
   // NOTE(rules-of-hooks): every hook below must run unconditionally, so the
   // org-loading early-return lives at the BOTTOM of this component (just
   // before the render section) and the data queries are instead gated through
