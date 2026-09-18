@@ -8,5 +8,5 @@ it("preserves saved Google evidence/review snapshots during legacy analytics ret
   jest.mocked(prisma.prediction.deleteMany).mockResolvedValue({count:0});
   jest.mocked(prisma.optimization.deleteMany).mockResolvedValue({count:0});
   await aiDbService.cleanupOldData("fixture-org",90);
-  expect(prisma.analysis.deleteMany).toHaveBeenCalledWith({where:expect.objectContaining({organizationId:"fixture-org",type:{not:"google_audit_research_v1"}})});
+  expect(prisma.analysis.deleteMany).toHaveBeenCalledWith({where:expect.objectContaining({organizationId:"fixture-org",type:{notIn:["google_audit_research_v1","google_repair_v1"]}})});
 });
