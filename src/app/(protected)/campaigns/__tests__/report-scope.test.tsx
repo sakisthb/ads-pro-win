@@ -33,7 +33,7 @@ beforeEach(() => {
   jest.mocked(api.marketing.getCampaignReportAccounts.useQuery).mockReturnValue({ data: { accounts: [{ id: "acc-google", name: "Fixture Google", accountId: "1111111111", currency: "EUR" }] } } as never);
   jest.mocked(api.marketing.getGoogleNetworkSplit.useQuery).mockReturnValue({ isLoading: false, data: { rows: [
     { adAccountId: "acc-google", campaignId: "123", networkType: "SEARCH", currency: "EUR", spend: 24, impressions: 800, clicks: 40, conversions: 1, conversionValue: 80 },
-    { adAccountId: "acc-google", campaignId: "123", networkType: "DISPLAY", currency: "EUR", spend: 6, impressions: 200, clicks: 5, conversions: 0, conversionValue: 0 },
+    { adAccountId: "acc-google", campaignId: "123", networkType: "CONTENT", currency: "EUR", spend: 6, impressions: 200, clicks: 5, conversions: 0, conversionValue: 0 },
   ] } } as never);
   jest.mocked(api.marketing.getCampaignPerformance.useQuery).mockImplementation((input: unknown) => {
     const args = input as { platform?: string; startDate?: string; endDate?: string };
@@ -100,8 +100,24 @@ it("shows the Search/Display network split on Google cards only", () => {
   const split = within(googleCard).getByTestId("network-split");
   expect(split).toHaveTextContent("Search 80%");
   expect(split).toHaveTextContent("Display 20%");
+  expect(within(googleCard).queryByTestId("network-split-partial")).not.toBeInTheDocument();
   const metaCard = screen.getByText("Meta fixture").closest("[data-report-row]")!;
   expect(within(metaCard).queryByTestId("network-split")).not.toBeInTheDocument();
+});
+
+it("labels the split with the provider enum name for Display (CONTENT)", () => {
+  render(<CampaignsPage />);
+  const googleCard = screen.getByText("Google fixture").closest("[data-report-row]")!;
+  expect(within(googleCard).getByTestId("network-split")).not.toHaveTextContent("CONTENT");
+});
+
+it("warns when the network split covers only part of the campaign spend", () => {
+  jest.mocked(api.marketing.getGoogleNetworkSplit.useQuery).mockReturnValue({ isLoading: false, data: { rows: [
+    { adAccountId: "acc-google", campaignId: "123", networkType: "SEARCH", currency: "EUR", spend: 12, impressions: 400, clicks: 20, conversions: 0, conversionValue: 0 },
+  ] } } as never);
+  render(<CampaignsPage />);
+  const googleCard = screen.getByText("Google fixture").closest("[data-report-row]")!;
+  expect(within(googleCard).getByTestId("network-split-partial")).toHaveTextContent("40%");
 });
 
 it("shows a reporting error rather than claiming empty campaigns", () => {

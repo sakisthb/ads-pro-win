@@ -32,7 +32,8 @@ export async function syncGoogleReporting({ syncJobId, executionPath, account, d
     providerTimezone: string | null; providerCurrency: string | null;
     metricRowsFetched: number | null; campaignRowsFetched: number | null;
     metricRowsPersisted: number | null; campaignRowsPersisted: number | null;
-  } = { providerTimezone: null, providerCurrency: null, metricRowsFetched: null, campaignRowsFetched: null, metricRowsPersisted: null, campaignRowsPersisted: null };
+    networkRowsFetched: number | null; networkRowsPersisted: number | null;
+  } = { providerTimezone: null, providerCurrency: null, metricRowsFetched: null, campaignRowsFetched: null, metricRowsPersisted: null, campaignRowsPersisted: null, networkRowsFetched: null, networkRowsPersisted: null };
   const checkpoint = () => prisma.syncCoverageReceipt.update({ where: { syncJobId }, data: { ...evidence, stage, storageMayBePartial } });
   try {
     if (!account.accessToken) throw new Error("No Google Ads access token stored");
@@ -47,13 +48,14 @@ export async function syncGoogleReporting({ syncJobId, executionPath, account, d
     // Network split is fetched before any write so a provider failure here
     // leaves stored reporting untouched (receipt stage stays "fetch").
     const networkRows = await fetchGoogleNetworkSplit(accessToken, account.accountId, dateRange);
+    evidence.networkRowsFetched = networkRows.length;
 
     stage = "metrics";
     // Persist the risk flag BEFORE entering a non-atomic batched import.
     storageMayBePartial = true;
     await checkpoint();
     evidence.metricRowsPersisted = await upsertDailyMetrics(metrics, account.id, "google");
-    const networkRowsPersisted = await upsertGoogleNetworkSplit(networkRows, account.id, provider.currency);
+    evidence.networkRowsPersisted = await upsertGoogleNetworkSplit(networkRows, account.id, provider.currency);
     stage = "campaigns";
     await checkpoint();
     evidence.campaignRowsPersisted = await upsertAdCampaigns(campaigns, account.id, "google", provider.currency);
@@ -61,7 +63,7 @@ export async function syncGoogleReporting({ syncJobId, executionPath, account, d
     await checkpoint();
     if (metrics.length > 0) await cleanupAccountLevelRows(account.id, "google");
 
-    const recordsProcessed = evidence.metricRowsPersisted + evidence.campaignRowsPersisted + networkRowsPersisted;
+    const recordsProcessed = evidence.metricRowsPersisted + evidence.campaignRowsPersisted + evidence.networkRowsPersisted;
     const completedAt = new Date();
     stage = "finalize";
     await checkpoint();

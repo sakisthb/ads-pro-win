@@ -38,7 +38,7 @@ beforeEach(() => {
 it("completes inventory-only reporting without pretending inventory is metric coverage", async () => {
   expect(await syncGoogleReporting(input)).toEqual({ recordsProcessed: 1 });
   expect(prisma.syncCoverageReceipt.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ providerApiVersion: "v25", transport: "google_ads_search_stream" }) }));
-  expect(prisma.syncCoverageReceipt.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "completed", metricRowsFetched: 0, campaignRowsFetched: 1, metricRowsPersisted: 0, campaignRowsPersisted: 1, providerTimezone: "Europe/Athens", storageMayBePartial: false }) }));
+  expect(prisma.syncCoverageReceipt.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "completed", metricRowsFetched: 0, campaignRowsFetched: 1, metricRowsPersisted: 0, campaignRowsPersisted: 1, networkRowsFetched: 0, networkRowsPersisted: 0, providerTimezone: "Europe/Athens", storageMayBePartial: false }) }));
   expect(jest.mocked(prisma.$transaction).mock.calls[0][0]).toHaveLength(3);
   expect(cleanupAccountLevelRows).not.toHaveBeenCalled();
 });
@@ -131,6 +131,7 @@ it("persists the Search/Display network split with the same sync evidence", asyn
   expect(await syncGoogleReporting(input)).toEqual({ recordsProcessed: 2 });
   expect(fetchGoogleNetworkSplit).toHaveBeenCalledWith("fresh-fixture-token", input.account.accountId, input.dateRange);
   expect(upsertGoogleNetworkSplit).toHaveBeenCalledWith(networkRows, "acc-1", "EUR");
+  expect(prisma.syncCoverageReceipt.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "completed", networkRowsFetched: 1, networkRowsPersisted: 1 }) }));
 });
 
 it("records network split persistence failure as partial before any finalization", async () => {
@@ -140,6 +141,6 @@ it("records network split persistence failure as partial before any finalization
   jest.mocked(fetchGoogleNetworkSplit).mockResolvedValue(networkRows);
   jest.mocked(upsertGoogleNetworkSplit).mockRejectedValueOnce(new Error("network batch failed"));
   await expect(syncGoogleReporting(input)).rejects.toThrow("network batch failed");
-  expect(prisma.syncCoverageReceipt.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "partial", stage: "metrics", metricRowsPersisted: 1, storageMayBePartial: true }) }));
+  expect(prisma.syncCoverageReceipt.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "partial", stage: "metrics", metricRowsPersisted: 1, networkRowsFetched: 1, networkRowsPersisted: null, storageMayBePartial: true }) }));
   expect(prisma.$transaction).not.toHaveBeenCalled();
 });
