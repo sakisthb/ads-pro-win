@@ -38,6 +38,15 @@ it("blocks empty Google coverage instead of reporting zero performance or a winn
   expect(result.findings).toEqual(expect.arrayContaining([expect.objectContaining({ code: "no_metrics", severity: "blocker" })]));
   expect(result.activationAllowed).toBe(false);
 });
+it('distinguishes ADR 0003 repairs from still-locked campaign actions in the report',()=>{
+  expect(run(snapshot([])).decisionPlan.join(' ')).toContain('Google Repair Desk (ADR 0003)');
+});
+it('keeps campaign strategy evidence-first rather than turning every audit into host recovery', () => {
+  const result = run(snapshot([]));
+  expect(result.decisionPlan[0]).toMatch(/Reconcile the exact owned account/i);
+  expect(result.decisionPlan.join(' ')).not.toMatch(/host\/recovery|reinstall/i);
+  expect(result.activationAllowed).toBe(false);
+});
 it("keeps inventory without metrics separate from measured zero", () => {
   const result = run(snapshot([row({ metricState: "no_stored_metrics", totalSpend: 0, totalConversions: 0 })]));
   expect(result.summaries).toEqual([]);
