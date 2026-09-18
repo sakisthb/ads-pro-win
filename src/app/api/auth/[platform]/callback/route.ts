@@ -546,6 +546,10 @@ export async function GET(
     //  - GA4: auto-select when the Google account has exactly one property.
     let persistAccountId: string;
     let persistName: string;
+    // Google Ads only: the discovered customer's currency_code. Reporting
+    // reconciliation refuses mixed-currency imports, so an auto-selected
+    // account must not silently keep the schema default.
+    let persistCurrency: string | null = null;
     let resourceFlag = "";
     let resourceQueryKey = "";
     if (platform === "meta") {
@@ -611,6 +615,7 @@ export async function GET(
             preferred.loginCustomerId,
           );
           persistName = preferred.descriptiveName;
+          persistCurrency = preferred.currencyCode || null;
           resourceFlag = "auto";
         } else if (customers.length === 0) {
           persistName = "Google Ads (no accounts)";
@@ -638,6 +643,7 @@ export async function GET(
           platform: dbPlatform,
           accountId: persistAccountId,
           name: persistName,
+          ...(persistCurrency ? { currency: persistCurrency } : {}),
         },
       });
     }
@@ -653,6 +659,7 @@ export async function GET(
         accountId: persistAccountId,
         name: persistName,
         isActive: true,
+        ...(persistCurrency ? { currency: persistCurrency } : {}),
       },
     });
 

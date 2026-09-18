@@ -6,6 +6,10 @@ import { encrypt } from "@/lib/crypto";
 import { consumeOAuthTransaction, OAuthTransactionError } from "@/lib/oauth/oauth-transactions";
 import { requireOrganizationRoleForUser } from "@/lib/organization-authorization";
 import { safeFetch, safeFetchJson } from "@/lib/safe-fetch";
+import {
+  listGoogleAdsCustomers,
+  preferGoogleAdsCustomer,
+} from "@/lib/google-ads-accounts";
 
 jest.mock("@/lib/safe-fetch", () => ({
   safeFetch: jest.fn(),
@@ -110,6 +114,8 @@ const mockedRequireOrganizationRoleForUser = jest.mocked(
   requireOrganizationRoleForUser,
 );
 const mockedEncrypt = jest.mocked(encrypt);
+const mockedListGoogleAdsCustomers = jest.mocked(listGoogleAdsCustomers);
+const mockedPreferGoogleAdsCustomer = jest.mocked(preferGoogleAdsCustomer);
 
 function authz(organizationId = "org-1") {
   return {
@@ -492,6 +498,120 @@ describe("GET /api/auth/[platform]/callback", () => {
     expect(String(options?.body)).toContain("code_verifier=test-verifier");
     expect(mockedEncrypt).toHaveBeenCalledWith("google-access-token");
     expect(mockedEncrypt).toHaveBeenCalledWith("google-refresh-token");
+  });
+
+  describe("Google Ads currency persistence", () => {
+    const usdCustomer = {
+      id: "1234567890",
+      descriptiveName: "Test Brand US",
+      manager: false,
+      currencyCode: "USD",
+      loginCustomerId: null,
+      testAccount: false,
+    };
+
+    function setupGoogleAdsConnect(existing: unknown[] = []) {
+      mockedConsumeOAuthTransaction.mockResolvedValue({
+        id: "tx-gads",
+        platform: "google-ads",
+        userId: "user-1",
+        organizationId: "org-1",
+        brandId: "brand-1",
+        returnPath: "/connections",
+        codeVerifier: "test-verifier",
+        consumedAt: new Date(),
+        expiresAt: new Date(Date.now() + 600_000),
+      });
+      mockedSafeFetchJson.mockResolvedValue({
+        access_token: "google-access-token",
+        refresh_token: "google-refresh-token",
+        expires_in: 3_600,
+      });
+      mockedPrisma.organization.findUnique.mockResolvedValue({
+        id: "org-1",
+        brands: [
+          {
+            id: "brand-1",
+            name: "Test Brand",
+            website: "https://example.com",
+            adAccounts: existing,
+          },
+        ],
+      });
+      mockedPrisma.adAccount.create.mockResolvedValue({
+        id: "ad-account-gads",
+        brandId: "brand-1",
+        platform: "google",
+      });
+      mockedPrisma.adAccount.update.mockResolvedValue({});
+    }
+
+    it("persists the auto-selected customer's currencyCode so reporting reconciliation can trust the account", async () => {
+      setupGoogleAdsConnect();
+      mockedListGoogleAdsCustomers.mockResolvedValue([usdCustomer]);
+      mockedPreferGoogleAdsCustomer.mockReturnValue(usdCustomer);
+
+      const response = await callbackOAuth(
+        callbackRequest("google-ads", "valid-state"),
+        { params: Promise.resolve({ platform: "google-ads" }) },
+      );
+
+      expect(response.headers.get("Location")).toContain("connected=google-ads");
+      expect(mockedPrisma.adAccount.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ currency: "USD" }),
+        }),
+      );
+      expect(mockedPrisma.adAccount.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ currency: "USD" }),
+        }),
+      );
+    });
+
+    it("refreshes a stored currency on reconnect from the provider-reported value", async () => {
+      setupGoogleAdsConnect([
+        {
+          id: "existing-gads",
+          platform: "google",
+          accountId: "gads-brand-1-1234567890-none",
+          name: "Test Brand US",
+        },
+      ]);
+      mockedListGoogleAdsCustomers.mockResolvedValue([usdCustomer]);
+      mockedPreferGoogleAdsCustomer.mockReturnValue(usdCustomer);
+
+      await callbackOAuth(callbackRequest("google-ads", "valid-state"), {
+        params: Promise.resolve({ platform: "google-ads" }),
+      });
+
+      expect(mockedPrisma.adAccount.create).not.toHaveBeenCalled();
+      expect(mockedPrisma.adAccount.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "existing-gads" },
+          data: expect.objectContaining({ currency: "USD" }),
+        }),
+      );
+    });
+
+    it("leaves currency untouched when discovery cannot auto-select an account", async () => {
+      setupGoogleAdsConnect();
+      mockedListGoogleAdsCustomers.mockResolvedValue([usdCustomer]);
+      mockedPreferGoogleAdsCustomer.mockReturnValue(null);
+
+      await callbackOAuth(callbackRequest("google-ads", "valid-state"), {
+        params: Promise.resolve({ platform: "google-ads" }),
+      });
+
+      const createData = mockedPrisma.adAccount.create.mock.calls[0]?.[0] as {
+        data: Record<string, unknown>;
+      };
+      const updateData = mockedPrisma.adAccount.update.mock.calls[0]?.[0] as {
+        data: Record<string, unknown>;
+      };
+      expect(createData.data.currency).toBeUndefined();
+      expect(updateData.data.currency).toBeUndefined();
+    });
   });
 
   it("redirects to the transaction return path on success", async () => {
