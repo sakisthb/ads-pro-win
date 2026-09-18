@@ -511,6 +511,27 @@ describe("deriveInsights", () => {
     );
   });
 
+  it("does not offer Meta lookalike expansion on a non-Meta winner", () => {
+    const insights = deriveInsights(
+      [{ name: "Google Ads", spend: 500, revenue: 2500, roas: 5 }],
+      [
+        {
+          name: "Search — leather bags",
+          platform: "google",
+          spend: 500,
+          revenue: 2500,
+          roas: 5,
+          clicks: 900,
+          impressions: 30000,
+        },
+      ],
+      { ctr: 3, conversions: 20, spend: 500 },
+      "EUR",
+    );
+    expect(insights.map((i) => i.id)).not.toContain("audience-expand");
+    expect(insights.map((i) => i.id)).not.toContain("advantage-plus-control");
+  });
+
   it("asks AI when spend exists but there is nothing to rank", () => {
     const insights = deriveInsights([], [], { ctr: 1, conversions: 2, spend: 100 }, "EUR");
     expect(insights.map((i) => i.id)).toEqual(["ask-ai"]);
