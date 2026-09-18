@@ -82,6 +82,8 @@ export const config = {
     cachingEnabled: true,
     realTimeEnabled: true,
     mcpEnabled: process.env.MCP_ENABLED === 'true',
+    // Reporting sync is core worker behavior, independent of the MCP tool flag.
+    reportingSyncEnabled: process.env.REPORTING_SYNC_ENABLED !== 'false',
     woocommerceEnabled: process.env.WOOCOMMERCE_ENABLED === 'true',
   },
 };
