@@ -20,6 +20,7 @@ import { googleResearchRouter } from "./routers/google-research";
 import { googleRepairRouter } from "./routers/google-repair";
 import { chatRouter } from "./routers/chat";
 import { researchMemoryRouter } from "./routers/research-memory";
+import { campaignStudyRouter } from "./routers/campaign-study";
 
 /**
  * This is the primary router for your server.
@@ -45,6 +46,7 @@ export const appRouter = createTRPCRouter({
   googleRepair: googleRepairRouter,
   chat: chatRouter,
   researchMemory: researchMemoryRouter,
+  campaignStudy: campaignStudyRouter,
 });
 
 // Export type definition of API
