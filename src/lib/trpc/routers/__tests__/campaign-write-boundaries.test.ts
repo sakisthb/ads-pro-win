@@ -5,6 +5,7 @@ jest.mock("@/lib/db", () => ({ prisma: {
   organization: { findUnique: jest.fn() }, brand: { findMany: jest.fn(), findFirst: jest.fn() },
   adAccount: { findMany: jest.fn() }, wooProduct: { findMany: jest.fn() },
   campaign: { findMany: jest.fn(), create: jest.fn(), updateMany: jest.fn() },
+  metaWriteLog: { create: jest.fn(), findMany: jest.fn() },
 } }));
 jest.mock("@/lib/organization-authorization", () => ({
   OrganizationAuthorizationError: class extends Error {}, organizationRoles: ["owner", "admin", "member", "viewer"],
@@ -36,6 +37,8 @@ beforeEach(() => {
   jest.mocked(launch.resolveLaunchAccount).mockResolvedValue(null);
   jest.mocked(prisma.campaign.create).mockResolvedValue({ id: "draft-1" } as never);
   jest.mocked(prisma.brand.findFirst).mockResolvedValue({ id: "brand-1" } as never);
+  jest.mocked(prisma.metaWriteLog.findMany).mockResolvedValue([] as never);
+  jest.mocked(launch.getMetaGrantedPermissions).mockResolvedValue(["ads_management"] as never);
 });
 
 it("does not send another brand's legacy context to a scoped planner", async () => {
@@ -105,4 +108,93 @@ it("preserves the existing Meta budget path without opening other platforms", as
   jest.mocked(launch.scaleMetaCampaignBudget).mockResolvedValue({ platform: "meta", ok: true, campaignId: "123", nextBudget: 24, message: "Fixture budget" });
   await expect(caller().scaleBudget({ platform: "meta", platformCampaignId: "123", multiplier: 1.2 })).resolves.toMatchObject({ ok: true });
   expect(launch.scaleMetaCampaignBudget).toHaveBeenCalledWith("fixture-token", "123", 1.2);
+});
+
+describe("Meta writes through the launcher routes honor the ADR 0002 contract", () => {
+  const resolvedMeta = { accessToken: "fixture-token", account: { id: "acc-row-1", accountId: "fixture-meta" } } as never;
+
+  it("refuses a Meta status write when the token lacks ads_management", async () => {
+    jest.mocked(launch.resolveLaunchAccount).mockResolvedValue(resolvedMeta);
+    jest.mocked(launch.getMetaGrantedPermissions).mockResolvedValue(["ads_read"] as never);
+    await expect(caller().updateLiveStatus({ platform: "meta", platformCampaignId: "123", status: "ACTIVE" }))
+      .rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: expect.stringMatching(/ads_management/i) });
+    expect(launch.updateMetaCampaignStatus).not.toHaveBeenCalled();
+    expect(prisma.metaWriteLog.create).not.toHaveBeenCalled();
+  });
+
+  it("audits a successful Meta status write to metaWriteLog", async () => {
+    jest.mocked(launch.resolveLaunchAccount).mockResolvedValue(resolvedMeta);
+    jest.mocked(launch.updateMetaCampaignStatus).mockResolvedValue({ platform: "meta", ok: true, campaignId: "123", status: "PAUSED", message: "Paused" });
+    await expect(caller().updateLiveStatus({ platform: "meta", platformCampaignId: "123", status: "PAUSED" }))
+      .resolves.toMatchObject({ ok: true });
+    expect(prisma.metaWriteLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        organizationId: "org-1",
+        userId: "user-1",
+        adAccountId: "acc-row-1",
+        objectType: "campaign",
+        objectId: "123",
+        action: "setStatus",
+        ok: true,
+      }),
+    });
+  });
+
+  it("audits a failed Meta status write with ok false", async () => {
+    jest.mocked(launch.resolveLaunchAccount).mockResolvedValue(resolvedMeta);
+    jest.mocked(launch.updateMetaCampaignStatus).mockResolvedValue({ platform: "meta", ok: false, campaignId: "123", status: "ACTIVE", message: "Fixture failure" });
+    await expect(caller().updateLiveStatus({ platform: "meta", platformCampaignId: "123", status: "ACTIVE" }))
+      .rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringMatching(/fixture failure/i) });
+    expect(prisma.metaWriteLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ objectId: "123", action: "setStatus", ok: false, message: expect.stringMatching(/fixture failure/i) }),
+    });
+  });
+
+  it("audits a Meta budget scale and flags learning risk above 20 percent", async () => {
+    jest.mocked(launch.resolveLaunchAccount).mockResolvedValue(resolvedMeta);
+    jest.mocked(launch.scaleMetaCampaignBudget).mockResolvedValue({ platform: "meta", ok: true, campaignId: "123", previousBudget: 20, nextBudget: 30, message: "Scaled" });
+    await expect(caller().scaleBudget({ platform: "meta", platformCampaignId: "123", multiplier: 1.5 }))
+      .resolves.toMatchObject({ ok: true });
+    expect(prisma.metaWriteLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        adAccountId: "acc-row-1",
+        objectType: "campaign",
+        objectId: "123",
+        action: "scaleBudget",
+        ok: true,
+        learningRisk: true,
+      }),
+    });
+  });
+
+  it("does not flag learning risk for a small Meta budget scale", async () => {
+    jest.mocked(launch.resolveLaunchAccount).mockResolvedValue(resolvedMeta);
+    jest.mocked(launch.scaleMetaCampaignBudget).mockResolvedValue({ platform: "meta", ok: true, campaignId: "123", previousBudget: 20, nextBudget: 22, message: "Scaled" });
+    await expect(caller().scaleBudget({ platform: "meta", platformCampaignId: "123", multiplier: 1.1 }))
+      .resolves.toMatchObject({ ok: true });
+    expect(prisma.metaWriteLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: "scaleBudget", ok: true, learningRisk: false }),
+    });
+  });
+
+  it("refuses a fifth Meta budget edit within the same hour across scale and set routes", async () => {
+    jest.mocked(launch.resolveLaunchAccount).mockResolvedValue(resolvedMeta);
+    jest.mocked(prisma.metaWriteLog.findMany).mockResolvedValue([
+      { createdAt: new Date() }, { createdAt: new Date() }, { createdAt: new Date() }, { createdAt: new Date() },
+    ] as never);
+    await expect(caller().scaleBudget({ platform: "meta", platformCampaignId: "123", multiplier: 1.2 }))
+      .rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+    expect(launch.scaleMetaCampaignBudget).not.toHaveBeenCalled();
+    expect(prisma.metaWriteLog.create).not.toHaveBeenCalled();
+  });
+
+  it("audits a failed Meta budget scale with ok false", async () => {
+    jest.mocked(launch.resolveLaunchAccount).mockResolvedValue(resolvedMeta);
+    jest.mocked(launch.scaleMetaCampaignBudget).mockResolvedValue({ platform: "meta", ok: false, campaignId: "123", message: "Fixture scale failure" });
+    await expect(caller().scaleBudget({ platform: "meta", platformCampaignId: "123", multiplier: 1.2 }))
+      .rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringMatching(/scale failure/i) });
+    expect(prisma.metaWriteLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ objectId: "123", action: "scaleBudget", ok: false }),
+    });
+  });
 });
