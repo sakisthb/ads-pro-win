@@ -47,6 +47,15 @@ it('keeps campaign strategy evidence-first rather than turning every audit into 
   expect(result.decisionPlan.join(' ')).not.toMatch(/host\/recovery|reinstall/i);
   expect(result.activationAllowed).toBe(false);
 });
+it("exports the same evidence-first decision plan as the desk, never a host/recovery project", () => {
+  const result = run(snapshot([]));
+  const md = auditMarkdown(result, { brand: "Fixture", account: "Fixture", providerAccountId: "1", market: "all" });
+  expect(md).toContain("## Decision plan");
+  const section = md.split("## Decision plan")[1] ?? "";
+  expect(section).toMatch(/1\. Reconcile the exact owned account/);
+  expect(section).toContain("Google Repair Desk (ADR 0003)");
+  expect(section).not.toMatch(/host\/recovery|reinstall/i);
+});
 it("keeps inventory without metrics separate from measured zero", () => {
   const result = run(snapshot([row({ metricState: "no_stored_metrics", totalSpend: 0, totalConversions: 0 })]));
   expect(result.summaries).toEqual([]);

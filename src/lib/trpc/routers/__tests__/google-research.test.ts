@@ -62,6 +62,13 @@ describe('business context staleness', () => {
     const record = await caller().save(input);
     expect(record.snapshot.reportMarkdown).not.toContain("before the google connection");
   });
+  it('freezes the same evidence-first decision plan as the desk, never a host/recovery project', async () => {
+    const record = await caller().save(input);
+    expect(record.snapshot.reportMarkdown).toContain('## Decision plan');
+    expect(record.snapshot.reportMarkdown).toMatch(/1\. Reconcile the exact owned account/);
+    expect(record.snapshot.reportMarkdown).toContain('Google Repair Desk (ADR 0003)');
+    expect(record.snapshot.reportMarkdown).not.toMatch(/host\/recovery|reinstall/i);
+  });
 });
 describe('retained operator study', () => {
   it('preserves the complete original study with source/time labels inside the frozen report without treating it as canonical metrics', async () => {

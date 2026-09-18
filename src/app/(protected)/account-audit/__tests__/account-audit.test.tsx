@@ -109,6 +109,13 @@ it("shows the shared saved brand inputs separately from measured evidence and th
   expect(screen.getByRole("combobox",{name:"Business objective"})).toHaveValue("sales");
   expect(businessContext).toHaveBeenCalledWith({brandId:"brand-1"},expect.objectContaining({enabled:true}));
 });
+it("renders the evidence-first decision plan on the desk, never a host/recovery project",()=>{
+  render(<AccountAuditPage/>);
+  const section=screen.getByRole("heading",{name:"Decision plan"}).closest("section") ?? document.body;
+  expect(within(section as HTMLElement).getByText(/Reconcile the exact owned account/)).toBeInTheDocument();
+  expect(within(section as HTMLElement).getByText(/Google Repair Desk \(ADR 0003\)/)).toBeInTheDocument();
+  expect(section.textContent).not.toMatch(/host\/recovery|reinstall/i);
+});
 it("flags saved business context that predates a live connection as stale claims, not current truth",()=>{
   jest.mocked(businessContext).mockReturnValue({isLoading:false,data:{brandId:"brand-1",source:"brand",context:{
     objective:"sales",notes:"Google not connected yet; Meta only",updatedAt:"2026-08-28T10:00:00Z",
