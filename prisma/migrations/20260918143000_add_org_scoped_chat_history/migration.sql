@@ -38,11 +38,11 @@ CREATE TABLE IF NOT EXISTS public.chat_sessions (
   organization_id text        NOT NULL,
   title           text        NOT NULL,
   message_count   integer     NOT NULL,
-  created_at      timestamptz NOT NULL,
-  updated_at      timestamptz NOT NULL,
+  created_at      timestamp(3) NOT NULL,
+  updated_at      timestamp(3) NOT NULL,
   CONSTRAINT chat_sessions_pkey PRIMARY KEY (id),
   CONSTRAINT chat_sessions_organization_id_fkey
-    FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE
+    FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS public.chat_messages (
@@ -51,10 +51,10 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
   type       text        NOT NULL,
   content    text        NOT NULL,
   metadata   jsonb,
-  created_at timestamptz NOT NULL,
+  created_at timestamp(3) NOT NULL,
   CONSTRAINT chat_messages_pkey PRIMARY KEY (id),
   CONSTRAINT chat_messages_session_id_fkey
-    FOREIGN KEY (session_id) REFERENCES public.chat_sessions(id) ON DELETE CASCADE
+    FOREIGN KEY (session_id) REFERENCES public.chat_sessions(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS chat_sessions_user_id_idx ON public.chat_sessions (user_id);
