@@ -2,6 +2,7 @@ import { validCampaignWindow } from "./campaign-reporting";
 import { projectContextEntries, type ProjectContext } from "./project-context";
 import { resolveAuditPeriods, type AuditComparison } from "./audit-periods";
 import { auditKpis, AUDIT_KPI_REFERENCES, type AuditMeasures } from "./audit-kpis";
+import { googleCampaignAdaptation, GOOGLE_ADAPTATION_REFERENCES } from './google-campaign-adaptation';
 
 export type AuditGoal = "sales" | "branding" | "wholesale";
 export type AuditWindow = { startDate: string; endDate: string };
@@ -190,13 +191,19 @@ export function buildPerformanceAudit(input: {
       roas: r.metricState === "stored_metrics" && validMetrics(r) && r.totalSpend > 0 ? r.totalConversionValue / r.totalSpend : null,
     })),
     calendar: calendar(input.asOf), strategy: strategy(input.goal),
+    adaptation: input.platform === 'google' ? googleCampaignAdaptation({ goal: input.goal,
+      currentRows: !current.truncated && !badCurrent ? rows : [],
+      baselineRows: !current.truncated && !badCurrent ? priorRows : [],
+      inventory: !current.truncated && !badCurrent ? current.campaigns.filter(inScope) : [],
+      currentWindow: current.window, baselineWindow: comparisonWindow }) : null,
     unavailableEvidence: ["Provider-reconciled completeness and conversion-action definitions", "Search terms, keywords, bidding strategy and change history",
-      "PMax product/feed eligibility and product-level outcomes", "Margins, returns, inventory and incremental profit",
+      "PMax product/feed eligibility and product-level outcomes", "Native network/device/landing mix, shared-budget resources and actual AI expansion settings",
+      "Margins, returns, inventory and incremental profit",
       "Complete historical coverage, query/product-level seasonal demand and verified commercial events", "Qualified wholesale lead → paid/repeat-order linkage"],
-    decisionPlan: ["Close host/recovery and release gates before production rollout", "Reconcile the exact owned account and current/previous windows",
+    decisionPlan: ["Reconcile the exact owned account and current/previous windows",
       "Resolve blockers, validate conversion/business economics and inspect objective-specific evidence",
       "Agree two campaign IDs, budgets/exposure and stop conditions only after the audit",
-      "Google/TikTok remain read-only; later scoped action policy, preview, specific confirmation, audit log and provider readback are required"],
+      "Google campaign activation/budgets/creation and TikTok remain read-only. Specific existing Search repairs use Google Repair Desk (ADR 0003): exact preview, separate confirmation, durable audit and native field readback; research approval never executes ads."],
   };
 }
 
@@ -238,7 +245,22 @@ export function auditMarkdown(audit: PerformanceAudit, context: { brand: string;
     "## Calendar context", "", `${audit.calendar.asOf}: ${audit.calendar.season}. ${audit.calendar.basis}`, "",
     ...audit.calendar.prompts.map(p => `- ${p}`), "", "## Objective strategy", "", audit.strategy.question, "",
     "Required evidence:", "", ...audit.strategy.requiredEvidence.map(p => `- ${p}`), "", "Next steps:", "",
-    ...audit.strategy.nextSteps.map(p => `- ${p}`), "", "## Unavailable evidence", "", ...audit.unavailableEvidence.map(p => `- ${p}`), "",
+    ...audit.strategy.nextSteps.map(p => `- ${p}`), "",
+    ...(audit.adaptation ? ["## Campaign adaptation review", "", audit.adaptation.caution, "", audit.adaptation.ordering,
+      `Omitted research candidates: ${audit.adaptation.omittedCount}.`, "",
+      ...(audit.adaptation.candidates.length ? audit.adaptation.candidates.flatMap(c => [
+        `### ${mdCell(c.name)} · ${mdCell(c.campaignId)} · ${c.currency}`, "",
+        `Current inventory status: ${mdCell(c.currentStatus)} · Assessment: ${c.assessment}. Status is not serving proof.`, "",
+        "Before (selected stored aggregate windows; actual active days Unverified):", "",
+        ...c.periods.map(p => `- ${p.source}: ${p.window.startDate} → ${p.window.endDate}; spend ${n(p.spend)} ${c.currency}; attributed value ${n(p.value)}; credits ${n(p.conversions)}; ROAS ${n(p.roas)}.`), "",
+        `Proposed adaptation: ${mdCell(c.proposedAdaptation)}`, "", `Why: ${mdCell(c.why)}`, "", `Risk: ${mdCell(c.risk)}`, "",
+      ]) : ["No validated stored study candidates in the selected windows. This is not proof that the account has no historical winners.", ""]),
+      "Required checks (not fetched or verified by this review):", "",
+      ...audit.adaptation.checks.map(c => `- ${c.label} — ${c.status}: ${c.requiredEvidence}`), "",
+      "Official feature references, not proof of account eligibility, API availability or implementation parity:", "",
+      ...GOOGLE_ADAPTATION_REFERENCES.map(s => `- [${s.label}](${s.url})`), "",
+    ] : []),
+    "## Unavailable evidence", "", ...audit.unavailableEvidence.map(p => `- ${p}`), "",
     "## Decision plan", "", ...audit.decisionPlan.map((p, i) => `${i + 1}. ${p}`), "",
     "Method: account + platform + campaign + currency grain; additive metrics summed, ratios recomputed. Missing/zero denominators are Unverified. No FX blending. ROAS-drop rule is a disclosed watch heuristic, not a causal model or automatic change.", "",
   ].join("\n");

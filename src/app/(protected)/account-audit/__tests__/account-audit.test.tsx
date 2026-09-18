@@ -3,6 +3,10 @@ import userEvent from "@testing-library/user-event";
 import AccountAuditPage from "../page";
 import { api } from "@/components/providers/trpc-provider";
 import { GoogleResearchDesk } from "@/components/audit/google-research-desk";
+import { GoogleRepairDesk } from '@/components/audit/google-repair-desk';
+import { GoogleHistoryImport } from '@/components/audit/google-history-import';
+jest.mock('@/components/audit/google-repair-desk',()=>({GoogleRepairDesk:jest.fn(()=> <div data-testid='google-repair-desk'/>)}));
+jest.mock('@/components/audit/google-history-import',()=>({GoogleHistoryImport:jest.fn(()=> <div data-testid='google-history-import'/>)}));
 
 jest.mock("@/components/providers/trpc-provider", () => ({api:{marketing:{
   getCampaignPerformance:{useQuery:jest.fn()},getCampaignReportAccounts:{useQuery:jest.fn()},
@@ -17,9 +21,17 @@ const query = api.marketing.getCampaignPerformance.useQuery;
 const accounts = api.marketing.getCampaignReportAccounts.useQuery;
 const businessContext = api.onboarding.getBrandContext.useQuery;
 
+it('shows the evidence-gated adaptation review for Google only and removes it on platform switch', async () => {
+  render(<AccountAuditPage />);
+  expect(screen.getByRole('region', { name: 'Campaign adaptation review' })).toHaveTextContent('Unverified');
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Platform' }), 'meta');
+  expect(screen.queryByRole('region', { name: 'Campaign adaptation review' })).not.toBeInTheDocument();
+});
+
 it("mounts the Google research/review workflow only for the exact selected valid Google audit scope",()=>{
   render(<AccountAuditPage/>);
   expect(GoogleResearchDesk).toHaveBeenCalledWith(expect.objectContaining({brandId:"brand-1",adAccountId:"account-google",market:"all",goal:"sales",comparison:{mode:"previous"}}),undefined);
+  expect(GoogleRepairDesk).toHaveBeenCalledWith(expect.objectContaining({brandId:'brand-1',adAccountId:'account-google'}),undefined);
 });
 
 it("loads the selected completed preset and historical baseline with unchanged owned scope", async()=>{
@@ -32,6 +44,13 @@ it("loads the selected completed preset and historical baseline with unchanged o
   expect(inputs.at(-1)?.adAccountId).toBe("account-google");
   expect(screen.getByRole("region",{name:"KPI definitions and availability"})).toHaveTextContent("Purchase-only ROAS");
   expect(screen.getByRole("button",{name:"Campaign activation locked"})).toBeDisabled();
+});
+it('mounts historical imports only for the exact valid selected Google account and periods', async () => {
+  render(<AccountAuditPage />);
+  expect(GoogleHistoryImport).toHaveBeenCalledWith(expect.objectContaining({ brandId: 'brand-1', adAccountId: 'account-google',
+    current: expect.objectContaining({ startDate: expect.any(String), endDate: expect.any(String) }), baseline: expect.objectContaining({ startDate: expect.any(String), endDate: expect.any(String) }) }), undefined);
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Platform' }), 'meta');
+  expect(screen.queryByTestId('google-history-import')).not.toBeInTheDocument();
 });
 it("rejects overlapping custom baselines and disables both reporting queries and export", async()=>{
   render(<AccountAuditPage/>);

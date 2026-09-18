@@ -33,6 +33,7 @@ Ads Pro Digital is a Next.js SaaS application for performance marketing teams. I
 
 ## Architecture notes
 
+- **Research memory:** owned Google research snapshots retain server-generated scoped audit plus optional full operator Markdown study with declared title/source URLs/observation time. Study content is separately labelled research, never canonical metric evidence or Ads approval. Frozen evidence hash covers the full body; new snapshots preserve old studies and existing actor/time/revision review history. Scoped Chat/Reports share the snapshot reference; complete-study LLM interpretation is not yet implemented. See the controlling18Sept shared-data/import/memory receipt in `docs/operator-bagtobag.md`; dated zero-data/missing-receipt handoffs are no longer current for its four exact imported windows. Shared backend delivery is NOT production UI/web-worker deployment.
 
 - Next.js 15 App Router with React Server Components where appropriate.
 - tRPC for type-safe API routes.

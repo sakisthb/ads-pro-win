@@ -12,6 +12,7 @@ jest.mock("@/lib/organization-authorization", () => ({ OrganizationAuthorization
 import { prisma } from "@/lib/db";
 import { requireOrganizationRoleForUser } from "@/lib/organization-authorization";
 import { googleResearchRouter } from "../google-research";
+import { auditEvidenceReference } from "@/lib/audit-evidence-reference";
 
 const scope = { brandId: "fixture-brand", adAccountId: "fixture-account" };
 const input = { ...scope, market: "all" as const, goal: "sales" as const,
@@ -33,11 +34,101 @@ beforeEach(() => {
   jest.mocked(prisma.analysis.findMany).mockResolvedValue([]);
 });
 afterEach(() => jest.useRealTimers());
+const operatorStudy = { customerId: '1111111111', title: 'Historical study <draft>', observedAt: '2026-09-17T11:00:00.000Z',
+  markdown: '# Original account study\nBefore → proposed change → why.\nHypothesis, not provider-verified metrics.',
+  sourceUrls: ['https://support.google.com/google-ads/answer/16260130?hl=en'], confirmOperatorSource: true as const };
+describe('retained operator study', () => {
+  it('preserves the complete original study with source/time labels inside the frozen report without treating it as canonical metrics', async () => {
+    const record = await caller().save({ ...input, operatorStudy } as never);
+    expect(record.snapshot.reportMarkdown).toContain(operatorStudy.markdown);
+    expect(record.snapshot.reportMarkdown).toContain('Operator-supplied study — not provider-verified metric evidence');
+    expect(record.snapshot.reportMarkdown).toContain(operatorStudy.observedAt);
+    expect(record.snapshot.reportMarkdown).toContain(operatorStudy.sourceUrls[0]);
+    expect(record.snapshot.reportMarkdown).toContain('Historical study &lt;draft&gt;');
+    expect(record.snapshot.reportMarkdown).toContain('Verdict: blocked');
+    expect(record.snapshot.executionAllowed).toBe(false);
+    expect(prisma.dailyMetric.groupBy).toHaveBeenCalledTimes(2);
+    const plain = await caller().save(input);
+    expect(plain.snapshot.reportMarkdown).not.toContain(operatorStudy.markdown);
+    expect(plain.snapshot.contentHash).not.toEqual(record.snapshot.contentHash);
+    jest.mocked(prisma.analysis.findFirst).mockResolvedValue({ id: record.id, data: record.snapshot } as never);
+    const reviewed = await caller().review({ ...scope, id: record.id, revision: 0, decision: 'changes_requested', note: 'Recheck present settings', confirmResearchOnly: true });
+    expect(reviewed.snapshot.reportMarkdown).toBe(record.snapshot.reportMarkdown);
+    expect(reviewed.snapshot.contentHash).toBe(record.snapshot.contentHash);
+  });
+  it('rejects a study declared for another customer before metric reads or persistence', async () => {
+    await expect(caller().save({ ...input, operatorStudy: { ...operatorStudy, customerId: '2222222222' } } as never)).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(prisma.dailyMetric.groupBy).not.toHaveBeenCalled(); expect(prisma.analysis.create).not.toHaveBeenCalled();
+  });
+  it('rejects future observation timestamps before metric reads or persistence', async () => {
+    await expect(caller().save({ ...input, operatorStudy: { ...operatorStudy, observedAt: '2026-09-18T00:00:00.000Z' } } as never)).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(prisma.dailyMetric.groupBy).not.toHaveBeenCalled(); expect(prisma.analysis.create).not.toHaveBeenCalled();
+  });
+  it('requires explicit source acknowledgment, bounded text and HTTPS source links', async () => {
+    for (const patch of [{ confirmOperatorSource: false }, { markdown: 'x'.repeat(250001) }, { markdown: ' ' }, { sourceUrls: ['javascript:alert(1)'] }, { sourceUrls: ['https://user:password@example.com/'] }]) {
+      await expect(caller().save({ ...input, operatorStudy: { ...operatorStudy, ...patch } } as never)).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    }
+    expect(prisma.dailyMetric.groupBy).not.toHaveBeenCalled(); expect(prisma.analysis.create).not.toHaveBeenCalled();
+  });
+});
 async function saved() {
   const record = await caller().save(input);
   jest.mocked(prisma.analysis.findFirst).mockResolvedValue({ id: record.id, data: record.snapshot } as never);
   return record;
 }
+describe("shared frozen evidence reads", () => {
+  async function reference() {
+    const record = await saved();
+    jest.mocked(prisma.dailyMetric.groupBy).mockClear(); jest.mocked(prisma.analysis.create).mockClear();
+    return { record, ref: auditEvidenceReference(record) };
+  }
+  it("allows a viewer to read exactly the owned snapshot without metrics, writes or tokens", async () => {
+    const { record, ref } = await reference();
+    jest.mocked(requireOrganizationRoleForUser).mockResolvedValue({ organizationId: "fixture-org", membership: { role: "viewer" } } as never);
+    expect(await caller().get(ref)).toEqual(record);
+    expect(prisma.analysis.findFirst).toHaveBeenCalledWith({ where: { id: record.id, organizationId: "fixture-org", type: "google_audit_research_v1" }, select: { id: true, data: true } });
+    expect(prisma.dailyMetric.groupBy).not.toHaveBeenCalled(); expect(prisma.analysis.create).not.toHaveBeenCalled();
+    expect(prisma.analysis.updateMany).not.toHaveBeenCalled();
+  });
+  it("rejects a foreign account before any snapshot lookup", async () => {
+    const { ref } = await reference(); jest.mocked(prisma.analysis.findFirst).mockClear();
+    jest.mocked(prisma.adAccount.findFirst).mockResolvedValue(null);
+    await expect(caller().get(ref)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(prisma.analysis.findFirst).not.toHaveBeenCalled();
+  });
+  it("rejects a missing organization-owned record", async () => {
+    const { ref } = await reference(); jest.mocked(prisma.analysis.findFirst).mockResolvedValue(null);
+    await expect(caller().get(ref)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+  it("withholds a record in another owned account scope", async () => {
+    const { record, ref } = await reference();
+    jest.mocked(prisma.analysis.findFirst).mockResolvedValue({ id: record.id, data: { ...record.snapshot, scope: { ...record.snapshot.scope, adAccountId: "other-owned" } } } as never);
+    await expect(caller().get(ref)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+  it("withholds tampered, malformed and client-mismatched checksum evidence", async () => {
+    const { record, ref } = await reference();
+    await expect(caller().get({ ...ref, contentHash: "b".repeat(64) })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    jest.mocked(prisma.analysis.findFirst).mockResolvedValue({ id: record.id, data: { ...record.snapshot, reportMarkdown: "Invented performance" } } as never);
+    await expect(caller().get(ref)).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    jest.mocked(prisma.analysis.findFirst).mockResolvedValue({ id: record.id, data: { arbitrary: "untrusted" } } as never);
+    await expect(caller().get(ref)).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+  it("fails closed on stale revision, including before explanation", async () => {
+    const { ref } = await reference();
+    await expect(caller().get({ ...ref, revision: 1 })).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(caller().explain({ ...ref, revision: 1, question: "Why?" })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(prisma.dailyMetric.groupBy).not.toHaveBeenCalled(); expect(prisma.analysis.updateMany).not.toHaveBeenCalled();
+  });
+  it("explains saved research fields only and refuses client metrics / unknown proposals", async () => {
+    const { record, ref } = await reference();
+    const result = await caller().explain({ ...ref, question: "Why?", proposalId: record.snapshot.proposals[0].id });
+    expect(result.reference).toEqual(ref); expect(result.answer).toContain(record.snapshot.proposals[0].reason);
+    expect(result.executionAllowed).toBe(false);
+    await expect(caller().explain({ ...ref, question: "Why?", spend: 999 } as never)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller().explain({ ...ref, question: "Why?", proposalId: "other" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(prisma.dailyMetric.groupBy).not.toHaveBeenCalled(); expect(prisma.analysis.create).not.toHaveBeenCalled(); expect(prisma.analysis.updateMany).not.toHaveBeenCalled();
+  });
+});
 it("generates immutable evidence from owned server reads, not client metric values", async () => {
   const record = await saved();
   expect(record.snapshot).toMatchObject({ schemaVersion: 1, scope: { ...scope, platform: "google", market: "all", goal: "sales" },

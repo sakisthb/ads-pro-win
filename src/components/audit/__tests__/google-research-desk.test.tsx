@@ -33,6 +33,51 @@ it("requires explicit acknowledgment and saves only owned scope, never client pe
   expect(screen.getByText("Verified coverage receipt")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Execute Google changes" })).toBeDisabled();
 });
+it('retains a complete operator study only after a separate source acknowledgment, without client metrics or execution permission', async () => {
+  render(<GoogleResearchDesk {...props} providerAccountId='1111111111' />);
+  fireEvent.change(screen.getByLabelText('Operator study Markdown'), { target: { value: '# Historical periods\nOwn research and hypotheses.' } });
+  fireEvent.change(screen.getByLabelText('Study title'), { target: { value: 'Original strategic study' } });
+  fireEvent.change(screen.getByLabelText('Study observed at (ISO UTC)'), { target: { value: '2026-09-17T11:00:00.000Z' } });
+  fireEvent.change(screen.getByLabelText('Study source URLs (one HTTPS URL per line)'), { target: { value: 'https://support.google.com/google-ads/answer/16260130?hl=en' } });
+  await userEvent.click(screen.getByRole('checkbox', { name: /Save research only/ }));
+  expect(screen.getByRole('button', { name: 'Generate & save Google research' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('checkbox', { name: /Include this operator study as research/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Generate & save Google research' }));
+  expect(save).toHaveBeenCalledWith({ ...props, acknowledgeResearchOnly: true, operatorStudy: {
+    customerId: '1111111111', title: 'Original strategic study', observedAt: '2026-09-17T11:00:00.000Z',
+    markdown: '# Historical periods\nOwn research and hypotheses.', sourceUrls: ['https://support.google.com/google-ads/answer/16260130?hl=en'], confirmOperatorSource: true,
+  } });
+  expect(screen.getByLabelText('Operator study Markdown')).toHaveValue('');
+  expect(screen.getByRole('button', { name: 'Execute Google changes' })).toBeDisabled();
+});
+it('clears unsaved operator studies and acknowledgment on account scope changes', async () => {
+  const { rerender } = render(<GoogleResearchDesk {...props} providerAccountId='1111111111' />);
+  fireEvent.change(screen.getByLabelText('Operator study Markdown'), { target: { value: 'First account only' } });
+  await userEvent.click(screen.getByRole('checkbox', { name: /Include this operator study as research/ }));
+  rerender(<GoogleResearchDesk {...props} adAccountId='another-account' providerAccountId='2222222222' />);
+  expect(screen.getByLabelText('Operator study Markdown')).toHaveValue('');
+  expect(screen.getByRole('checkbox', { name: /Include this operator study as research/ })).not.toBeChecked();
+  expect(save).not.toHaveBeenCalled();
+});
+it('loads an original Markdown file into the study editor without automatically persisting it', async () => {
+  render(<GoogleResearchDesk {...props} providerAccountId='1111111111' />);
+  const content = '# Full original study\nSources and reasons.';
+  const file = new File([content], 'account-study.md', { type: 'text/markdown' });
+  Object.defineProperty(file, 'text', { value: async () => content });
+  fireEvent.change(screen.getByLabelText('Load study Markdown file'), { target: { files: [file] } });
+  expect(await screen.findByText('Markdown loaded into the draft editor. Confirm its account, sources and observation time before saving.')).toBeInTheDocument();
+  expect(screen.getByLabelText('Operator study Markdown')).toHaveValue(content);
+  expect(screen.getByRole('checkbox', { name: /Include this operator study as research/ })).not.toBeChecked();
+  expect(save).not.toHaveBeenCalled();
+});
+it('rejects non-Markdown study files without retaining or saving their contents', async () => {
+  render(<GoogleResearchDesk {...props} providerAccountId='1111111111' />);
+  const file = new File(['not a study'], 'credentials.env', { type: 'text/plain' });
+  fireEvent.change(screen.getByLabelText('Load study Markdown file'), { target: { files: [file] } });
+  expect(await screen.findByRole('alert')).toHaveTextContent('Choose a Markdown (.md) file of at most 1 MB.');
+  expect(screen.getByLabelText('Operator study Markdown')).toHaveValue('');
+  expect(save).not.toHaveBeenCalled();
+});
 it("accepts research explicitly, records the server review, and still cannot execute ads", async () => {
   jest.mocked(api.googleResearch.history.useQuery).mockReturnValue({ data: [snapshot], isLoading: false, refetch } as never);
   render(<GoogleResearchDesk {...props} />);
@@ -80,4 +125,16 @@ it("prevents repeated saves and reviews while a mutation is pending",()=>{
   expect(screen.getByRole("checkbox",{name:/Save research only/})).toBeDisabled();
   expect(screen.getByRole("button",{name:"Generate & save Google research"})).toBeDisabled();
   expect(screen.getByRole("combobox",{name:"Saved Google research"})).toBeDisabled();
+});
+it("links only a selected owned saved snapshot into Chat and Reports with the same hash/revision", async () => {
+  jest.mocked(api.googleResearch.history.useQuery).mockReturnValue({ data: [snapshot], isLoading: false, refetch } as never);
+  render(<GoogleResearchDesk {...props} />);
+  expect(screen.queryByRole("link", { name: "Discuss saved audit in Scoped Chat" })).not.toBeInTheDocument();
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "Saved Google research" }), snapshot.id);
+  for (const name of ["Discuss saved audit in Scoped Chat", "Open Scoped Report"]) {
+    const url = new URL(screen.getByRole("link", { name }).getAttribute("href")!, "http://localhost");
+    expect(url.searchParams.get("auditId")).toBe(snapshot.id); expect(url.searchParams.get("brand")).toBe(props.brandId);
+    expect(url.searchParams.get("auditAccount")).toBe(props.adAccountId); expect(url.searchParams.get("auditHash")).toBe(snapshot.snapshot.contentHash);
+    expect(url.searchParams.get("auditRevision")).toBe("0");
+  }
 });
