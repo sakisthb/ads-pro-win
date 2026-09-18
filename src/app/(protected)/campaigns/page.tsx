@@ -117,6 +117,15 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function ResultCaption({ platform, resultType }: { platform: string; resultType?: string | null }) {
+  const isMeta = fromPrismaPlatform(platform) === "meta";
+  return (
+    <p className="text-[10px] text-white/35" data-testid="result-caption">
+      {isMeta ? `Meta result · ${labelMetaResultType(resultType)}` : "Conversions"}
+    </p>
+  );
+}
+
 function normalizePlatform(p: string): string {
   if (PLATFORMS[p]) return p;
   const cap = p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
@@ -459,7 +468,7 @@ export default function CampaignsPage() {
       {reportAccountsQuery.error ? <p role="alert" className="text-sm text-amber-300">Could not load owned report accounts.</p> : null}
       <p className="text-xs text-white/50">Stored report: {reportWindow.startDate} — {reportWindow.endDate} (UTC date keys). Provider coverage is not verified here. Local drafts are outside this report. {report?.truncated ? "Showing first 200 rows; summary includes all matches." : ""}</p>
 
-      {/* Synced Campaigns (Meta) — real org-scoped data from ad platform sync */}
+      {/* Synced campaigns — real org-scoped data from ad platform sync */}
       <AnimatedSection>
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-5 py-4">
@@ -550,7 +559,7 @@ export default function CampaignsPage() {
                         <td className="px-4 py-3 text-right tabular-nums text-white/80">{conversions.toFixed(0)}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-white/80">
                           <span>{results.toFixed(0)}</span>
-                          <p className="text-[10px] text-white/35">Meta result · {labelMetaResultType(c.resultType)}</p>
+                          <ResultCaption platform={c.platform} resultType={c.resultType} />
                         </td>
                         <td className="px-4 py-3 text-right">
                           {fromPrismaPlatform(c.platform) === "meta" ? <button
@@ -659,7 +668,7 @@ export default function CampaignsPage() {
                         <p className="text-xs font-semibold text-white/80">{lpv.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-white/35">Meta result · {labelMetaResultType(c.resultType)}</p>
+                        <ResultCaption platform={c.platform} resultType={c.resultType} />
                         <p className="text-xs font-semibold text-white/80">{Number(c.totalResults ?? 0).toFixed(0)}</p>
                       </div>
                     </div>

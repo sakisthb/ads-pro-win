@@ -73,6 +73,23 @@ it("does not offer Meta edit or live write controls for Google cards", () => {
   expect(card).toHaveTextContent("Read-only");
 });
 
+it("labels results as Meta results only on Meta rows, not on Google rows", () => {
+  render(<CampaignsPage />);
+  const googleCard = screen.getByText("Google fixture").closest("[data-report-row]")!;
+  expect(within(googleCard).queryByText(/Meta result/)).not.toBeInTheDocument();
+  expect(within(googleCard).getByTestId("result-caption")).toHaveTextContent("Conversions");
+  const metaCard = screen.getByText("Meta fixture").closest("[data-report-row]")!;
+  expect(within(metaCard).getByTestId("result-caption")).toHaveTextContent("Meta result · Results");
+});
+
+it("keeps Google rows free of Meta result labels in table view", async () => {
+  render(<CampaignsPage />);
+  await userEvent.click(screen.getByRole("button", { name: "Table view" }));
+  const googleRow = screen.getByText("Google fixture").closest("tr")!;
+  expect(googleRow).not.toBeNull();
+  expect(within(googleRow).queryByText(/Meta result/)).not.toBeInTheDocument();
+});
+
 it("shows a reporting error rather than claiming empty campaigns", () => {
   jest.mocked(api.marketing.getCampaignPerformance.useQuery).mockReturnValue({ isLoading: false, error: { message: "Fixture failure" } } as never);
   render(<CampaignsPage />);
