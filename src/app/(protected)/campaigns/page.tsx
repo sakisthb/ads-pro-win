@@ -126,19 +126,22 @@ function ResultCaption({ platform, resultType }: { platform: string; resultType?
   );
 }
 
+// Google reports Display as CONTENT in segments.ad_network_type (AdNetworkTypeEnum).
 const NETWORK_LABELS: Record<string, string> = {
-  SEARCH: "Search", SEARCH_PARTNERS: "Search partners", DISPLAY: "Display",
+  SEARCH: "Search", SEARCH_PARTNERS: "Search partners", CONTENT: "Display",
   YOUTUBE_SEARCH: "YouTube Search", YOUTUBE_WATCH: "YouTube Watch", MIXED: "Mixed",
 };
 const NETWORK_COLORS: Record<string, string> = {
-  SEARCH: "bg-emerald-500", SEARCH_PARTNERS: "bg-teal-400", DISPLAY: "bg-sky-400",
+  SEARCH: "bg-emerald-500", SEARCH_PARTNERS: "bg-teal-400", CONTENT: "bg-sky-400",
   YOUTUBE_SEARCH: "bg-red-400", YOUTUBE_WATCH: "bg-rose-500", MIXED: "bg-violet-400",
 };
 
-function NetworkSplitLine({ rows }: { rows: Array<{ networkType: string; spend: number }> }) {
+function NetworkSplitLine({ rows, campaignSpend }: { rows: Array<{ networkType: string; spend: number }>; campaignSpend?: number }) {
   const total = rows.reduce((sum, row) => sum + row.spend, 0);
   if (total <= 0) return null;
   const sorted = [...rows].sort((a, b) => b.spend - a.spend);
+  const coverage = campaignSpend && campaignSpend > 0 ? total / campaignSpend : null;
+  const partial = coverage !== null && coverage < 0.99;
   return (
     <div className="mt-2 border-t border-white/5 pt-2" data-testid="network-split">
       <div className="flex h-1.5 overflow-hidden rounded-full bg-white/5">
@@ -155,6 +158,11 @@ function NetworkSplitLine({ rows }: { rows: Array<{ networkType: string; spend: 
           .map((row) => `${NETWORK_LABELS[row.networkType] ?? row.networkType} ${Math.round((row.spend / total) * 100)}%`)
           .join(" · ")}
       </p>
+      {partial ? (
+        <p className="mt-0.5 text-[10px] text-amber-300/70" data-testid="network-split-partial">
+          Network split covers ~{Math.round((coverage ?? 0) * 100)}% of spend · partial
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -723,7 +731,7 @@ export default function CampaignsPage() {
                       </div>
                     </div>
                     {fromPrismaPlatform(c.platform) === "google" ? (
-                      <NetworkSplitLine rows={networkSplitByCampaign.get(`${c.adAccountId}:${c.campaignId}`) ?? []} />
+                      <NetworkSplitLine rows={networkSplitByCampaign.get(`${c.adAccountId}:${c.campaignId}`) ?? []} campaignSpend={Number(c.totalSpend ?? 0)} />
                     ) : null}
                     {fromPrismaPlatform(c.platform) === "meta" ? <div className="mt-3 flex items-center gap-1.5">
                       <button
