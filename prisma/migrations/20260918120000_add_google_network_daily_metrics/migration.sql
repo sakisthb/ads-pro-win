@@ -18,7 +18,7 @@ CREATE TABLE "GoogleNetworkDailyMetric" (
     CONSTRAINT "GoogleNetworkDailyMetric_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "GoogleNetworkDailyMetric_date_adAccountId_campaignId_networkType_key" ON "GoogleNetworkDailyMetric"("date", "adAccountId", "campaignId", "networkType");
+CREATE UNIQUE INDEX "GoogleNetworkDailyMetric_date_adAccountId_campaignId_networ_key" ON "GoogleNetworkDailyMetric"("date", "adAccountId", "campaignId", "networkType");
 
 CREATE INDEX "GoogleNetworkDailyMetric_adAccountId_date_idx" ON "GoogleNetworkDailyMetric"("adAccountId", "date");
 

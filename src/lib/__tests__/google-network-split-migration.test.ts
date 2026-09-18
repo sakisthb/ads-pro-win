@@ -6,7 +6,7 @@ it("stores the Google network split server-only with a per campaign-day-network 
   const sql = readFileSync(resolve(process.cwd(), "prisma/migrations/20260918120000_add_google_network_daily_metrics/migration.sql"), "utf8");
   expect(sql).toMatch(/CREATE TABLE "GoogleNetworkDailyMetric"/);
   expect(sql).toMatch(/"networkType" TEXT NOT NULL/);
-  expect(sql).toMatch(/CREATE UNIQUE INDEX "GoogleNetworkDailyMetric_date_adAccountId_campaignId_networkType_key" ON "GoogleNetworkDailyMetric"\("date", "adAccountId", "campaignId", "networkType"\)/);
+  expect(sql).toMatch(/CREATE UNIQUE INDEX "GoogleNetworkDailyMetric_date_adAccountId_campaignId_networ_key" ON "GoogleNetworkDailyMetric"\("date", "adAccountId", "campaignId", "networkType"\)/);
   expect(sql).toMatch(/REFERENCES "AdAccount"\("id"\) ON DELETE CASCADE/);
   expect(sql).toMatch(/ALTER TABLE "GoogleNetworkDailyMetric" ENABLE ROW LEVEL SECURITY;/);
   expect(sql).toMatch(/REVOKE ALL ON TABLE "GoogleNetworkDailyMetric" FROM PUBLIC;/);
