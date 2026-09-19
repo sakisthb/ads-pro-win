@@ -1,6 +1,6 @@
 /** @jest-environment node */
 jest.mock("@/lib/db", () => ({ prisma: { adAccount: { findMany: jest.fn() } } }));
-jest.mock("@/lib/config", () => ({ config: { features: { mcpEnabled: false, reportingSyncEnabled: true, woocommerceEnabled: false } } }));
+jest.mock("@/lib/config", () => ({ config: { features: { mcpEnabled: false, reportingSyncEnabled: true, woocommerceEnabled: false, reportingSyncAccountIds: [] } } }));
 jest.mock("@/lib/workers/queues", () => ({
   metaSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn() },
   googleSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn() },
@@ -12,17 +12,23 @@ jest.mock("@/lib/workers/queues", () => ({
 }));
 
 import { prisma } from "@/lib/db";
-import { alertQueue, metaSyncQueue } from "@/lib/workers/queues";
+import { alertQueue, googleSyncQueue, metaSyncQueue, tiktokSyncQueue } from "@/lib/workers/queues";
 import { setupSchedules } from "@/lib/workers/schedules";
 
 const mockedConfig = jest.requireMock("@/lib/config").config as {
-  features: Record<string, boolean>;
+  features: {
+    mcpEnabled: boolean;
+    reportingSyncEnabled: boolean;
+    woocommerceEnabled: boolean;
+    reportingSyncAccountIds: string[];
+  };
 };
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockedConfig.features.mcpEnabled = false;
   mockedConfig.features.reportingSyncEnabled = true;
+  mockedConfig.features.reportingSyncAccountIds = [];
   jest.mocked(prisma.adAccount.findMany).mockImplementation(((args: unknown) => {
     const where = (args as { where?: { platform?: unknown } })?.where ?? {};
     if (where.platform !== undefined) return Promise.resolve([]);
@@ -45,6 +51,49 @@ it("skips metric syncs only when reporting sync is explicitly disabled", async (
   mockedConfig.features.mcpEnabled = true;
   await setupSchedules();
   expect(metaSyncQueue.upsertJobScheduler).not.toHaveBeenCalled();
+});
+
+it("restricts metric sync schedules to the account allowlist when set", async () => {
+  mockedConfig.features.reportingSyncAccountIds = ["acc-meta-1"];
+  jest.mocked(prisma.adAccount.findMany).mockImplementation(((args: unknown) => {
+    const where = (args as { where?: { platform?: unknown; id?: { in: string[] } } })?.where ?? {};
+    if (where.platform !== undefined) return Promise.resolve([]);
+    const all = [
+      { id: "acc-meta-1", platform: "meta" },
+      { id: "acc-google-1", platform: "google" },
+      { id: "acc-tiktok-1", platform: "tiktok" },
+    ];
+    if (where.id?.in) return Promise.resolve(all.filter((a) => where.id!.in.includes(a.id)));
+    return Promise.resolve(all);
+  }) as never);
+
+  await setupSchedules();
+
+  expect(prisma.adAccount.findMany).toHaveBeenCalledWith(
+    expect.objectContaining({ where: expect.objectContaining({ id: { in: ["acc-meta-1"] } }) }),
+  );
+  expect(metaSyncQueue.upsertJobScheduler).toHaveBeenCalledTimes(2);
+  expect(googleSyncQueue.upsertJobScheduler).not.toHaveBeenCalled();
+  expect(tiktokSyncQueue.upsertJobScheduler).not.toHaveBeenCalled();
+});
+
+it("schedules every active ad account when the allowlist is empty", async () => {
+  jest.mocked(prisma.adAccount.findMany).mockImplementation(((args: unknown) => {
+    const where = (args as { where?: { platform?: unknown } })?.where ?? {};
+    if (where.platform !== undefined) return Promise.resolve([]);
+    return Promise.resolve([
+      { id: "acc-meta-1", platform: "meta" },
+      { id: "acc-google-1", platform: "google" },
+    ]);
+  }) as never);
+
+  await setupSchedules();
+
+  expect(prisma.adAccount.findMany).toHaveBeenCalledWith(
+    expect.objectContaining({ where: expect.not.objectContaining({ id: expect.anything() }) }),
+  );
+  expect(metaSyncQueue.upsertJobScheduler).toHaveBeenCalledTimes(2);
+  expect(googleSyncQueue.upsertJobScheduler).toHaveBeenCalledTimes(2);
 });
 
 it("always registers the hourly budget alert check", async () => {

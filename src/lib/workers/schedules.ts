@@ -116,8 +116,12 @@ function opencartJobName(adAccountId: string): string {
 export async function setupSchedules(): Promise<void> {
   // ---- Ad platform metric syncs ----
   if (config.features.reportingSyncEnabled) {
+    const allowlist = config.features.reportingSyncAccountIds ?? []
     const accounts = await prisma.adAccount.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(allowlist.length > 0 ? { id: { in: allowlist } } : {}),
+      },
     })
 
     for (const account of accounts) {
