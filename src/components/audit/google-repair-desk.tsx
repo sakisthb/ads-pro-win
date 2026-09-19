@@ -73,10 +73,11 @@ function RepairDesk(scope: Props) {
   }
   const canExecute = record?.preview.state === 'prepared' && !attempted && Date.parse(record.preview.expiresAt) > Date.now() && exact && serving && !busy;
   const uncertain = record && (['executing', 'provider_unknown', 'readback_mismatch'].includes(record.preview.state) || attempted && record.preview.state === 'prepared');
+  const campaignNetworkRepair = record?.preview.request.kind === 'campaign_network_update';
   return <section aria-label='Google Repair Desk' className='space-y-4 rounded-2xl border border-blue-400/20 bg-white/[0.025] p-5'>
     <h2 className='text-lg font-semibold'>Google Repair Desk</h2>
-    <p className='text-sm text-zinc-300'>Existing BagToBag Search RSA copy/destinations, positive keyword pause/destinations and campaign sitelink pause only. No campaign activation, budget changes, campaign creation, shared negative-list edits or website/catalog writes.</p>
-    <p className='text-sm text-amber-200'>Repairing an enabled disapproved ad can resume serving and spend under its existing budget. Native field verification does not mean Google policy approval, delivery or improved ROAS.</p>
+    <p className='text-sm text-zinc-300'>Existing BagToBag Search RSA copy/destinations, positive keyword pause/destinations, campaign sitelink pause and one-way Content Network disable only. No campaign activation, budget changes, campaign creation, shared negative-list edits or website/catalog writes.</p>
+    <p className='text-sm text-amber-200'>A repaired enabled target may continue or resume serving and spend under its existing budget. Native field verification does not mean Google policy approval, delivery or improved ROAS.</p>
     <div className='flex flex-wrap gap-3'>
       <button className={control} disabled={busy || inventory.isFetching} onClick={() => void loadInventory()}>Load native Google targets (read-only)</button>
       <button className={control} disabled={busy || history.isFetching} onClick={() => { invalidate(); void history.refetch(); }}>Reload repair receipts</button>
@@ -127,7 +128,7 @@ function RepairDesk(scope: Props) {
       <details><summary>Durable execution / reconciliation audit</summary><pre className='max-h-48 overflow-auto whitespace-pre-wrap text-xs'>{JSON.stringify(record.preview.events, null, 2)}</pre></details>
       {attempted && record.preview.state === 'prepared' ? <p className='text-amber-200'>Client outcome unknown. Reload durable receipts and reconcile; do not repeat execution.</p> : null}
       <label className='flex gap-2'><input type='checkbox' checked={exact} disabled={busy || record.preview.state !== 'prepared' || attempted} onChange={e => setExact(e.target.checked)} />I approve these exact before/desired fields for this one target.</label>
-      <label className='flex gap-2'><input type='checkbox' checked={serving} disabled={busy || record.preview.state !== 'prepared' || attempted} onChange={e => setServing(e.target.checked)} />An enabled ad may resume serving and spend under its existing budget.</label>
+      <label className='flex gap-2'><input type='checkbox' checked={serving} disabled={busy || record.preview.state !== 'prepared' || attempted} onChange={e => setServing(e.target.checked)} />{campaignNetworkRepair ? 'This campaign may continue serving and spending on Google Search under its existing budget.' : 'An enabled ad may resume serving and spend under its existing budget.'}</label>
       <button className={control} disabled={!canExecute} onClick={() => void perform('execute')}>Execute this exact repair</button>
       {uncertain ? <button className={`${control} ml-2`} disabled={busy} onClick={() => void perform('reconcile')}>Reconcile native fields (read-only)</button> : null}
     </div> : null}

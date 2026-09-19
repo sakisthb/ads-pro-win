@@ -18,9 +18,13 @@ const keywordRow = z.object({ campaign: entity, adGroup: group, adGroupCriterion
 const linkRow = z.object({ campaign: entity, campaignAsset: z.object({ resourceName: z.string(), status: z.enum(['ENABLED', 'PAUSED']), fieldType: z.literal('SITELINK') }).passthrough(),
   asset: z.object({ id: z.string(), finalUrls: z.array(z.string()).default([]), finalMobileUrls: z.array(z.string()).default([]), sitelinkAsset: z.object({ linkText: z.string(), description1: z.string().optional(), description2: z.string().optional() }).passthrough() }).passthrough(),
 }).passthrough();
+const networkRow = z.object({ campaign: entity.extend({ resourceName: z.string(), networkSettings: z.object({
+  targetGoogleSearch: z.boolean(), targetSearchNetwork: z.boolean(), targetContentNetwork: z.boolean(), targetPartnerSearchNetwork: z.boolean(),
+}).passthrough() }) }).passthrough();
 const parentFields = 'campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type';
 const groupFields = 'ad_group.id, ad_group.name, ad_group.status';
 const queries = {
+  campaign_network_update: `SELECT ${parentFields}, campaign.resource_name, campaign.network_settings.target_google_search, campaign.network_settings.target_search_network, campaign.network_settings.target_content_network, campaign.network_settings.target_partner_search_network FROM campaign`,
   rsa_update: `SELECT ${parentFields}, ${groupFields}, ad_group_ad.status, ad_group_ad.ad.id, ad_group_ad.ad.resource_name, ad_group_ad.ad.type, ad_group_ad.ad.final_urls, ad_group_ad.ad.final_mobile_urls, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions FROM ad_group_ad`,
   keyword_pause: `SELECT ${parentFields}, ${groupFields}, ad_group_criterion.criterion_id, ad_group_criterion.resource_name, ad_group_criterion.type, ad_group_criterion.status, ad_group_criterion.negative, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type, ad_group_criterion.final_urls, ad_group_criterion.final_mobile_urls FROM ad_group_criterion`,
   sitelink_pause: `SELECT ${parentFields}, campaign_asset.resource_name, campaign_asset.status, campaign_asset.field_type, asset.id, asset.final_urls, asset.final_mobile_urls, asset.sitelink_asset.link_text, asset.sitelink_asset.description1, asset.sitelink_asset.description2 FROM campaign_asset`,
@@ -50,7 +54,13 @@ export async function googleRepairProvider(account: StoredAccount) {
   function project(kind: keyof typeof queries, raw: unknown): InventoryTarget {
     let request: RepairRequest, before: RepairState, label: string;
     const reason = 'Operator review of an existing target';
-    if (kind === 'rsa_update') {
+    if (kind === 'campaign_network_update') {
+      const row = networkRow.parse(raw), campaign = row.campaign;
+      if (campaign.resourceName !== `customers/${customerId}/campaigns/${campaign.id}`) throw new Error('Foreign Search campaign');
+      before = repairStateSchema.parse({ resourceName: campaign.resourceName, campaignStatus: campaign.status, status: campaign.status, type: 'SEARCH_CAMPAIGN', networkSettings: campaign.networkSettings });
+      request = { kind, campaignId: campaign.id, reason, targetContentNetwork: false };
+      label = `${campaign.name ?? campaign.id} / Content Network enabled`;
+    } else if (kind === 'rsa_update') {
       const row = adRow.parse(raw), ad = row.adGroupAd.ad;
       if (ad.resourceName !== `customers/${customerId}/ads/${ad.id}`) throw new Error('Foreign ad resource');
       const assets = (list: typeof ad.responsiveSearchAd.headlines) => list.map(({ text, pinnedField }) => ({ text, ...(pinnedField && pinnedField !== 'UNSPECIFIED' ? { pinnedField } : {}) }));
@@ -77,14 +87,16 @@ export async function googleRepairProvider(account: StoredAccount) {
   async function readTarget(input: RepairRequest) {
     const req = repairRequestSchema.parse(input);
     const kind = req.kind === 'keyword_destination' ? 'keyword_pause' : req.kind;
-    const condition = req.kind === 'rsa_update' ? `ad_group_ad.ad.id = ${req.adId}`
+    const condition = req.kind === 'campaign_network_update' ? `campaign.id = ${req.campaignId}`
+      : req.kind === 'rsa_update' ? `ad_group_ad.ad.id = ${req.adId}`
       : req.kind === 'sitelink_pause' ? `campaign.id = ${req.campaignId} AND asset.id = ${req.assetId} AND campaign_asset.field_type = 'SITELINK'`
         : `ad_group.id = ${req.adGroupId} AND ad_group_criterion.criterion_id = ${req.criterionId}`;
     // Do not filter an RSA by parent: reject legacy shared ads instead of editing other campaigns silently.
     const rows = await search(`${queries[kind]} WHERE ${condition} LIMIT 3`);
     if (rows.length !== 1) throw new Error('Target missing, ambiguous or shared; repair withheld');
     const target = project(kind, rows[0]);
-    const identityMatches = req.kind === 'rsa_update' ? target.request.kind === 'rsa_update' && target.request.adId === req.adId
+    const identityMatches = req.kind === 'campaign_network_update' ? target.request.kind === 'campaign_network_update' && target.request.campaignId === req.campaignId
+      : req.kind === 'rsa_update' ? target.request.kind === 'rsa_update' && target.request.adId === req.adId
       : req.kind === 'sitelink_pause' ? target.request.kind === 'sitelink_pause' && target.request.assetId === req.assetId
         : target.request.kind === 'keyword_pause' && target.request.criterionId === req.criterionId;
     if (!identityMatches) throw new Error('Native target identity mismatch');
@@ -93,9 +105,10 @@ export async function googleRepairProvider(account: StoredAccount) {
   }
   async function inventory(campaignId?: string) {
     if (campaignId) z.string().regex(/^\d{1,20}$/).parse(campaignId);
-    const campaignRows = await search(`SELECT ${parentFields} FROM campaign WHERE campaign.advertising_channel_type = 'SEARCH' AND campaign.status IN ('ENABLED','PAUSED') ORDER BY campaign.id LIMIT 201`);
-    const campaigns = campaignRows.slice(0, 200).map(row => z.object({ campaign: entity }).parse(row).campaign).map(({ id, name, status }) => ({ id, name: name ?? id, status }));
-    const targets: InventoryTarget[] = [];
+    const campaignRows = await search(`${queries.campaign_network_update} WHERE campaign.advertising_channel_type = 'SEARCH' AND campaign.status IN ('ENABLED','PAUSED') ${campaignId ? `AND campaign.id = ${campaignId}` : ''} ORDER BY campaign.id LIMIT 201`);
+    const parsedCampaigns = campaignRows.slice(0, 200).map(row => networkRow.parse(row));
+    const campaigns = parsedCampaigns.map(({ campaign: { id, name, status } }) => ({ id, name: name ?? id, status }));
+    const targets: InventoryTarget[] = parsedCampaigns.filter(row => row.campaign.networkSettings.targetContentNetwork).map(row => project('campaign_network_update', row));
     let limited = campaignRows.length > 200;
     for (const kind of ['rsa_update', 'keyword_pause', 'sitelink_pause'] as const) {
       const extra = kind === 'rsa_update' ? "AND ad_group.status IN ('ENABLED','PAUSED') AND ad_group_ad.status IN ('ENABLED','PAUSED') AND ad_group_ad.ad.type = 'RESPONSIVE_SEARCH_AD'"
