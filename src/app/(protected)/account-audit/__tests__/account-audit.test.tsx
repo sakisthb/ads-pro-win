@@ -4,8 +4,10 @@ import AccountAuditPage from "../page";
 import { api } from "@/components/providers/trpc-provider";
 import { GoogleResearchDesk } from "@/components/audit/google-research-desk";
 import { GoogleRepairDesk } from '@/components/audit/google-repair-desk';
+import { GoogleHygieneDesk } from '@/components/audit/google-hygiene-desk';
 import { GoogleHistoryImport } from '@/components/audit/google-history-import';
 jest.mock('@/components/audit/google-repair-desk',()=>({GoogleRepairDesk:jest.fn(()=> <div data-testid='google-repair-desk'/>)}));
+jest.mock('@/components/audit/google-hygiene-desk',()=>({GoogleHygieneDesk:jest.fn(()=> <div data-testid='google-hygiene-desk'/>)}));
 jest.mock('@/components/audit/google-history-import',()=>({GoogleHistoryImport:jest.fn(()=> <div data-testid='google-history-import'/>)}));
 
 jest.mock("@/components/providers/trpc-provider", () => ({api:{marketing:{
@@ -34,6 +36,7 @@ it("mounts the Google research/review workflow only for the exact selected valid
   render(<AccountAuditPage/>);
   expect(GoogleResearchDesk).toHaveBeenCalledWith(expect.objectContaining({brandId:"brand-1",adAccountId:"account-google",market:"all",goal:"sales",comparison:{mode:"previous"}}),undefined);
   expect(GoogleRepairDesk).toHaveBeenCalledWith(expect.objectContaining({brandId:'brand-1',adAccountId:'account-google'}),undefined);
+  expect(GoogleHygieneDesk).toHaveBeenCalledWith(expect.objectContaining({brandId:'brand-1',adAccountId:'account-google'}),undefined);
 });
 
 it("loads the selected completed preset and historical baseline with unchanged owned scope", async()=>{

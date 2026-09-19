@@ -14,6 +14,7 @@ import { auditPresetWindow, resolveAuditPeriods, type AuditComparison, type Audi
 import { AUDIT_KPI_REFERENCES } from "@/lib/audit-kpis";
 import { GoogleResearchDesk } from "@/components/audit/google-research-desk";
 import { GoogleRepairDesk } from "@/components/audit/google-repair-desk";
+import { GoogleHygieneDesk } from "@/components/audit/google-hygiene-desk";
 import { GoogleHistoryImport } from "@/components/audit/google-history-import";
 import { GoogleCampaignAdaptationReview } from '@/components/audit/google-campaign-adaptation-review';
 import { ResearchMemoryPanel } from "@/components/audit/research-memory-panel";
@@ -173,6 +174,7 @@ export default function AccountAuditPage() {
       {platform === "google" && brandId && account && previousWindow && valid && <GoogleHistoryImport
         brandId={brandId} adAccountId={accountId} providerAccountId={account.accountId} current={window} baseline={previousWindow}
         onImported={() => { void currentQuery.refetch(); void previousQuery.refetch(); }} />}
+      {platform === "google" && brandId && accountId && <GoogleHygieneDesk brandId={brandId} adAccountId={accountId} />}
       {platform === "google" && brandId && accountId && <GoogleRepairDesk brandId={brandId} adAccountId={accountId} />}
       {brandId && <ResearchMemoryPanel key={`research-memory:${brandId}`} brandId={brandId} />}
       {brandId && <CampaignStudyDesk key={`campaign-study:${brandId}`} brandId={brandId} />}
