@@ -25,7 +25,7 @@ import { fetchGoogleAccountData, upsertAdCampaigns } from "@/lib/sync/fetchers";
 import { POST } from "../route";
 
 const campaigns = [{ platformCampaignId: "100", name: "Winter PMax", status: "active" }];
-const run = () => POST(new NextRequest("http://localhost:3000/api/sync/google", { method: "POST", body: JSON.stringify({ brandId: "brand-1", startDate: "2026-08-17", endDate: "2026-09-16" }) }), { params: Promise.resolve({ platform: "google" }) });
+const run = (extra = {}) => POST(new NextRequest("http://localhost:3000/api/sync/google", { method: "POST", body: JSON.stringify({ brandId: "brand-1", startDate: "2026-08-17", endDate: "2026-09-16", ...extra }) }), { params: Promise.resolve({ platform: "google" }) });
 beforeEach(() => {
   jest.clearAllMocks();
   jest.mocked(prisma.adAccount.findFirst).mockResolvedValue({ id: "acc-1", brandId: "brand-1", accountId: "gadsacct:brand-1:1234567890:9876543210", platform: "google", isActive: true, accessToken: "encrypted-test-token", refreshToken: null, tokenExpiry: null, currency: "EUR" } as never);
@@ -61,4 +61,30 @@ it("records the exact manual window and separate zero-metric / nonzero-inventory
   }) }));
   expect(jest.mocked(prisma.$transaction).mock.calls[0][0]).toHaveLength(3);
   expect(await response.json()).toEqual(expect.objectContaining({ syncJobId: "job-1", recordsSynced: 1 }));
+});
+
+it("pins an explicit historical import to the requested owned account and reports its exact scope", async () => {
+  const response = await run({ adAccountId: "acc-1", expectedGoogleCustomerId: "1234567890" });
+  expect(prisma.adAccount.findFirst).toHaveBeenCalledWith({ where: { id: "acc-1", brandId: "brand-1", platform: "google", isActive: true } });
+  expect(await response.json()).toMatchObject({ adAccountId: "acc-1", customerId: "1234567890", startDate: "2026-08-17", endDate: "2026-09-16" });
+});
+
+it("rejects a changed Google customer before decrypting credentials or creating a job", async () => {
+  const response = await run({ adAccountId: "acc-1", expectedGoogleCustomerId: "9999999999" });
+  expect(response.status).toBe(409);
+  expect(prisma.syncJob.create).not.toHaveBeenCalled();
+  expect(fetchGoogleAccountData).not.toHaveBeenCalled();
+});
+
+it("does not fall back when an explicit account is inaccessible or inactive", async () => {
+  jest.mocked(prisma.adAccount.findFirst).mockResolvedValueOnce(null);
+  expect((await run({ adAccountId: "foreign", expectedGoogleCustomerId: "1234567890" })).status).toBe(404);
+  expect(prisma.adAccount.findFirst).toHaveBeenCalledTimes(1);
+  expect(prisma.adAccount.findFirst).toHaveBeenCalledWith({ where: { id: "foreign", brandId: "brand-1", platform: "google", isActive: true } });
+  expect(fetchGoogleAccountData).not.toHaveBeenCalled();
+});
+
+it("requires an explicit account when the historical request pins a provider customer", async () => {
+  expect((await run({ expectedGoogleCustomerId: "1234567890" })).status).toBe(400);
+  expect(prisma.adAccount.findFirst).not.toHaveBeenCalled();
 });

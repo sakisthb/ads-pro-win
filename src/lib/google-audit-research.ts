@@ -26,6 +26,14 @@ export function googleResearchProposals(audit: PerformanceAudit): GoogleResearch
     };
   });
   const needs = audit.kpis.filter(k => k.role === "primary" && k.status !== "stored_subset").map(k => k.label);
+  if (audit.adaptation) proposals.push({ id: `adaptation:${audit.goal}`, kind: 'measurement',
+    title: 'Adapt historical campaign ideas before any restart',
+    reason: 'Past attributed outcomes must be revalidated against current intent, products, destinations and business goals, not copied unchanged.',
+    evidence: `${audit.adaptation.candidates.length} displayed stored study candidates; ${audit.adaptation.omittedCount} omitted. ${audit.adaptation.caution}`,
+    nextCheck: audit.adaptation.checks.map(c => `${c.label}: ${c.requiredEvidence}`).join(' '),
+    successCriteria: 'Record actual successful periods and observed days, validated current settings and a before → proposed change → why → risk plan; use only the supported exact-preview execution workflow after separate confirmation.',
+    risk: 'Unverified network mix, shared budgets, goal definitions and expanded destinations can invalidate historic ROAS. Research acceptance never enables campaign, budget or AI settings writes.',
+    confidence: 'observed', expectedEffect: 'Better decision evidence, not a revenue or ROAS forecast.', executionAllowed: false });
   proposals.push({ id: `objective:${audit.goal}`, kind: "measurement", title: `Validate ${audit.goal} measurement and commercial inputs`,
     reason: "The selected business objective must be measured independently of generic attributed conversion totals.",
     evidence: `Unverified primary measurements: ${needs.join(", ") || "objective validation still required"}. Market tagging and saved operator inputs are not outcome proof.`,

@@ -13,6 +13,12 @@ import { projectContextEntries } from "@/lib/project-context";
 import { auditPresetWindow, resolveAuditPeriods, type AuditComparison, type AuditPreset } from "@/lib/audit-periods";
 import { AUDIT_KPI_REFERENCES } from "@/lib/audit-kpis";
 import { GoogleResearchDesk } from "@/components/audit/google-research-desk";
+import { GoogleRepairDesk } from "@/components/audit/google-repair-desk";
+import { GoogleHistoryImport } from "@/components/audit/google-history-import";
+import { GoogleCampaignAdaptationReview } from '@/components/audit/google-campaign-adaptation-review';
+import { ResearchMemoryPanel } from "@/components/audit/research-memory-panel";
+import { CampaignStudyDesk } from "@/components/audit/campaign-study-desk";
+import { ProposalsDesk } from "@/components/audit/proposals-desk";
 
 const control = "max-w-full min-w-0 rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-400";
 const section = "rounded-2xl border border-white/10 bg-white/[0.025] p-5 space-y-4";
@@ -60,6 +66,7 @@ export default function AccountAuditPage() {
   const audit = enabled && !currentError && !loading && current && currentWindowMatches ? buildPerformanceAudit({ current,
     previous: previousQuery.error ? undefined : previousQuery.data?.data,
     goal, asOf, platform, adAccountId: accountId, businessContext, comparison,
+    contextConnections: contextQuery.data?.brandId === brandId ? contextQuery.data.connections ?? [] : [],
   }) : null;
   const chartScope = `${scope}:${accountId}:${market}:${window.startDate}:${window.endDate}:${comparisonSelection}:${previousWindow?.startDate}:${previousWindow?.endDate}`;
   const downloadScope = `${chartScope}:${goal}:${JSON.stringify(businessContext)}`;
@@ -163,6 +170,13 @@ export default function AccountAuditPage() {
       {loading && <p role="status" className={section}>Loading current and baseline stored windows and brand business context…</p>}
       {enabled && previousQuery.error && !currentError && <p role="alert">Baseline window could not be loaded. Current data remains available; comparisons are withheld.</p>}
 
+      {platform === "google" && brandId && account && previousWindow && valid && <GoogleHistoryImport
+        brandId={brandId} adAccountId={accountId} providerAccountId={account.accountId} current={window} baseline={previousWindow}
+        onImported={() => { void currentQuery.refetch(); void previousQuery.refetch(); }} />}
+      {platform === "google" && brandId && accountId && <GoogleRepairDesk brandId={brandId} adAccountId={accountId} />}
+      {brandId && <ResearchMemoryPanel key={brandId} brandId={brandId} />}
+      {brandId && <CampaignStudyDesk key={brandId} brandId={brandId} />}
+      {brandId && <ProposalsDesk key={brandId} brandId={brandId} />}
       {audit && <>
         <section className={section} aria-label="Business Context (brand-level)">
           <h2 className="text-lg font-semibold">Business Context (brand-level)</h2>
@@ -170,6 +184,7 @@ export default function AccountAuditPage() {
           <p className="text-sm text-zinc-400">Operator inputs, not verified business economics; shared across accounts and markets, not an account/wholesale-specific profile.</p>
           <p className="text-xs text-zinc-400">No verified economics or numeric targets are inferred. The selected audit objective remains separate from the saved objective.</p>
           <p className="text-sm text-amber-200">{BUSINESS_CONTEXT_CAUTION}</p>
+          {audit.businessContextStaleness && <p className="text-sm text-amber-200">{audit.businessContextStaleness}</p>}
           {audit.businessContext.context ? <dl className="grid gap-3 sm:grid-cols-2">
             {projectContextEntries(audit.businessContext.context).map(([label, value]) => <div key={label} className="min-w-0">
               <dt className="text-xs text-zinc-400">{label}</dt><dd className="whitespace-pre-wrap break-words text-sm">{value || "Not provided"}</dd>
@@ -254,6 +269,8 @@ export default function AccountAuditPage() {
               <ol className="list-decimal space-y-2 pl-5 text-sm text-zinc-300">{audit.strategy.nextSteps.map(p => <li key={p}>{p}</li>)}</ol></div></div>
         </section>
 
+        {audit.adaptation && <GoogleCampaignAdaptationReview review={audit.adaptation} />}
+
         <section className={section}>
           <h2 className="text-lg font-semibold">Account inventory</h2>
           {audit.truncated && <p className="text-amber-200">Limited row subset. Account performance totals/comparisons are withheld.</p>}
@@ -275,7 +292,7 @@ export default function AccountAuditPage() {
         </section>
 
         {platform === "google" && brandId && <GoogleResearchDesk key={JSON.stringify({brandId,accountId,market,goal,window,comparison})}
-          brandId={brandId} adAccountId={accountId} market={market} goal={goal} window={window} comparison={comparison} />}
+          brandId={brandId} adAccountId={accountId} providerAccountId={account?.accountId} market={market} goal={goal} window={window} comparison={comparison} />}
 
         <section className={section}>
           <h2 className="text-lg font-semibold">Decision plan</h2>

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, organizationAdminProcedure } from "../server";
+import { asTrpc, assertMetaBudgetEditAllowed, logWrite, resolveMetaWriter } from "./meta-write-shared";
 import { getMetaGrantedPermissions, listMetaCustomAudiences, listMetaPages, resolveLaunchAccount } from "@/lib/platform-launch";
 import {
   addPausedMetaAd,
@@ -24,10 +25,8 @@ import {
   swapMetaAdCreative,
 } from "@/lib/meta/operator";
 import {
-  LEARNING_RESET_MESSAGE,
   amountToMetaCents,
   budgetChangeResetsLearning,
-  canEditBudgetThisHour,
   requireLearningConfirm,
   type BidStrategy,
   type SignificantEditKind,
@@ -44,84 +43,6 @@ const campaignIdSchema = z.object({
 const confirmSchema = z.object({
   confirmLearningReset: z.boolean().optional(),
 });
-
-function asTrpc(error: unknown): never {
-  const message = error instanceof Error ? error.message : String(error);
-  if (message === LEARNING_RESET_MESSAGE) {
-    throw new TRPCError({ code: "PRECONDITION_FAILED", message });
-  }
-  throw new TRPCError({ code: "BAD_REQUEST", message });
-}
-
-async function resolveMetaWriter(
-  ctx: { prisma: typeof import("@/lib/db").prisma; organizationId: string; organization: { slug: string } },
-  input: { brandId?: string; adAccountId?: string },
-) {
-  const resolved = await resolveLaunchAccount(
-    ctx.prisma,
-    ctx.organizationId,
-    "meta",
-    input.adAccountId,
-    input.brandId,
-  );
-  if (!resolved) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: "Connect a Meta ad account on Connections first.",
-    });
-  }
-  const granted = await getMetaGrantedPermissions(resolved.accessToken);
-  let brandWebsite: string | null = null;
-  if (input.brandId) {
-    const brand = await ctx.prisma.brand.findFirst({
-      where: { id: input.brandId, organizationId: ctx.organizationId },
-      select: { website: true },
-    });
-    brandWebsite = brand?.website ?? null;
-  }
-  const gate = resolveMetaWriteGate({
-    organizationSlug: ctx.organization.slug,
-    grantedScopes: granted,
-    operatorAuthorizedMetaWrite: true,
-    brandWebsite,
-  });
-  if (!gate.allowed) {
-    throw new TRPCError({
-      code: gate.reason?.includes("Demo") ? "FORBIDDEN" : "PRECONDITION_FAILED",
-      message: gate.reason ?? "Meta write blocked.",
-    });
-  }
-  return { ...resolved, granted };
-}
-
-async function logWrite(
-  ctx: { prisma: typeof import("@/lib/db").prisma; organizationId: string; session: { user: { id: string } } },
-  opts: {
-    adAccountId: string;
-    objectType: string;
-    objectId: string;
-    action: string;
-    payload?: unknown;
-    ok: boolean;
-    message: string;
-    learningRisk?: boolean;
-  },
-) {
-  await ctx.prisma.metaWriteLog.create({
-    data: {
-      organizationId: ctx.organizationId,
-      userId: ctx.session.user.id,
-      adAccountId: opts.adAccountId,
-      objectType: opts.objectType,
-      objectId: opts.objectId,
-      action: opts.action,
-      payload: opts.payload === undefined ? undefined : JSON.parse(JSON.stringify(opts.payload)),
-      ok: opts.ok,
-      message: opts.message.slice(0, 4000),
-      learningRisk: opts.learningRisk ?? false,
-    },
-  });
-}
 
 async function guardSignificant(
   kind: SignificantEditKind,
@@ -421,23 +342,7 @@ export const metaOpsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const resolved = await resolveMetaWriter(ctx, input);
-      const recent = await ctx.prisma.metaWriteLog.findMany({
-        where: {
-          adAccountId: resolved.account.id,
-          objectId: input.objectId,
-          action: "setBudget",
-          ok: true,
-          createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
-        },
-        select: { createdAt: true },
-      });
-      const hour = canEditBudgetThisHour(recent.map((row) => row.createdAt));
-      if (!hour.ok) {
-        throw new TRPCError({
-          code: "TOO_MANY_REQUESTS",
-          message: "Meta allows 4 budget edits per hour on this object. Wait before the next change.",
-        });
-      }
+      const hour = await assertMetaBudgetEditAllowed(ctx, resolved.account.id, input.objectId);
       const currentCents = amountToMetaCents(input.currentAmount ?? input.amount);
       const nextCents = amountToMetaCents(input.amount);
       const over20 = budgetChangeResetsLearning(currentCents, nextCents);

@@ -15,6 +15,7 @@ import { prisma } from "@/lib/db";
 import { encodeBrevoExtra } from "@/lib/email-desk";
 import type { DateRange, NormalizedCampaign, NormalizedMetric } from "@/lib/mcp/types";
 import { safeFetch } from "@/lib/safe-fetch";
+import { GOOGLE_REPORTING_STATUS_FILTER } from "@/lib/google-reporting-scope";
 import {
   DAILY_METRIC_DATE_WINDOW,
   DAILY_METRIC_INSERT_CHUNK,
@@ -69,6 +70,7 @@ export interface DailyMetricInput {
   results?: number;
   resultType?: string | null;
   attributionSetting?: string | null;
+  currency?: string;
 }
 
 export interface AdCampaignInput {
@@ -235,7 +237,7 @@ export async function fetchGoogleMetrics(
     SELECT segments.date, campaign.id, campaign.name, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value
     FROM campaign
     WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-      AND campaign.status != 'REMOVED'
+      AND ${GOOGLE_REPORTING_STATUS_FILTER}
   `.trim();
 
   const rows = await googleAdsSearchRows<GoogleMetricRow>(
@@ -293,23 +295,23 @@ interface GoogleCampaignRow {
   };
 }
 
-/** Current non-removed inventory is independent of reporting activity and dates. */
+/** Full reporting inventory, including removed history, independent of activity and dates. */
 export async function fetchGoogleCampaigns(accessToken: string, accountId: string): Promise<AdCampaignInput[]> {
   const cid = parseGoogleAdsCustomerId(accountId);
   if (!cid) throw new Error("Pick a Google Ads account on Connections before syncing.");
   const rows = await googleAdsSearchRows<GoogleCampaignRow>(accessToken, cid,
-    "SELECT campaign.id, campaign.name, campaign.status, campaign.primary_status, campaign.advertising_channel_type FROM campaign WHERE campaign.status != 'REMOVED'",
+    `SELECT campaign.id, campaign.name, campaign.status, campaign.primary_status, campaign.advertising_channel_type FROM campaign WHERE ${GOOGLE_REPORTING_STATUS_FILTER}`,
     googleAdsLoginCustomerId(accountId),
   );
   return rows.map((row) => {
     const campaign = row?.campaign;
-    if (!campaign || !/^\d+$/.test(campaign.id) || typeof campaign.name !== "string" || !["ENABLED", "PAUSED", "UNKNOWN", "UNSPECIFIED"].includes(campaign.status)) {
+    if (!campaign || !/^\d+$/.test(campaign.id) || typeof campaign.name !== "string" || !["ENABLED", "PAUSED", "REMOVED", "UNKNOWN", "UNSPECIFIED"].includes(campaign.status)) {
       throw new Error("Invalid Google Ads campaign row");
     }
     return {
       platformCampaignId: campaign.id,
       name: campaign.name,
-      status: campaign.status === "ENABLED" ? "active" : campaign.status === "PAUSED" ? "paused" : "unknown",
+      status: campaign.status === "ENABLED" ? "active" : campaign.status === "PAUSED" ? "paused" : campaign.status === "REMOVED" ? "archived" : "unknown",
       effectiveStatus: campaign.primaryStatus ?? null,
       objective: campaign.advertisingChannelType ?? null,
     };
@@ -1402,6 +1404,7 @@ export async function upsertDailyMetrics(
   metrics: DailyMetricInput[],
   adAccountId: string,
   platform: string,
+  currency = "EUR",
 ): Promise<number> {
   if (metrics.length === 0) return 0;
 
@@ -1416,7 +1419,7 @@ export async function upsertDailyMetrics(
   let written = 0;
   for (const dateWindow of windowSortedDates([...byDate.keys()], DAILY_METRIC_DATE_WINDOW)) {
     const rows = dateWindow.flatMap((date) => byDate.get(date) ?? []);
-    const data = rows.map((row) => toDailyMetricCreateData(row, adAccountId, platform));
+    const data = rows.map((row) => toDailyMetricCreateData(row, adAccountId, platform, currency));
     const dateObjs = dateWindow.map((date) => new Date(date));
 
     await withSerializableRetry(() =>
@@ -1482,6 +1485,7 @@ export function metricFromNormalized(metric: NormalizedMetric): DailyMetricInput
     results: metric.results,
     resultType: metric.resultType,
     attributionSetting: metric.attributionSetting,
+    currency: metric.currency,
   };
 }
 

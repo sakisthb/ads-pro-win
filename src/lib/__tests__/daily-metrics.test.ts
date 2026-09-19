@@ -98,4 +98,33 @@ describe("daily metric persist helpers", () => {
     expect(toPgInt(Number.NaN)).toBe(0);
     expect(roundToScale(10.022438294689604, 4)).toBe("10.0224");
   });
+
+  it("defaults currency to EUR when neither the row nor the account provides one", () => {
+    const row = toDailyMetricCreateData(
+      { date: "2026-08-01", spend: 1, impressions: 10, clicks: 1, conversions: 0, conversionValue: 0 },
+      "acct_1",
+      "meta",
+    );
+    expect(row.currency).toBe("EUR");
+  });
+
+  it("uses the account currency passed to toDailyMetricCreateData as fallback", () => {
+    const row = toDailyMetricCreateData(
+      { date: "2026-08-01", spend: 1, impressions: 10, clicks: 1, conversions: 0, conversionValue: 0 },
+      "acct_1",
+      "google",
+      "USD",
+    );
+    expect(row.currency).toBe("USD");
+  });
+
+  it("lets a row-level currency win over the account fallback", () => {
+    const row = toDailyMetricCreateData(
+      { date: "2026-08-01", spend: 1, impressions: 10, clicks: 1, conversions: 0, conversionValue: 0, currency: "GBP" },
+      "acct_1",
+      "google",
+      "USD",
+    );
+    expect(row.currency).toBe("GBP");
+  });
 });

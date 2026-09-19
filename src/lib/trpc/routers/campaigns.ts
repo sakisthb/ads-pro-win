@@ -32,6 +32,8 @@ import {
 } from "@/lib/platform-launch";
 import { contextForBrand, contextToPromptBlock, parseOrgSettings } from "@/lib/project-context";
 import { campaignCreationBlockReason, readOnlyAdWriteReason } from "@/lib/platform-launch/write-policy";
+import { assertMetaBudgetEditAllowed, logWrite, resolveMetaWriter } from "./meta-write-shared";
+import { amountToMetaCents, budgetChangeResetsLearning } from "@/lib/meta/operator-logic";
 
 // Input validation schemas
 const createCampaignSchema = z.object({
@@ -840,6 +842,35 @@ export const campaignsRouter = createTRPCRouter({
       assertNotDemoOrg(ctx.organization.slug);
       const blocked = readOnlyAdWriteReason(input.platform);
       if (blocked) throw new TRPCError({ code: "FORBIDDEN", message: blocked });
+
+      if (input.platform === "meta") {
+        const meta = await resolveMetaWriter(ctx, input);
+        const result = await updateMetaCampaignStatus(
+          meta.accessToken,
+          input.platformCampaignId,
+          input.status as LiveStatus,
+        );
+        await logWrite(ctx, {
+          adAccountId: meta.account.id,
+          objectType: "campaign",
+          objectId: input.platformCampaignId,
+          action: "setStatus",
+          payload: { campaignId: input.platformCampaignId, status: input.status, source: "campaigns.updateLiveStatus" },
+          ok: result.ok,
+          message: result.message,
+        });
+        if (!result.ok) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+        }
+        if (input.localCampaignId) {
+          await ctx.prisma.campaign.updateMany({
+            where: { id: input.localCampaignId, organizationId: ctx.organizationId },
+            data: { status: input.status === "ACTIVE" ? "active" : "paused" },
+          });
+        }
+        return result;
+      }
+
       const resolved = await resolveLaunchAccount(
         ctx.prisma,
         ctx.organizationId,
@@ -855,13 +886,7 @@ export const campaignsRouter = createTRPCRouter({
       }
 
       let result;
-      if (input.platform === "meta") {
-        result = await updateMetaCampaignStatus(
-          resolved.accessToken,
-          input.platformCampaignId,
-          input.status as LiveStatus,
-        );
-      } else if (input.platform === "google") {
+      if (input.platform === "google") {
         result = await updateGoogleCampaignStatus(
           resolved.accessToken,
           resolved.account.accountId,
@@ -905,6 +930,40 @@ export const campaignsRouter = createTRPCRouter({
       assertNotDemoOrg(ctx.organization.slug);
       const blocked = readOnlyAdWriteReason(input.platform);
       if (blocked) throw new TRPCError({ code: "FORBIDDEN", message: blocked });
+
+      if (input.platform === "meta") {
+        const meta = await resolveMetaWriter(ctx, input);
+        await assertMetaBudgetEditAllowed(ctx, meta.account.id, input.platformCampaignId);
+        const result = await scaleMetaCampaignBudget(
+          meta.accessToken,
+          input.platformCampaignId,
+          input.multiplier,
+        );
+        const learningRisk =
+          result.previousBudget != null && result.nextBudget != null
+            ? budgetChangeResetsLearning(amountToMetaCents(result.previousBudget), amountToMetaCents(result.nextBudget))
+            : false;
+        await logWrite(ctx, {
+          adAccountId: meta.account.id,
+          objectType: "campaign",
+          objectId: input.platformCampaignId,
+          action: "scaleBudget",
+          payload: {
+            campaignId: input.platformCampaignId,
+            multiplier: input.multiplier,
+            previousBudget: result.previousBudget,
+            nextBudget: result.nextBudget,
+          },
+          ok: result.ok,
+          message: result.message,
+          learningRisk,
+        });
+        if (!result.ok) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+        }
+        return { ...result, learningRisk };
+      }
+
       const resolved = await resolveLaunchAccount(
         ctx.prisma,
         ctx.organizationId,
@@ -920,13 +979,7 @@ export const campaignsRouter = createTRPCRouter({
       }
 
       let result;
-      if (input.platform === "meta") {
-        result = await scaleMetaCampaignBudget(
-          resolved.accessToken,
-          input.platformCampaignId,
-          input.multiplier,
-        );
-      } else if (input.platform === "google") {
+      if (input.platform === "google") {
         result = await scaleGoogleCampaignBudget(
           resolved.accessToken,
           resolved.account.accountId,

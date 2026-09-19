@@ -107,6 +107,7 @@ function makeAdAccount(overrides: Record<string, unknown> = {}) {
     accessToken: "enc-key",
     refreshToken: "enc-secret",
     isActive: true,
+    currency: "EUR",
     ...overrides,
   };
 }
@@ -252,6 +253,7 @@ describe("processOpenCartSync", () => {
       [{ date: "2026-09-01", conversions: 1, conversionValue: 100 }],
       "acc-oc-1",
       "opencart",
+      "EUR",
     );
     expect(prisma.adAccount.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ lastSyncAt: expect.any(Date) }) }),

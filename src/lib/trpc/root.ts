@@ -17,6 +17,11 @@ import { invitationsRouter } from "./routers/invitations";
 import { metaOpsRouter } from "./routers/meta-ops";
 import { growthRouter } from "./routers/growth";
 import { googleResearchRouter } from "./routers/google-research";
+import { googleRepairRouter } from "./routers/google-repair";
+import { chatRouter } from "./routers/chat";
+import { researchMemoryRouter } from "./routers/research-memory";
+import { campaignStudyRouter } from "./routers/campaign-study";
+import { proposalsRouter } from "./routers/proposals";
 
 /**
  * This is the primary router for your server.
@@ -39,6 +44,11 @@ export const appRouter = createTRPCRouter({
   metaOps: metaOpsRouter,
   growth: growthRouter,
   googleResearch: googleResearchRouter,
+  googleRepair: googleRepairRouter,
+  chat: chatRouter,
+  researchMemory: researchMemoryRouter,
+  campaignStudy: campaignStudyRouter,
+  proposals: proposalsRouter,
 });
 
 // Export type definition of API

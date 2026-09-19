@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -31,58 +32,21 @@ import {
 
 import { SAKI_PLAYBOOKS, PLAYBOOK_CATEGORIES } from "@/lib/saki-playbooks";
 import { createClient } from "@/lib/supabase/client";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type MessageType = "user" | "ai" | "insight" | "recommendation" | "data-card";
-
-interface ChatMessage {
-  id: string;
-  type: MessageType;
-  content: string;
-  createdAt: Date;
-  isStreaming?: boolean;
-  confidence?: number;
-  dataCard?: DataCardPayload;
-}
-
-interface DataCardPayload {
-  title: string;
-  metrics: { label: string; value: string; change?: number }[];
-  sparkline: number[];
-}
-
-interface ConversationSession {
-  id: string;
-  title: string;
-  date: string;
-  messageCount: number;
-  messages: ChatMessage[];
-}
-
-/** DB row from chat_sessions table */
-interface SessionRow {
-  id: string;
-  user_id: string;
-  title: string;
-  message_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
-/** DB row from chat_messages table */
-interface MessageRow {
-  id: string;
-  session_id: string;
-  type: MessageType;
-  content: string;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
+import { AuditEvidenceRoute } from "@/components/audit/audit-evidence-route";
+import { api } from "@/lib/trpc/react";
+import {
+  createSession,
+  fetchMessages,
+  fetchSessions,
+  insertMessage,
+  loadLocalSessions,
+  saveLocalSessions,
+  type ChatMessage,
+  type ConversationSession,
+  type DataCardPayload,
+  type MessageType,
+} from "@/lib/chat/persistence";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -95,106 +59,6 @@ const QUICK_ACTIONS = [
   { label: "Top campaigns", icon: Target },
   { label: "Pixel run-rate", icon: TrendingUp },
 ] as const;
-
-// ---------------------------------------------------------------------------
-// Supabase persistence helpers
-// ---------------------------------------------------------------------------
-
-function rowToSession(row: SessionRow): ConversationSession {
-  return {
-    id: row.id,
-    title: row.title,
-    date: new Date(row.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-    messageCount: row.message_count,
-    messages: [],
-  };
-}
-
-function rowToMessage(row: MessageRow): ChatMessage {
-  const meta = row.metadata ?? {};
-  return {
-    id: row.id,
-    type: row.type,
-    content: row.content,
-    createdAt: new Date(row.created_at),
-    confidence: (meta.confidence as number) ?? undefined,
-    dataCard: (meta.dataCard as DataCardPayload) ?? undefined,
-  };
-}
-
-async function fetchSessions(sb: SupabaseClient, userId: string): Promise<ConversationSession[]> {
-  const { data, error } = await sb
-    .from("chat_sessions")
-    .select("*")
-    .eq("user_id", userId)
-    .order("updated_at", { ascending: false })
-    .limit(50);
-  if (error || !data) return [];
-  return (data as SessionRow[]).map(rowToSession);
-}
-
-async function fetchMessages(sb: SupabaseClient, sessionId: string): Promise<ChatMessage[]> {
-  const { data, error } = await sb
-    .from("chat_messages")
-    .select("*")
-    .eq("session_id", sessionId)
-    .order("created_at", { ascending: true });
-  if (error || !data) return [];
-  return (data as MessageRow[]).map(rowToMessage);
-}
-
-async function createSession(sb: SupabaseClient, userId: string, title: string): Promise<string | null> {
-  const { data, error } = await sb
-    .from("chat_sessions")
-    .insert({ user_id: userId, title, message_count: 0 })
-    .select("id")
-    .single();
-  if (error || !data) return null;
-  return (data as { id: string }).id;
-}
-
-async function insertMessage(sb: SupabaseClient, sessionId: string, msg: ChatMessage): Promise<void> {
-  const metadata: Record<string, unknown> = {};
-  if (msg.confidence) metadata.confidence = msg.confidence;
-  if (msg.dataCard) metadata.dataCard = msg.dataCard;
-  await sb.from("chat_messages").insert({
-    session_id: sessionId,
-    type: msg.type,
-    content: msg.content,
-    metadata: Object.keys(metadata).length > 0 ? metadata : null,
-  });
-}
-
-async function updateSessionMeta(sb: SupabaseClient, sessionId: string, title: string, count: number): Promise<void> {
-  await sb.from("chat_sessions").update({ title, message_count: count, updated_at: new Date().toISOString() }).eq("id", sessionId);
-}
-
-function localChatKey(userId: string) {
-  return `adspro:chat:${userId}`;
-}
-
-function loadLocalSessions(userId: string): ConversationSession[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(localChatKey(userId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as { sessions?: ConversationSession[] };
-    return (parsed.sessions ?? []).map((s) => ({
-      ...s,
-      messages: (s.messages ?? []).map((m) => ({
-        ...m,
-        createdAt: new Date(m.createdAt),
-      })),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalSessions(userId: string, sessions: ConversationSession[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(localChatKey(userId), JSON.stringify({ sessions }));
-}
 
 // ---------------------------------------------------------------------------
 // SSE streaming helper
@@ -662,6 +526,12 @@ function MessageBubble({ msg, onSuggestionClick, isSending }: {
 // ---------------------------------------------------------------------------
 
 export default function ChatPage() {
+  return <Suspense fallback={<p role="status">Loading audit route…</p>}>
+    <AuditEvidenceRoute mode="chat" fallback={<WorkspaceChatPage />} />
+  </Suspense>;
+}
+
+function WorkspaceChatPage() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -680,9 +550,19 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const consumedAsk = useRef(false);
 
+  const { data: orgContext, isError: orgContextError } = api.chat.getOrgContext.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
   // Fetch authenticated user + verify DB tables + load sessions
   useEffect(() => {
     let cancelled = false;
+    // The org scope decides whether cloud history is writable at all (ADR-0004):
+    // without a membership the desk stays on this-browser storage even when
+    // the tables exist, because org-scoped RLS would reject every write.
+    if (orgContext === undefined && !orgContextError) return;
+    const organizationId = orgContext?.organizationId ?? null;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (cancelled || !user) { setIsLoading(false); return; }
@@ -693,17 +573,17 @@ export default function ChatPage() {
       const probeSessions = await supabase.from("chat_sessions").select("id").limit(1);
       const probeMessages = await supabase.from("chat_messages").select("id").limit(1);
       const tablesMissing = Boolean(probeSessions.error || probeMessages.error);
-      if (tablesMissing) {
+      if (tablesMissing || !organizationId) {
         if (!cancelled) {
           setPersistRemote(false);
-          setDbError(probeSessions.error?.message ?? probeMessages.error?.message ?? "chat tables unavailable");
+          setDbError(tablesMissing ? probeSessions.error?.message ?? probeMessages.error?.message ?? "chat tables unavailable" : null);
           setSessions(loadLocalSessions(user.id));
           setIsLoading(false);
         }
         return;
       }
 
-      const rows = await fetchSessions(supabase, user.id);
+      const rows = await fetchSessions(supabase, user.id, organizationId);
       if (!cancelled) {
         setPersistRemote(true);
         setDbError(null);
@@ -712,7 +592,7 @@ export default function ChatPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [supabase]);
+  }, [supabase, orgContext, orgContextError]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -780,16 +660,17 @@ export default function ChatPage() {
         id: aiMsgId, type: msgType, content: fullContent, createdAt: new Date(),
       };
 
-      if (userId && persistRemote) {
+      const organizationId = orgContext?.organizationId ?? null;
+      if (userId && persistRemote && organizationId) {
         let sessionId = activeSessionId;
         if (!sessionId) {
-          sessionId = await createSession(supabase, userId, trimmed.slice(0, 40));
+          sessionId = await createSession(supabase, userId, organizationId, trimmed.slice(0, 40));
           if (sessionId) setActiveSessionId(sessionId);
         }
         if (sessionId) {
           insertMessage(supabase, sessionId, userMsg).catch(() => {});
           insertMessage(supabase, sessionId, finalAiMsg).catch(() => {});
-          const updated = await fetchSessions(supabase, userId);
+          const updated = await fetchSessions(supabase, userId, organizationId);
           setSessions(updated);
         }
       } else if (userId) {
@@ -820,7 +701,7 @@ export default function ChatPage() {
     } finally {
       setIsSending(false);
     }
-  }, [isSending, messages, userId, persistRemote, activeSessionId, supabase]);
+  }, [isSending, messages, userId, persistRemote, activeSessionId, supabase, orgContext]);
 
   useEffect(() => {
     const ask = searchParams?.get("ask")?.trim();
@@ -916,9 +797,15 @@ export default function ChatPage() {
           <div className="flex items-start gap-2 border-b border-amber-500/20 bg-amber-500/5 px-4 py-2 text-[11px] text-amber-200/80 lg:px-6">
             <Database className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              Playbooks work in this browser. Cloud history is off until{" "}
-              <code className="text-amber-100">chat_sessions</code> exists in Supabase.
-              {dbError ? ` (${dbError})` : ""}
+              Playbooks work in this browser.{" "}
+              {dbError ? (
+                <>
+                  Cloud history is off until <code className="text-amber-100">chat_sessions</code>{" "}
+                  exists in Supabase.{` (${dbError})`}
+                </>
+              ) : (
+                "Cloud history is off until an organization scope is available for this account."
+              )}
             </span>
           </div>
         )}

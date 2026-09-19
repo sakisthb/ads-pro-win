@@ -31,6 +31,7 @@ export interface DailyMetricRowSource {
   results?: number;
   resultType?: string | null;
   attributionSetting?: string | null;
+  currency?: string;
 }
 
 /** Stay well under 32,767 binds: 500 rows × ~27 fields ≈ 13,500 params. */
@@ -95,6 +96,7 @@ export function toDailyMetricCreateData(
   row: DailyMetricRowSource,
   adAccountId: string,
   platform: string,
+  currency = "EUR",
 ) {
   const impressions = toPgInt(row.impressions);
   const clicks = toPgInt(row.clicks);
@@ -109,6 +111,7 @@ export function toDailyMetricCreateData(
     date: new Date(row.date),
     platform,
     adAccountId,
+    currency: row.currency ?? currency,
     campaignId: row.campaignId ?? "",
     campaignName: row.campaignName ?? null,
     adGroupId: "",

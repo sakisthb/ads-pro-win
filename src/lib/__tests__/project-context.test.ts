@@ -1,4 +1,5 @@
 import {
+  contextConnectionStaleness,
   contextForBrand,
   contextToPromptBlock,
   emptyProjectContext,
@@ -72,6 +73,36 @@ describe("project context", () => {
     expect(block).toContain("Business objective: sales");
     expect(block).toContain("Target result: 2.5x ROAS");
     expect(block).toContain("No Sunday spend");
+  });
+
+  it("flags saved context that predates a live connection as stale claims", () => {
+    const saved = { ...emptyProjectContext(), notes: "Google not connected yet; Meta only", updatedAt: "2026-08-28T10:00:00Z" };
+    expect(contextConnectionStaleness(saved, [{ platform: "google", connectedAt: "2026-09-17" }]))
+      .toContain("Saved on 2026-08-28, before the google connection");
+    expect(contextConnectionStaleness(saved, [{ platform: "google", connectedAt: "2026-09-17" }]))
+      .toContain("historical, not current truth");
+  });
+
+  it("does not flag staleness without a save date or when connections predate the save", () => {
+    const saved = { ...emptyProjectContext(), notes: "Meta only", updatedAt: "2026-08-28T10:00:00Z" };
+    expect(contextConnectionStaleness({ ...emptyProjectContext(), notes: "No date" }, [{ platform: "google", connectedAt: "2026-09-17" }])).toBeNull();
+    expect(contextConnectionStaleness(saved, [{ platform: "google", connectedAt: "2026-08-01" }])).toBeNull();
+    expect(contextConnectionStaleness(saved, [])).toBeNull();
+    expect(contextConnectionStaleness(null, [{ platform: "google", connectedAt: "2026-09-17" }])).toBeNull();
+  });
+
+  it("lists every newer connection platform once and skips unparseable dates", () => {
+    const saved = { ...emptyProjectContext(), updatedAt: "2026-08-28T10:00:00Z" };
+    const message = contextConnectionStaleness(saved, [
+      { platform: "google", connectedAt: "2026-09-17" },
+      { platform: "google", connectedAt: "2026-09-18" },
+      { platform: "meta", connectedAt: "not-a-date" },
+      { platform: "tiktok", connectedAt: "2026-09-20" },
+    ]);
+    expect(message).toContain("google");
+    expect(message).toContain("tiktok");
+    expect(message).not.toContain("meta");
+    expect(message!.match(/google/g)!.length).toBe(1);
   });
 
   it("stores per-shop context without dropping the other shop", () => {

@@ -34,6 +34,21 @@ env:
   NEXT_PUBLIC_SITE_URL: https://ci.example.com
 
 jobs:
+  content-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Guard changed content
+        run: npx tsx scripts/check-staged-content.ts --base origin/main
+
   install-and-audit:
     runs-on: ubuntu-latest
     steps:
@@ -113,6 +128,13 @@ jobs:
         run: |
           createdb -h 127.0.0.1 -p 5432 -U postgres adspro_containment_test
           npx jest tests/backend-table-security.native.test.js --runInBand --no-coverage
+      - name: Native chat organization isolation in a separate disposable database
+        env:
+          PGPASSWORD: postgres
+          ADPRO_NATIVE_CHAT_TEST_URL: postgresql://postgres:postgres@127.0.0.1:5432/adspro_chat_isolation_test
+        run: |
+          createdb -h 127.0.0.1 -p 5432 -U postgres adspro_chat_isolation_test
+          npx jest tests/chat-org-isolation.native.test.js --runInBand --no-coverage
       - name: Prepare disposable coverage security roles
         run: node scripts/verify-google-coverage-db.cjs prepare
       - name: Validate migrations apply cleanly

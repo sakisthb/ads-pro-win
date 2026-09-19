@@ -4,6 +4,7 @@
 import { prisma } from "./db";
 import { Prisma } from "@prisma/client";
 import { GOOGLE_RESEARCH_RECORD_TYPE } from "./google-audit-research";
+import { GOOGLE_REPAIR_RECORD_TYPE } from "./google-repair";
 
 export interface AIAgentResult {
   agentType: string;
@@ -495,8 +496,8 @@ export class AIAgentDatabaseService {
 
       const deletedCounts = await Promise.all([
         prisma.analysis.deleteMany({
-          // Frozen research evidence/review history has separate operator retention.
-          where: { organizationId, createdAt: { lt: cutoffDate }, type: { not: GOOGLE_RESEARCH_RECORD_TYPE } },
+          // Frozen evidence and repair execution receipts have separate operator retention.
+          where: { organizationId, createdAt: { lt: cutoffDate }, type: { notIn: [GOOGLE_RESEARCH_RECORD_TYPE, GOOGLE_REPAIR_RECORD_TYPE] } },
         }),
         prisma.prediction.deleteMany({
           where: { organizationId, createdAt: { lt: cutoffDate } },

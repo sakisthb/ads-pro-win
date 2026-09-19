@@ -47,3 +47,9 @@ next-env.d.ts
 
 # Local chat dumps — keep out of PRs (operator docs stay tracked)
 docs/chat-*.md
+
+# Local-only operator artifacts — never publish (enforced by content-guard)
+.tmp-*
+.cursor/
+docs/operator-bagtobag.md
+docs/deployment/

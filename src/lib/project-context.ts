@@ -108,6 +108,32 @@ export function strictContextForBrand(settings: OrgSettingsBlob, brandId: string
   return settings.brandContexts[brandId] ?? null;
 }
 
+export interface ContextConnectionRef {
+  platform: string;
+  connectedAt?: string | null;
+}
+
+/**
+ * A saved context written before a live account connection can carry stale
+ * connection-state claims ("Google not connected", "Meta only"). Returns a
+ * revalidation notice naming the contradicting platforms, or null when the
+ * save date is at least as new as every connection.
+ */
+export function contextConnectionStaleness(
+  ctx: ProjectContext | null | undefined,
+  connections: ContextConnectionRef[],
+): string | null {
+  if (!ctx?.updatedAt) return null;
+  const savedAt = Date.parse(ctx.updatedAt);
+  if (!Number.isFinite(savedAt)) return null;
+  const newer = connections
+    .map((c) => ({ platform: c.platform, at: c.connectedAt ? Date.parse(c.connectedAt) : NaN }))
+    .filter((c) => Number.isFinite(c.at) && c.at > savedAt);
+  if (!newer.length) return null;
+  const platforms = [...new Set(newer.map((c) => c.platform))].join(", ");
+  return `Saved on ${ctx.updatedAt.slice(0, 10)}, before the ${platforms} connection(s). Any "not connected" or platform-mix claims in this saved context are historical, not current truth — revalidate before decisions.`;
+}
+
 /** Shared labels/values for the screen and downloadable audit. These are operator inputs. */
 export function projectContextEntries(ctx: ProjectContext): [string, string][] {
   return [

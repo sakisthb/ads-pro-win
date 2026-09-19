@@ -24,6 +24,7 @@ Respond to Athanasios in Greek. Keep product, engineering, and ads terminology i
 
 ## Safety
 
+- Read `docs/operator-bagtobag.md` before ADPD operator planning, audit/data/report or release work. Its latest owner scope lock controls over older dated handoffs: Performance Marketing Desk / AI Ads Operator through ADPD, verified data → audit/report → strategy → approved supported changes. No VPS reinstall or automatic expansion into broad infrastructure recovery. Report any real blocker with the smallest scoped action and impact; source/local verification is not production readiness.
 - Never commit `.env` files, Firebase exports, Supabase credential docs, or generated runtime data.
 - Adopt code from reference repos by hand in small pieces with tests, not by bulk merge.
-- Meta Ads writes are operator-authorized (ADR 0002): require `ads_management`, confirm in UI, audit `metaWriteLog`. Other ad platforms stay read-only unless a later ADR opens them. Catalog/WP writes stay in SACOS Growth Center.
+- Meta Ads writes are operator-authorized (ADR 0002): require `ads_management`, confirm in UI, audit `metaWriteLog`. Google existing-target Search repairs use the separate preview/confirmation/native-readback desk (ADR 0003); generic Google campaign activation, budget and creation remain read-only. Other platforms stay read-only. Catalog/WP writes stay in SACOS Growth Center.

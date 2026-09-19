@@ -115,7 +115,7 @@ function opencartJobName(adAccountId: string): string {
  */
 export async function setupSchedules(): Promise<void> {
   // ---- Ad platform metric syncs ----
-  if (config.features.mcpEnabled) {
+  if (config.features.reportingSyncEnabled) {
     const accounts = await prisma.adAccount.findMany({
       where: { isActive: true },
     })
@@ -138,7 +138,7 @@ export async function setupSchedules(): Promise<void> {
       `[Schedules] Metric sync schedules set up for ${accounts.length} ad account(s)`,
     )
   } else {
-    console.log('[Schedules] MCP feature flag is disabled — skipping metric schedules')
+    console.log('[Schedules] Reporting sync flag is disabled — skipping metric schedules')
   }
 
   // ---- WooCommerce commerce syncs (per saved AdAccount, never env-for-all-brands) ----

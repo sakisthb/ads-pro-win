@@ -38,6 +38,24 @@ it("blocks empty Google coverage instead of reporting zero performance or a winn
   expect(result.findings).toEqual(expect.arrayContaining([expect.objectContaining({ code: "no_metrics", severity: "blocker" })]));
   expect(result.activationAllowed).toBe(false);
 });
+it('distinguishes ADR 0003 repairs from still-locked campaign actions in the report',()=>{
+  expect(run(snapshot([])).decisionPlan.join(' ')).toContain('Google Repair Desk (ADR 0003)');
+});
+it('keeps campaign strategy evidence-first rather than turning every audit into host recovery', () => {
+  const result = run(snapshot([]));
+  expect(result.decisionPlan[0]).toMatch(/Reconcile the exact owned account/i);
+  expect(result.decisionPlan.join(' ')).not.toMatch(/host\/recovery|reinstall/i);
+  expect(result.activationAllowed).toBe(false);
+});
+it("exports the same evidence-first decision plan as the desk, never a host/recovery project", () => {
+  const result = run(snapshot([]));
+  const md = auditMarkdown(result, { brand: "Fixture", account: "Fixture", providerAccountId: "1", market: "all" });
+  expect(md).toContain("## Decision plan");
+  const section = md.split("## Decision plan")[1] ?? "";
+  expect(section).toMatch(/1\. Reconcile the exact owned account/);
+  expect(section).toContain("Google Repair Desk (ADR 0003)");
+  expect(section).not.toMatch(/host\/recovery|reinstall/i);
+});
 it("keeps inventory without metrics separate from measured zero", () => {
   const result = run(snapshot([row({ metricState: "no_stored_metrics", totalSpend: 0, totalConversions: 0 })]));
   expect(result.summaries).toEqual([]);
@@ -186,6 +204,27 @@ it("carries saved business inputs into the audit and export without inventing nu
   expect(md).toContain("2026-09-17T10:00:00Z");
   expect(md).not.toContain("\n## injected heading");
 });
+it("marks saved business context that predates a live connection as stale claims on the desk and in the export", () => {
+  const context = { ...emptyProjectContext(), notes: "Google not connected yet; Meta only", updatedAt: "2026-08-28T10:00:00Z" };
+  const result = buildPerformanceAudit({ current: snapshot(), goal: "sales", asOf: "2026-09-17", platform: "google", adAccountId: "fixture-account",
+    businessContext: { source: "brand", context }, contextConnections: [{ platform: "google", connectedAt: "2026-09-17" }] });
+  expect(result.businessContextStaleness).toContain("Saved on 2026-08-28, before the google connection");
+  const md = auditMarkdown(result, { brand: "Fixture", account: "Fixture", providerAccountId: "1", market: "all" });
+  expect(md).toContain("Saved on 2026-08-28, before the google connection");
+  expect(md).toContain("historical, not current truth");
+});
+
+it("keeps business context staleness silent when connections predate the save or none are provided", () => {
+  const context = { ...emptyProjectContext(), notes: "Meta only", updatedAt: "2026-08-28T10:00:00Z" };
+  const stale = buildPerformanceAudit({ current: snapshot(), goal: "sales", asOf: "2026-09-17", platform: "google", adAccountId: "fixture-account",
+    businessContext: { source: "brand", context }, contextConnections: [{ platform: "google", connectedAt: "2026-08-01" }] });
+  expect(stale.businessContextStaleness).toBeNull();
+  expect(auditMarkdown(stale, { brand: "Fixture", account: "Fixture", providerAccountId: "1", market: "all" })).not.toContain("before the google connection");
+  const none = buildPerformanceAudit({ current: snapshot(), goal: "sales", asOf: "2026-09-17", platform: "google", adAccountId: "fixture-account",
+    businessContext: { source: "brand", context } });
+  expect(none.businessContextStaleness).toBeNull();
+});
+
 it.each(["missing", "unavailable"] as const)("exports %s business context as a gap, not a legacy or invented profile", source => {
   const result = buildPerformanceAudit({ current: snapshot(), goal: "sales", asOf: "2026-09-17", platform: "google", adAccountId: "fixture-account",
     businessContext: { source, context: null } });

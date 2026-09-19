@@ -6,6 +6,7 @@ import { googleWriteConfigured, launchGoogleCampaign, scaleGoogleCampaignBudget,
 import { launchTikTokCampaign, scaleTikTokCampaignBudget, updateTikTokCampaignStatus } from "@/lib/platform-launch/tiktok";
 import { launchMetaCampaign } from "@/lib/platform-launch/meta";
 import type { LaunchSpec } from "@/lib/platform-launch/types";
+import { readOnlyAdWriteReason } from '@/lib/platform-launch/write-policy';
 
 const spec: LaunchSpec = {
   name: "Fixture draft", objective: "traffic", dailyBudget: 20, goLive: false,
@@ -24,6 +25,10 @@ beforeEach(() => {
 
 it("does not advertise Google writes as configured", () => {
   expect(googleWriteConfigured()).toBe(false);
+});
+
+it('routes existing-target repairs to ADR 0003 without opening generic campaign writes', () => {
+  expect(readOnlyAdWriteReason('google')).toMatch(/Google Repair Desk.*ADR 0003/);
 });
 
 it.each([

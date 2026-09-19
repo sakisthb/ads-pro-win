@@ -25,7 +25,7 @@ import { defaultSyncLookbackDays } from "@/lib/meta/actions";
 import { costMapFromProducts } from "@/lib/woo-orders";
 import { fetchGa4Metrics, isGa4PropertyReady, parseGa4PropertyId } from "@/lib/ga4";
 import { fetchGscMetrics, isGscSiteReady, parseGscSiteUrl } from "@/lib/gsc";
-import { isGoogleAdsAccountReady } from "@/lib/google-ads-accounts";
+import { isGoogleAdsAccountReady, parseGoogleAdsCustomerId } from "@/lib/google-ads-accounts";
 import {
   ensureFreshGoogleAccessToken,
 } from "@/lib/oauth/google-refresh";
@@ -49,8 +49,12 @@ function isSupportedPlatform(value: string): value is Platform {
 
 const syncBodySchema = z.object({
   brandId: z.string().min(1, "brandId is required"),
+  adAccountId: z.string().min(1).optional(),
+  expectedGoogleCustomerId: z.string().regex(/^\d{6,}$/).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+}).refine(body => !body.expectedGoogleCustomerId || Boolean(body.adAccountId), {
+  message: "An explicit adAccountId is required when pinning a Google customer",
 });
 
 // ---------------------------------------------------------------------------
@@ -250,7 +254,7 @@ export async function POST(
   try {
     // 4. Resolve the AdAccount for this brand + platform
     const adAccount = await prisma.adAccount.findFirst({
-      where: { brandId, platform, isActive: true },
+      where: { brandId, platform, isActive: true, ...(body.adAccountId ? { id: body.adAccountId } : {}) },
     });
 
     if (!adAccount) {
@@ -258,6 +262,10 @@ export async function POST(
         { success: false, error: `No active ${platform} account found for brand ${brandId}` },
         404,
       );
+    }
+
+    if (platform === "google" && body.expectedGoogleCustomerId && parseGoogleAdsCustomerId(adAccount.accountId) !== body.expectedGoogleCustomerId) {
+      return json({ success: false, error: "Google account changed. Review the selected customer before importing history." }, 409);
     }
 
     if (!adAccount.accessToken) {
@@ -331,7 +339,7 @@ export async function POST(
         adAccount.accountId,
         dateRange,
       );
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
       const campaignCount = await upsertAdCampaigns(
         campaigns,
         adAccount.id,
@@ -344,7 +352,8 @@ export async function POST(
       }
     } else if (platform === "google") {
       const { recordsProcessed } = await syncGoogleReporting({ syncJobId: syncJob.id, executionPath: "manual", account: adAccount, dateRange });
-      return json({ success: true, platform, recordsSynced: recordsProcessed, syncJobId: syncJob.id });
+      return json({ success: true, platform, recordsSynced: recordsProcessed, syncJobId: syncJob.id,
+        adAccountId: adAccount.id, customerId: parseGoogleAdsCustomerId(adAccount.accountId), startDate, endDate });
     } else if (platform === "google-analytics") {
       const gaAccessToken = await ensureFreshGoogleAccessToken(
         {
@@ -360,7 +369,7 @@ export async function POST(
         throw new Error("Pick a GA4 property on Connections before syncing Google Analytics.");
       }
       const rows = await fetchGa4Metrics(gaAccessToken, propertyId, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
     } else if (platform === "google-search-console") {
       const gscAccessToken = await ensureFreshGoogleAccessToken(
         {
@@ -376,7 +385,7 @@ export async function POST(
         throw new Error("Pick a Search Console property on Connections before syncing.");
       }
       const rows = await fetchGscMetrics(gscAccessToken, siteUrl, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
     } else if (platform === "tiktok") {
       // Refresh the ~24 h access token when it is expired or within 5
       // minutes of expiry, persist the rotated tokens, then fetch.
@@ -388,13 +397,13 @@ export async function POST(
       }
 
       const rows = await fetchTikTokMetrics(tiktokAccessToken, adAccount.accountId, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
     } else if (platform === "omnisend") {
       const rows = await fetchOmnisendData(accessToken, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
     } else if (platform === "brevo") {
       const rows = await fetchBrevoData(accessToken, dateRange);
-      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform);
+      recordsSynced = await upsertDailyMetrics(rows, adAccount.id, platform, adAccount.currency);
     } else if (platform === "woocommerce") {
       // For WooCommerce, accessToken = encrypted consumerKey, refreshToken = encrypted consumerSecret,
       // accountId = storeUrl (set by the connections route).
@@ -428,7 +437,7 @@ export async function POST(
       );
 
       // Aggregate order revenue into DailyMetric (platform "opencart")
-      await upsertDailyMetrics(result.metrics, adAccount.id, "opencart");
+      await upsertDailyMetrics(result.metrics, adAccount.id, "opencart", adAccount.currency);
 
       recordsSynced = orderCount + productCount;
     }

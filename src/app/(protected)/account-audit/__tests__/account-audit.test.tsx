@@ -3,23 +3,37 @@ import userEvent from "@testing-library/user-event";
 import AccountAuditPage from "../page";
 import { api } from "@/components/providers/trpc-provider";
 import { GoogleResearchDesk } from "@/components/audit/google-research-desk";
+import { GoogleRepairDesk } from '@/components/audit/google-repair-desk';
+import { GoogleHistoryImport } from '@/components/audit/google-history-import';
+jest.mock('@/components/audit/google-repair-desk',()=>({GoogleRepairDesk:jest.fn(()=> <div data-testid='google-repair-desk'/>)}));
+jest.mock('@/components/audit/google-history-import',()=>({GoogleHistoryImport:jest.fn(()=> <div data-testid='google-history-import'/>)}));
 
 jest.mock("@/components/providers/trpc-provider", () => ({api:{marketing:{
   getCampaignPerformance:{useQuery:jest.fn()},getCampaignReportAccounts:{useQuery:jest.fn()},
-},onboarding:{getBrandContext:{useQuery:jest.fn()}}}}));
+},onboarding:{getBrandContext:{useQuery:jest.fn()}},researchMemory:{list:{useQuery:jest.fn(()=>({data:[],isLoading:false}))}}}}));
 jest.mock("@/hooks/use-active-brand", () => ({useActiveBrand:()=>({brandId:"brand-1",brands:[{id:"brand-1",name:"Fixture shop"}],setBrandId:jest.fn(),isLoading:false})}));
 jest.mock("@/hooks/use-active-market", () => ({useActiveMarket:()=>({market:"all"})}));
 jest.mock("@/components/brands/desk-filters",()=>({DeskFilterRow:()=>null}));
 jest.mock("recharts",()=>({ResponsiveContainer:()=>null,BarChart:()=>null,Bar:()=>null,XAxis:()=>null,YAxis:()=>null,Tooltip:()=>null,CartesianGrid:()=>null}));
 jest.mock("@/components/audit/google-research-desk",()=>({GoogleResearchDesk:jest.fn(()=> <div>Google research fixture</div>)}));
+jest.mock("@/components/audit/campaign-study-desk",()=>({CampaignStudyDesk:jest.fn(()=> <div>Campaign study fixture</div>)}));
+jest.mock("@/components/audit/proposals-desk",()=>({ProposalsDesk:jest.fn(()=> <div>Proposals fixture</div>)}));
 
 const query = api.marketing.getCampaignPerformance.useQuery;
 const accounts = api.marketing.getCampaignReportAccounts.useQuery;
 const businessContext = api.onboarding.getBrandContext.useQuery;
 
+it('shows the evidence-gated adaptation review for Google only and removes it on platform switch', async () => {
+  render(<AccountAuditPage />);
+  expect(screen.getByRole('region', { name: 'Campaign adaptation review' })).toHaveTextContent('Unverified');
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Platform' }), 'meta');
+  expect(screen.queryByRole('region', { name: 'Campaign adaptation review' })).not.toBeInTheDocument();
+});
+
 it("mounts the Google research/review workflow only for the exact selected valid Google audit scope",()=>{
   render(<AccountAuditPage/>);
   expect(GoogleResearchDesk).toHaveBeenCalledWith(expect.objectContaining({brandId:"brand-1",adAccountId:"account-google",market:"all",goal:"sales",comparison:{mode:"previous"}}),undefined);
+  expect(GoogleRepairDesk).toHaveBeenCalledWith(expect.objectContaining({brandId:'brand-1',adAccountId:'account-google'}),undefined);
 });
 
 it("loads the selected completed preset and historical baseline with unchanged owned scope", async()=>{
@@ -32,6 +46,13 @@ it("loads the selected completed preset and historical baseline with unchanged o
   expect(inputs.at(-1)?.adAccountId).toBe("account-google");
   expect(screen.getByRole("region",{name:"KPI definitions and availability"})).toHaveTextContent("Purchase-only ROAS");
   expect(screen.getByRole("button",{name:"Campaign activation locked"})).toBeDisabled();
+});
+it('mounts historical imports only for the exact valid selected Google account and periods', async () => {
+  render(<AccountAuditPage />);
+  expect(GoogleHistoryImport).toHaveBeenCalledWith(expect.objectContaining({ brandId: 'brand-1', adAccountId: 'account-google',
+    current: expect.objectContaining({ startDate: expect.any(String), endDate: expect.any(String) }), baseline: expect.objectContaining({ startDate: expect.any(String), endDate: expect.any(String) }) }), undefined);
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Platform' }), 'meta');
+  expect(screen.queryByTestId('google-history-import')).not.toBeInTheDocument();
 });
 it("rejects overlapping custom baselines and disables both reporting queries and export", async()=>{
   render(<AccountAuditPage/>);
@@ -89,6 +110,29 @@ it("shows the shared saved brand inputs separately from measured evidence and th
   expect(screen.getByRole("link",{name:"Review / edit saved brand context"})).toHaveAttribute("href","/onboarding?brand=brand-1");
   expect(screen.getByRole("combobox",{name:"Business objective"})).toHaveValue("sales");
   expect(businessContext).toHaveBeenCalledWith({brandId:"brand-1"},expect.objectContaining({enabled:true}));
+});
+it("renders the evidence-first decision plan on the desk, never a host/recovery project",()=>{
+  render(<AccountAuditPage/>);
+  const section=screen.getByRole("heading",{name:"Decision plan"}).closest("section") ?? document.body;
+  expect(within(section as HTMLElement).getByText(/Reconcile the exact owned account/)).toBeInTheDocument();
+  expect(within(section as HTMLElement).getByText(/Google Repair Desk \(ADR 0003\)/)).toBeInTheDocument();
+  expect(section.textContent).not.toMatch(/host\/recovery|reinstall/i);
+});
+it("flags saved business context that predates a live connection as stale claims, not current truth",()=>{
+  jest.mocked(businessContext).mockReturnValue({isLoading:false,data:{brandId:"brand-1",source:"brand",context:{
+    objective:"sales",notes:"Google not connected yet; Meta only",updatedAt:"2026-08-28T10:00:00Z",
+  },connections:[{platform:"google",connectedAt:"2026-09-17"}]}} as never);
+  render(<AccountAuditPage/>);
+  const region=screen.getByRole("region",{name:"Business Context (brand-level)"});
+  expect(region).toHaveTextContent("Saved on 2026-08-28, before the google connection");
+  expect(region).toHaveTextContent("historical, not current truth");
+});
+it("stays silent on staleness when connections predate the saved context or none exist",()=>{
+  jest.mocked(businessContext).mockReturnValue({isLoading:false,data:{brandId:"brand-1",source:"brand",context:{
+    objective:"sales",notes:"Current platform mix",updatedAt:"2026-09-17T10:00:00Z",
+  },connections:[{platform:"google",connectedAt:"2026-08-01"}]}} as never);
+  render(<AccountAuditPage/>);
+  expect(screen.queryByText(/before the google connection/)).not.toBeInTheDocument();
 });
 it("keeps a context read error explicit while preserving valid stored diagnostics",()=>{
   jest.mocked(businessContext).mockReturnValue({isLoading:false,error:{message:"Fixture context failure"}} as never);

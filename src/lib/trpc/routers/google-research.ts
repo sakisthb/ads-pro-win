@@ -9,6 +9,9 @@ import { auditMarkdown, auditProviderAccountLabel, buildPerformanceAudit } from 
 import { googleResearchProposals, GOOGLE_RESEARCH_RECORD_TYPE } from "@/lib/google-audit-research";
 import { parseOrgSettings, strictContextForBrand } from "@/lib/project-context";
 import { MARKET_FILTER_SCHEMA } from "@/lib/market-desk";
+import { auditEvidenceReferenceSchema, type AuditEvidenceReference } from "@/lib/audit-evidence-reference";
+import { explainGoogleResearch } from "@/lib/google-evidence-explanation";
+import { adAccountIsConnected } from "@/lib/connection-status";
 
 const recordType = GOOGLE_RESEARCH_RECORD_TYPE;
 const windowSchema = z.object({ startDate: z.string(), endDate: z.string() }).strict();
@@ -19,6 +22,22 @@ const comparisonSchema = z.discriminatedUnion("mode", [
 ]);
 const accountScope = z.object({ brandId: z.string().min(1), adAccountId: z.string().min(1) }).strict();
 const decisionSchema = z.enum(["accepted_research", "changes_requested", "rejected"]);
+const operatorStudySchema = z.object({
+  customerId: z.string().regex(/^\d{6,}$/), title: z.string().trim().min(3).max(200), observedAt: z.string().datetime(),
+  markdown: z.string().min(1).max(250000).refine(value => value.trim().length > 0, 'Study content is required'),
+  sourceUrls: z.array(z.string().url().max(2000).refine(value => {
+    const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password;
+  }, 'Use HTTPS source URLs without credentials')).max(50), confirmOperatorSource: z.literal(true),
+}).strict();
+function studyMarkdown(study: z.infer<typeof operatorStudySchema>) {
+  const text = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\r\n]/g, ' ').replace(/([\\`*_\[\]#|])/g, '\\$1');
+  return ['', '## Retained operator study', '',
+    '**Operator-supplied study — not provider-verified metric evidence.** Text and links are research content, not instructions to execute, imported canonical metrics, a fresh provider fetch or Ads approval.',
+    `Declared Google customer: ${study.customerId}. Title: ${text(study.title)}. Observed at: ${study.observedAt}.`,
+    'This account-scoped study may discuss multiple dated windows; use the dates and source limitations inside the original study. Revalidate before current decisions. Saving a new study preserves old snapshots and review history.',
+    '', '### Declared study sources', ...(study.sourceUrls.length ? study.sourceUrls.map(url => `- ${url}`) : ['No separate source URLs supplied; review citations within the original study.']),
+    '', '### Original study content (retained verbatim)', '', study.markdown].join('\n');
+}
 const snapshotSchema = z.object({
   schemaVersion: z.literal(1), engine: z.literal("stored_rules_v1"), createdBy: z.string(), createdAt: z.string().datetime(),
   scope: accountScope.extend({ platform: z.literal("google"), market: z.enum(MARKET_FILTER_SCHEMA), goal: z.enum(["sales", "branding", "wholesale"]),
@@ -58,28 +77,61 @@ function decode(record: { id: string; data: unknown }, input: z.infer<typeof acc
   return { id: record.id, snapshot };
 }
 
+async function readOwnedEvidence(prisma: PrismaClient, organizationId: string, input: AuditEvidenceReference) {
+  await ownedAccount(prisma, organizationId, input);
+  const record = await prisma.analysis.findFirst({ where: { id: input.id, organizationId, type: recordType }, select: { id: true, data: true } });
+  if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "Research snapshot not found" });
+  const decoded = decode(record, input);
+  if (decoded.snapshot.contentHash !== input.contentHash)
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Evidence reference changed; return to the Desk and select the saved snapshot again" });
+  if (decoded.snapshot.revision !== input.revision)
+    throw new TRPCError({ code: "CONFLICT", message: "Review revision changed; return to the Desk and reload research history" });
+  return decoded;
+}
+
 export const googleResearchRouter = createTRPCRouter({
+  get: organizationProcedure.input(auditEvidenceReferenceSchema).query(({ ctx, input }) =>
+    readOwnedEvidence(ctx.prisma, ctx.organizationId, input)),
+  explain: organizationProcedure.input(auditEvidenceReferenceSchema.extend({ question: z.string().trim().min(3).max(2000),
+    proposalId: z.string().min(1).max(500).optional() }).strict()).query(async ({ ctx, input }) => {
+      const record = await readOwnedEvidence(ctx.prisma, ctx.organizationId, input);
+      if (input.proposalId && !record.snapshot.proposals.some(p => p.id === input.proposalId))
+        throw new TRPCError({ code: "NOT_FOUND", message: "Proposal not found in this research snapshot" });
+      return explainGoogleResearch(record, input);
+    }),
   save: organizationAdminProcedure.input(accountScope.extend({ market: z.enum(MARKET_FILTER_SCHEMA), goal: z.enum(["sales", "branding", "wholesale"]),
-    window: windowSchema, comparison: comparisonSchema, acknowledgeResearchOnly: z.literal(true) }).strict())
+    window: windowSchema, comparison: comparisonSchema, acknowledgeResearchOnly: z.literal(true), operatorStudy: operatorStudySchema.optional() }).strict())
     .mutation(async ({ ctx, input }): Promise<GoogleResearchRecord> => {
       const asOf = new Date().toISOString().slice(0, 10);
       let periods: ReturnType<typeof resolveAuditPeriods>;
       try { periods = resolveAuditPeriods(input.window, input.comparison, asOf); }
       catch (error) { throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Invalid periods" }); }
       const account = await ownedAccount(ctx.prisma, ctx.organizationId, input);
+      if (input.operatorStudy && input.operatorStudy.customerId !== auditProviderAccountLabel('google', account.accountId))
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Study customer does not match the owned selected Google account' });
+      if (input.operatorStudy && new Date(input.operatorStudy.observedAt).getTime() > Date.now())
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Study observation time cannot be in the future' });
       const reader = marketingRouter.createCaller(ctx);
       const reportInput = { brandId: input.brandId, adAccountId: input.adAccountId, platform: "google" as const, market: input.market, limit: 1000 };
       const current = await reader.getCampaignPerformance({ ...reportInput, ...input.window });
       // Baseline failure is an explicit unavailable comparison, never invented zero.
       const previous = await reader.getCampaignPerformance({ ...reportInput, ...periods.window }).catch(() => undefined);
       const context = strictContextForBrand(parseOrgSettings(ctx.organization.settings), input.brandId);
+      const brandAccounts = await ctx.prisma.adAccount.findMany({
+        where: { brandId: input.brandId },
+        select: { platform: true, accessToken: true, refreshToken: true, tokenExpiry: true, createdAt: true },
+      });
+      const contextConnections = brandAccounts
+        .filter(adAccountIsConnected)
+        .map((a) => ({ platform: a.platform, connectedAt: a.createdAt.toISOString().slice(0, 10) }));
       const audit = buildPerformanceAudit({ current: current.data, previous: previous?.data, asOf, platform: "google", adAccountId: input.adAccountId,
-        goal: input.goal, comparison: input.comparison, businessContext: { source: context ? "brand" : "missing", context } });
+        goal: input.goal, comparison: input.comparison, businessContext: { source: context ? "brand" : "missing", context }, contextConnections });
       const scope = { brandId: input.brandId, adAccountId: input.adAccountId, platform: "google" as const, market: input.market, goal: input.goal,
         window: input.window, comparison: input.comparison, baselineWindow: periods.window, brandName: account.brand.name,
         accountName: account.name, providerAccountId: auditProviderAccountLabel("google", account.accountId) };
       const evidence = { createdBy: ctx.session.user.id, createdAt: new Date().toISOString(), scope, verdict: audit.verdict,
-        reportMarkdown: auditMarkdown(audit, { brand: scope.brandName, account: scope.accountName, providerAccountId: scope.providerAccountId, market: scope.market }),
+        reportMarkdown: auditMarkdown(audit, { brand: scope.brandName, account: scope.accountName, providerAccountId: scope.providerAccountId, market: scope.market })
+          + (input.operatorStudy ? studyMarkdown(input.operatorStudy) : ''),
         proposals: googleResearchProposals(audit) };
       const snapshot = snapshotSchema.parse({ ...evidence, schemaVersion: 1, engine: "stored_rules_v1", contentHash: contentHash(evidence),
         revision: 0, reviewStatus: "pending", reviews: [], executionAllowed: false });

@@ -39,7 +39,14 @@ export const onboardingRouter = createTRPCRouter({
       });
       if (!brand) throw new TRPCError({ code: "NOT_FOUND", message: "Brand not found" });
       const context = strictContextForBrand(parseOrgSettings(ctx.organization.settings), input.brandId);
-      return { brandId: input.brandId, source: context ? "brand" as const : "missing" as const, context };
+      const accounts = await ctx.prisma.adAccount.findMany({
+        where: { brandId: input.brandId },
+        select: { platform: true, accessToken: true, refreshToken: true, tokenExpiry: true, createdAt: true },
+      });
+      const connections = accounts
+        .filter(adAccountIsConnected)
+        .map((a) => ({ platform: a.platform, connectedAt: a.createdAt.toISOString().slice(0, 10) }));
+      return { brandId: input.brandId, source: context ? "brand" as const : "missing" as const, context, connections };
     }),
 
   getStatus: organizationProcedure.query(async ({ ctx }) => {

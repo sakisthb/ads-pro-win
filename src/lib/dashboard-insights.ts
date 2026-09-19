@@ -70,6 +70,12 @@ export function looksLikeAdvantagePlusName(name: string | null | undefined): boo
   return /advantage\+|\basc\b/i.test(name ?? "");
 }
 
+// Lookalike/interest-stack advice only applies to Meta campaigns; a Google or
+// TikTok winner must not receive Meta audience tactics.
+export function isMetaCampaignPlatform(platform: string | null | undefined): boolean {
+  return /meta|facebook|instagram/i.test(platform ?? "");
+}
+
 export function deriveLiveStrip(args: {
   todayClicks: number;
   todayRevenue: number;
@@ -156,24 +162,26 @@ export function deriveInsights(
   const profitable = campaigns.filter((c) => c.roas >= 3 && c.spend > 0);
   if (profitable.length > 0) {
     const top = [...profitable].sort((a, b) => b.roas - a.roas)[0];
-    if (looksLikeAdvantagePlusName(top.name)) {
-      insights.push({
-        id: "advantage-plus-control",
-        title: "Keep Advantage+ as the control",
-        description: `"${top.name}" is at ${top.roas.toFixed(2)}x pixel ROAS. Lookalikes are not the next move on Advantage+. Keep this catalog as the control and ship a second format (UGC or carousel) or fix the offer vs landing.`,
-        impact: "medium",
-        actionLabel: "Creative fatigue",
-        href: "/creative-fatigue",
-      });
-    } else {
-      insights.push({
-        id: "audience-expand",
-        title: "Audience expansion",
-        description: `"${top.name}" is at ${top.roas.toFixed(2)}x pixel ROAS. Test a 3% lookalike (or broader interest stack) off this winner instead of scaling the same 1% pool.`,
-        impact: "medium",
-        actionLabel: "Try",
-        href: "/audiences",
-      });
+    if (top && isMetaCampaignPlatform(top.platform)) {
+      if (looksLikeAdvantagePlusName(top.name)) {
+        insights.push({
+          id: "advantage-plus-control",
+          title: "Keep Advantage+ as the control",
+          description: `"${top.name}" is at ${top.roas.toFixed(2)}x pixel ROAS. Lookalikes are not the next move on Advantage+. Keep this catalog as the control and ship a second format (UGC or carousel) or fix the offer vs landing.`,
+          impact: "medium",
+          actionLabel: "Creative fatigue",
+          href: "/creative-fatigue",
+        });
+      } else {
+        insights.push({
+          id: "audience-expand",
+          title: "Audience expansion",
+          description: `"${top.name}" is at ${top.roas.toFixed(2)}x pixel ROAS. Test a 3% lookalike (or broader interest stack) off this winner instead of scaling the same 1% pool.`,
+          impact: "medium",
+          actionLabel: "Try",
+          href: "/audiences",
+        });
+      }
     }
   }
 
