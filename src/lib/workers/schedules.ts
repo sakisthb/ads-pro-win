@@ -43,6 +43,9 @@ const DAILY_CRON = '0 4 * * *'
 /** Hourly delta sync (every hour at minute 0). */
 const HOURLY_CRON = '0 * * * *'
 
+/** Only these scheduler keys are managed by metric reconciliation. */
+const METRIC_SCHEDULER_PATTERN = /^sync:[^:]+:(daily|hourly)$/
+
 /** WooCommerce orders sync every 2 hours. */
 const WOO_ORDERS_CRON = '0 */2 * * *'
 
@@ -108,6 +111,38 @@ function opencartJobName(adAccountId: string): string {
 // ---------------------------------------------------------------------------
 
 /**
+ * Remove persisted metric-sync schedulers that are no longer permitted.
+ *
+ * Bounded: only `sync:<account>:daily|hourly` scheduler keys in the three
+ * metric queues are considered — woo/email/opencart/alert schedulers are
+ * structurally out of scope (different queues), and unexpected keys inside
+ * the metric queues are left untouched.
+ */
+async function reconcileMetricSchedulers(permittedAccountIds: Set<string>): Promise<number> {
+  const queues = [metaSyncQueue, googleSyncQueue, tiktokSyncQueue]
+  let removed = 0
+
+  for (const queue of queues) {
+    try {
+      const schedulers = await queue.getJobSchedulers()
+      for (const scheduler of schedulers) {
+        if (!METRIC_SCHEDULER_PATTERN.test(scheduler.key)) continue
+        const adAccountId = scheduler.key.split(':')[1]
+        if (permittedAccountIds.has(adAccountId)) continue
+        await queue.removeJobScheduler(scheduler.key)
+        removed += 1
+        console.warn(`[Schedules] Removed stale metric scheduler ${scheduler.key}`)
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      console.error(`[Schedules] Metric scheduler reconciliation failed: ${msg}`)
+    }
+  }
+
+  return removed
+}
+
+/**
  * Set up repeatable sync schedules for all active ad accounts and WooCommerce
  * brands.  Should be called once during application startup.
  *
@@ -124,10 +159,12 @@ export async function setupSchedules(): Promise<void> {
       },
     })
 
-    for (const account of accounts) {
-      if (account.platform !== 'meta' && account.platform !== 'google' && account.platform !== 'tiktok') {
-        continue
-      }
+    const metricAccounts = accounts.filter(
+      (account) =>
+        account.platform === 'meta' || account.platform === 'google' || account.platform === 'tiktok',
+    )
+
+    for (const account of metricAccounts) {
       try {
         await addAccountToSchedule(account.id, account.platform)
       } catch (error) {
@@ -138,11 +175,17 @@ export async function setupSchedules(): Promise<void> {
       }
     }
 
+    const permitted = new Set(metricAccounts.map((account) => account.id))
+    const removed = await reconcileMetricSchedulers(permitted)
+
     console.log(
-      `[Schedules] Metric sync schedules set up for ${accounts.length} ad account(s)`,
+      `[Schedules] Metric sync schedules set up for ${metricAccounts.length} ad account(s), removed ${removed} stale scheduler(s)`,
     )
   } else {
-    console.log('[Schedules] Reporting sync flag is disabled — skipping metric schedules')
+    const removed = await reconcileMetricSchedulers(new Set())
+    console.log(
+      `[Schedules] Reporting sync flag is disabled — removed ${removed} persisted metric scheduler(s)`,
+    )
   }
 
   // ---- WooCommerce commerce syncs (per saved AdAccount, never env-for-all-brands) ----

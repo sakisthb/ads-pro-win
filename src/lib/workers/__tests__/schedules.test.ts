@@ -2,17 +2,23 @@
 jest.mock("@/lib/db", () => ({ prisma: { adAccount: { findMany: jest.fn() } } }));
 jest.mock("@/lib/config", () => ({ config: { features: { mcpEnabled: false, reportingSyncEnabled: true, woocommerceEnabled: false, reportingSyncAccountIds: [] } } }));
 jest.mock("@/lib/workers/queues", () => ({
-  metaSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn() },
-  googleSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn() },
-  tiktokSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn() },
-  wooSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn() },
-  emailSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn() },
-  opencartSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn() },
-  alertQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn() },
+  metaSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn(), getJobSchedulers: jest.fn() },
+  googleSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn(), getJobSchedulers: jest.fn() },
+  tiktokSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn(), getJobSchedulers: jest.fn() },
+  wooSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn(), getJobSchedulers: jest.fn() },
+  emailSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn(), getJobSchedulers: jest.fn() },
+  opencartSyncQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn(), getJobSchedulers: jest.fn() },
+  alertQueue: { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn(), getJobSchedulers: jest.fn() },
 }));
 
 import { prisma } from "@/lib/db";
-import { alertQueue, googleSyncQueue, metaSyncQueue, tiktokSyncQueue } from "@/lib/workers/queues";
+import {
+  alertQueue,
+  emailSyncQueue,
+  googleSyncQueue,
+  metaSyncQueue,
+  tiktokSyncQueue,
+} from "@/lib/workers/queues";
 import { setupSchedules } from "@/lib/workers/schedules";
 
 const mockedConfig = jest.requireMock("@/lib/config").config as {
@@ -29,6 +35,9 @@ beforeEach(() => {
   mockedConfig.features.mcpEnabled = false;
   mockedConfig.features.reportingSyncEnabled = true;
   mockedConfig.features.reportingSyncAccountIds = [];
+  for (const queue of [metaSyncQueue, googleSyncQueue, tiktokSyncQueue, emailSyncQueue]) {
+    jest.mocked(queue.getJobSchedulers).mockResolvedValue([]);
+  }
   jest.mocked(prisma.adAccount.findMany).mockImplementation(((args: unknown) => {
     const where = (args as { where?: { platform?: unknown } })?.where ?? {};
     if (where.platform !== undefined) return Promise.resolve([]);
@@ -104,4 +113,62 @@ it("always registers the hourly budget alert check", async () => {
     { pattern: "30 * * * *" },
     expect.objectContaining({ name: "alerts-budget:hourly" }),
   );
+});
+
+it("removes persisted metric schedulers for accounts outside the allowlist", async () => {
+  mockedConfig.features.reportingSyncAccountIds = ["acc-meta-1"];
+  jest.mocked(metaSyncQueue.getJobSchedulers).mockResolvedValue([
+    { key: "sync:acc-meta-1:daily", name: "sync:acc-meta-1:daily" },
+    { key: "sync:acc-meta-1:hourly", name: "sync:acc-meta-1:hourly" },
+    { key: "sync:acc-stale:daily", name: "sync:acc-stale:daily" },
+    { key: "sync:acc-stale:hourly", name: "sync:acc-stale:hourly" },
+  ]);
+  jest.mocked(googleSyncQueue.getJobSchedulers).mockResolvedValue([
+    { key: "sync:acc-google-stale:daily", name: "sync:acc-google-stale:daily" },
+  ]);
+
+  await setupSchedules();
+
+  expect(metaSyncQueue.removeJobScheduler).toHaveBeenCalledTimes(2);
+  expect(metaSyncQueue.removeJobScheduler).toHaveBeenCalledWith("sync:acc-stale:daily");
+  expect(metaSyncQueue.removeJobScheduler).toHaveBeenCalledWith("sync:acc-stale:hourly");
+  expect(metaSyncQueue.removeJobScheduler).not.toHaveBeenCalledWith("sync:acc-meta-1:daily");
+  expect(metaSyncQueue.removeJobScheduler).not.toHaveBeenCalledWith("sync:acc-meta-1:hourly");
+  expect(googleSyncQueue.removeJobScheduler).toHaveBeenCalledWith("sync:acc-google-stale:daily");
+});
+
+it("removes all persisted metric schedulers when reporting sync is disabled, without touching email schedulers", async () => {
+  mockedConfig.features.reportingSyncEnabled = false;
+  jest.mocked(metaSyncQueue.getJobSchedulers).mockResolvedValue([
+    { key: "sync:acc-meta-1:daily", name: "sync:acc-meta-1:daily" },
+    { key: "sync:acc-meta-1:hourly", name: "sync:acc-meta-1:hourly" },
+  ]);
+  jest.mocked(googleSyncQueue.getJobSchedulers).mockResolvedValue([
+    { key: "sync:acc-google-1:daily", name: "sync:acc-google-1:daily" },
+  ]);
+  jest.mocked(emailSyncQueue.getJobSchedulers).mockResolvedValue([
+    { key: "sync:acc-email:sixhourly", name: "sync:acc-email:sixhourly" },
+  ]);
+
+  await setupSchedules();
+
+  expect(metaSyncQueue.removeJobScheduler).toHaveBeenCalledTimes(2);
+  expect(metaSyncQueue.removeJobScheduler).toHaveBeenCalledWith("sync:acc-meta-1:daily");
+  expect(metaSyncQueue.removeJobScheduler).toHaveBeenCalledWith("sync:acc-meta-1:hourly");
+  expect(googleSyncQueue.removeJobScheduler).toHaveBeenCalledWith("sync:acc-google-1:daily");
+  expect(tiktokSyncQueue.removeJobScheduler).not.toHaveBeenCalled();
+  expect(emailSyncQueue.removeJobScheduler).not.toHaveBeenCalled();
+});
+
+it("keeps schedulers of all active accounts when the allowlist is empty", async () => {
+  jest.mocked(metaSyncQueue.getJobSchedulers).mockResolvedValue([
+    { key: "sync:acc-meta-1:daily", name: "sync:acc-meta-1:daily" },
+    { key: "sync:acc-orphan:daily", name: "sync:acc-orphan:daily" },
+  ]);
+
+  await setupSchedules();
+
+  expect(metaSyncQueue.removeJobScheduler).toHaveBeenCalledTimes(1);
+  expect(metaSyncQueue.removeJobScheduler).toHaveBeenCalledWith("sync:acc-orphan:daily");
+  expect(metaSyncQueue.removeJobScheduler).not.toHaveBeenCalledWith("sync:acc-meta-1:daily");
 });
