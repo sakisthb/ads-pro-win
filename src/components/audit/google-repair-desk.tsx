@@ -74,7 +74,7 @@ function RepairDesk(scope: Props) {
   const canExecute = record?.preview.state === 'prepared' && !attempted && Date.parse(record.preview.expiresAt) > Date.now() && exact && serving && !busy;
   const uncertain = record && (['executing', 'provider_unknown', 'readback_mismatch'].includes(record.preview.state) || attempted && record.preview.state === 'prepared');
   const campaignNetworkRepair = record?.preview.request.kind === 'campaign_network_update';
-  return <section aria-label='Google Repair Desk' className='space-y-4 rounded-2xl border border-blue-400/20 bg-white/[0.025] p-5'>
+  return <section id='google-repair-desk' aria-label='Google Repair Desk' className='space-y-4 rounded-2xl border border-blue-400/20 bg-white/[0.025] p-5'>
     <h2 className='text-lg font-semibold'>Google Repair Desk</h2>
     <p className='text-sm text-zinc-300'>Existing BagToBag Search RSA copy/destinations, positive keyword pause/destinations, campaign sitelink pause and one-way Content Network disable only. No campaign activation, budget changes, campaign creation, shared negative-list edits or website/catalog writes.</p>
     <p className='text-sm text-amber-200'>A repaired enabled target may continue or resume serving and spend under its existing budget. Native field verification does not mean Google policy approval, delivery or improved ROAS.</p>
