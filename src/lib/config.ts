@@ -84,6 +84,12 @@ export const config = {
     mcpEnabled: process.env.MCP_ENABLED === 'true',
     // Reporting sync is core worker behavior, independent of the MCP tool flag.
     reportingSyncEnabled: process.env.REPORTING_SYNC_ENABLED !== 'false',
+    // Optional allowlist of AdAccount ids for automatic metric syncs. Empty
+    // (default) schedules every active ad account.
+    reportingSyncAccountIds: (process.env.REPORTING_SYNC_ACCOUNT_IDS ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean),
     woocommerceEnabled: process.env.WOOCOMMERCE_ENABLED === 'true',
   },
 };

@@ -95,6 +95,19 @@ beforeEach(()=>{
   });
 });
 
+it("renders the three brand desks without duplicate React keys",()=>{
+  const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    render(<AccountAuditPage />);
+    const duplicateKeyWarnings = consoleError.mock.calls.filter(
+      (args) => typeof args[0] === "string" && args[0].includes("same key"),
+    );
+    expect(duplicateKeyWarnings).toEqual([]);
+  } finally {
+    consoleError.mockRestore();
+  }
+});
+
 it("shows the shared saved brand inputs separately from measured evidence and the selected audit goal",()=>{
   jest.mocked(businessContext).mockReturnValue({isLoading:false,data:{brandId:"brand-1",source:"brand",context:{
     objective:"leads",targetResult:"Qualified business buyers",priorities:"Wholesale quality",constraints:"No automatic scaling",

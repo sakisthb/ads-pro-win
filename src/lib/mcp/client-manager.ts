@@ -2,13 +2,16 @@
  * Singleton MCP client manager.
  *
  * Wraps the official `@modelcontextprotocol/sdk` `Client` and connects to
- * remote MCP servers over SSE (`SSEClientTransport`). Connections are
- * lazily initialized on first use, cached per `serverId`, and automatically
- * disconnected after a configurable idle timeout (default 10 minutes).
+ * remote MCP servers over SSE (`SSEClientTransport`) or Streamable HTTP
+ * (`StreamableHTTPClientTransport`), selectable per connection. Connections
+ * are lazily initialized on first use, cached per `serverId`, and
+ * automatically disconnected after a configurable idle timeout (default
+ * 10 minutes).
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 
 /** Milliseconds of inactivity after which an idle connection is reaped. */
 const DEFAULT_IDLE_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
@@ -73,7 +76,7 @@ export function parseToolJson<T = unknown>(result: McpToolResult): T | null {
 /** Internal record tracking a live connection and its idle timer. */
 interface ManagedConnection {
   client: Client
-  transport: SSEClientTransport
+  transport: SSEClientTransport | StreamableHTTPClientTransport
   url: string
   /** `setTimeout` handle used to reap the connection when idle. */
   idleTimer: ReturnType<typeof setTimeout>
@@ -82,11 +85,20 @@ interface ManagedConnection {
 }
 
 /**
+ * Wire transport for an MCP connection. Meta's hosted MCP endpoint
+ * (`mcp.facebook.com/ads`) deprecated the legacy SSE handshake and now
+ * requires Streamable HTTP; the remaining servers still speak SSE.
+ */
+export type McpTransportKind = 'sse' | 'streamable-http'
+
+/**
  * Connection options accepted by {@link McpClientManager.getClient}.
  */
 export interface GetClientOptions {
-  /** Optional request headers attached to the SSE handshake (e.g. auth). */
+  /** Optional request headers attached to the transport handshake (e.g. auth). */
   headers?: Record<string, string>
+  /** Wire transport for the connection; defaults to `'sse'`. */
+  transport?: McpTransportKind
 }
 
 /**
@@ -120,11 +132,11 @@ class McpClientManagerImpl {
     console.log(`[MCP] initializing connection to "${serverId}" at ${url}`)
 
     const parsedUrl = new URL(url)
-    const transport = new SSEClientTransport(parsedUrl, {
-      requestInit: {
-        headers: options.headers ?? {},
-      },
-    })
+    const requestInit = { headers: options.headers ?? {} }
+    const transport =
+      options.transport === 'streamable-http'
+        ? new StreamableHTTPClientTransport(parsedUrl, { requestInit })
+        : new SSEClientTransport(parsedUrl, { requestInit })
 
     const client = new Client(CLIENT_INFO, {
       capabilities: {},
@@ -278,7 +290,9 @@ class McpClientManagerImpl {
   }
 
   /** Close a transport without throwing on already-closed connections. */
-  private async safeClose(transport: SSEClientTransport): Promise<void> {
+  private async safeClose(
+    transport: SSEClientTransport | StreamableHTTPClientTransport,
+  ): Promise<void> {
     try {
       await transport.close()
     } catch {
