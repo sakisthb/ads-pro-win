@@ -19,11 +19,14 @@ export const repairRequestSchema=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('keyword_pause'),campaignId:id,adGroupId:id,criterionId:id,reason}).strict(),
   z.object({kind:z.literal('keyword_destination'),campaignId:id,adGroupId:id,criterionId:id,reason,finalUrls:urls}).strict(),
   z.object({kind:z.literal('sitelink_pause'),campaignId:id,assetId:id,reason}).strict(),
+  z.object({kind:z.literal('campaign_network_update'),campaignId:id,reason,targetContentNetwork:z.literal(false)}).strict(),
 ]);
 export type RepairRequest=z.infer<typeof repairRequestSchema>;
+const networkSettings=z.object({targetGoogleSearch:z.boolean(),targetSearchNetwork:z.boolean(),targetContentNetwork:z.boolean(),targetPartnerSearchNetwork:z.boolean()}).strict();
 export const repairStateSchema=z.object({resourceName:z.string().min(1).max(250),campaignStatus:z.string(),adGroupStatus:z.string().optional(),status:z.string(),type:z.string(),
   finalUrls:z.array(z.string()).default([]),finalMobileUrls:z.array(z.string()).default([]),headlines:z.array(asset(30)).default([]),descriptions:z.array(asset(90)).default([]),
   negative:z.boolean().optional(),keyword:z.object({text:z.string(),matchType:z.string()}).strict().optional(),linkText:z.string().optional(),description1:z.string().optional(),description2:z.string().optional(),
+  networkSettings:networkSettings.optional(),
 }).strict();
 export type RepairState=z.infer<typeof repairStateSchema>;
 export const repairScopeSchema=z.object({brandId:z.string().min(1),adAccountId:z.string().min(1),customerId:id}).strict();
@@ -54,6 +57,9 @@ export function desiredRepairState(request:RepairRequest,before:RepairState):Rep
     case 'sitelink_pause':
       if(before.type!=='SITELINK') throw new Error('Only this campaign sitelink association can be paused');
       desired={...before,status:'PAUSED'};break;
+    case 'campaign_network_update':
+      if(before.type!=='SEARCH_CAMPAIGN'||before.networkSettings?.targetContentNetwork!==true) throw new Error('Only an existing Search campaign with Content Network enabled can be repaired');
+      desired={...before,networkSettings:{...before.networkSettings,targetContentNetwork:false}};break;
   }
   if(JSON.stringify(before)===JSON.stringify(desired)) throw new Error('No effective repair; current fields already match');
   return repairStateSchema.parse(desired);
@@ -69,5 +75,6 @@ export function buildRepairMutation(request:RepairRequest,before:RepairState) {
     case 'keyword_pause':return {service:'adGroupCriteria',operation:{update:{resourceName:before.resourceName,status:'PAUSED'},updateMask:'status'}};
     case 'keyword_destination':return {service:'adGroupCriteria',operation:{update:{resourceName:before.resourceName,finalUrls:request.finalUrls},updateMask:'final_urls'}};
     case 'sitelink_pause':return {service:'campaignAssets',operation:{update:{resourceName:before.resourceName,status:'PAUSED'},updateMask:'status'}};
+    case 'campaign_network_update':return {service:'campaigns',operation:{update:{resourceName:before.resourceName,networkSettings:{targetContentNetwork:false}},updateMask:'network_settings.target_content_network'}};
   }
 }

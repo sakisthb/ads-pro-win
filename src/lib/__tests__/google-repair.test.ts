@@ -3,6 +3,8 @@ import { repairRequestSchema, desiredRepairState, buildRepairMutation, repairCon
 
 const before: RepairState = { resourceName:'customers/1111111111/ads/111', campaignStatus:'ENABLED', adGroupStatus:'PAUSED', status:'ENABLED', type:'RESPONSIVE_SEARCH_AD', finalUrls:['https://bagtobag.com.gr/old/'], finalMobileUrls:[], headlines:[{text:'Fixture one',pinnedField:'HEADLINE_1'},{text:'Fixture two'},{text:'Fixture three'}], descriptions:[{text:'Fixture description one'},{text:'Fixture description two'}] };
 const request = { kind:'rsa_update' as const, campaignId:'222', adGroupId:'333', adId:'111', reason:'Repair obsolete destination', patch:{finalUrls:['https://bagtobag.com.gr/wallet-portofolia/']} };
+const networkRequest = { kind:'campaign_network_update' as const, campaignId:'222', reason:'Remove unmeasured Display expansion', targetContentNetwork:false as const };
+const networkBefore = { resourceName:'customers/1111111111/campaigns/222', campaignStatus:'ENABLED', status:'ENABLED', type:'SEARCH_CAMPAIGN', finalUrls:[], finalMobileUrls:[], headlines:[], descriptions:[], networkSettings:{ targetGoogleSearch:true, targetSearchNetwork:true, targetContentNetwork:true, targetPartnerSearchNetwork:false } } as unknown as RepairState;
 
 it('permits only bounded repair kinds and rejects campaign activation, budgets, extra fields and empty patches',()=>{
   expect(repairRequestSchema.safeParse(request).success).toBe(true);
@@ -31,6 +33,14 @@ it('pauses one positive keyword without enabling campaigns or changing keyword t
 it('pauses only the campaign sitelink association, never the shared asset',()=>{
   const q=repairRequestSchema.parse({kind:'sitelink_pause',campaignId:'222',assetId:'555',reason:'Unverified dated sale claim'});
   expect(buildRepairMutation(q,{...before,type:'SITELINK',resourceName:'customers/1111111111/campaignAssets/222~555~SITELINK'})).toEqual({service:'campaignAssets',operation:{update:{resourceName:'customers/1111111111/campaignAssets/222~555~SITELINK',status:'PAUSED'},updateMask:'status'}});
+});
+it('allows only a one-way Search campaign repair that disables Content Network and preserves every other campaign field',()=>{
+  const parsed=repairRequestSchema.parse(networkRequest);
+  const desired=desiredRepairState(parsed,networkBefore);
+  expect(desired).toEqual({...networkBefore,networkSettings:{...networkBefore.networkSettings,targetContentNetwork:false}});
+  expect(buildRepairMutation(parsed,networkBefore)).toEqual({service:'campaigns',operation:{update:{resourceName:networkBefore.resourceName,networkSettings:{targetContentNetwork:false}},updateMask:'network_settings.target_content_network'}});
+  expect(repairRequestSchema.safeParse({...networkRequest,targetContentNetwork:true}).success).toBe(false);
+  expect(repairRequestSchema.safeParse({...networkRequest,budget:20}).success).toBe(false);
 });
 it('binds preview integrity to scope, author, timestamps, request, before and desired fields',()=>{
   const p={scope:{brandId:'fixture-brand',adAccountId:'fixture-account',customerId:'1111111111'},createdBy:'fixture-owner',createdAt:'2026-09-17T12:00:00Z',expiresAt:'2026-09-17T12:10:00Z',request:repairRequestSchema.parse(request),before,desired:desiredRepairState(repairRequestSchema.parse(request),before)};
