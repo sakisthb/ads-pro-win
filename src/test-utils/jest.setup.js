@@ -66,6 +66,16 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'mock-anon-key'
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
+// jsdom's crypto lacks randomUUID; production browsers provide it.
+if (typeof crypto !== 'undefined' && typeof crypto.randomUUID !== 'function') {
+  crypto.randomUUID = () => {
+    const hex = '0123456789abcdef'
+    const pick = n =>
+      Array.from({ length: n }, () => hex[Math.floor(Math.random() * 16)]).join('')
+    return `${pick(8)}-${pick(4)}-${pick(4)}-${pick(4)}-${pick(12)}`
+  }
+}
+
 // Suppress console errors in tests (optional)
 const originalError = console.error
 beforeAll(() => {

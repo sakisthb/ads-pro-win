@@ -104,9 +104,21 @@ export async function createSession(
   organizationId: string,
   title: string,
 ): Promise<string | null> {
+  // The chat tables have no database-side defaults (see migration
+  // 20260918143000): the client must supply id and timestamps or every insert
+  // fails NOT NULL.
+  const now = new Date().toISOString();
   const { data, error } = await sb
     .from("chat_sessions")
-    .insert({ user_id: userId, organization_id: organizationId, title, message_count: 0 })
+    .insert({
+      id: crypto.randomUUID(),
+      user_id: userId,
+      organization_id: organizationId,
+      title,
+      message_count: 0,
+      created_at: now,
+      updated_at: now,
+    })
     .select("id")
     .single();
   if (error || !data) return null;
@@ -118,11 +130,14 @@ export async function insertMessage(sb: SupabaseClient, sessionId: string, msg: 
   if (msg.confidence) metadata.confidence = msg.confidence;
   if (msg.dataCard) metadata.dataCard = msg.dataCard;
   await sb.from("chat_messages").insert({
+    id: crypto.randomUUID(),
     session_id: sessionId,
     type: msg.type,
     content: msg.content,
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
+    created_at: new Date().toISOString(),
   });
+  await sb.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId);
 }
 
 export function localChatKey(userId: string) {
