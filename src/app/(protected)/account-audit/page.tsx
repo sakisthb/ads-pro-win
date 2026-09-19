@@ -174,9 +174,9 @@ export default function AccountAuditPage() {
         brandId={brandId} adAccountId={accountId} providerAccountId={account.accountId} current={window} baseline={previousWindow}
         onImported={() => { void currentQuery.refetch(); void previousQuery.refetch(); }} />}
       {platform === "google" && brandId && accountId && <GoogleRepairDesk brandId={brandId} adAccountId={accountId} />}
-      {brandId && <ResearchMemoryPanel key={brandId} brandId={brandId} />}
-      {brandId && <CampaignStudyDesk key={brandId} brandId={brandId} />}
-      {brandId && <ProposalsDesk key={brandId} brandId={brandId} />}
+      {brandId && <ResearchMemoryPanel key={`research-memory:${brandId}`} brandId={brandId} />}
+      {brandId && <CampaignStudyDesk key={`campaign-study:${brandId}`} brandId={brandId} />}
+      {brandId && <ProposalsDesk key={`proposals:${brandId}`} brandId={brandId} />}
       {audit && <>
         <section className={section} aria-label="Business Context (brand-level)">
           <h2 className="text-lg font-semibold">Business Context (brand-level)</h2>
