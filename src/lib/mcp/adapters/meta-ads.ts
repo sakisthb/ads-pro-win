@@ -46,8 +46,8 @@ import type { MetaAction } from '@/lib/meta/actions'
 /** Default Meta MCP endpoint when `META_MCP_URL` is not configured. */
 const DEFAULT_META_MCP_URL = 'https://mcp.facebook.com/ads'
 
-/** Stable server id used by the shared MCP connection pool. */
-const META_SERVER_ID = 'meta-ads'
+/** Monotonic counter giving every adapter instance a unique pool key. */
+let instanceCounter = 0
 
 /** Meta campaign as returned by the MCP `list_campaigns` tool. */
 interface MetaMcpCampaign {
@@ -104,6 +104,8 @@ export class MetaAdsAdapter implements PlatformAdapter {
 
   private credentials: AdAccountCredentials | null = null
   private connected = false
+  /** Per-instance pool key; lazily assigned on first use. */
+  private connectionKey: string | null = null
 
   constructor(credentials?: AdAccountCredentials) {
     this.credentials = credentials ?? null
@@ -126,20 +128,20 @@ export class MetaAdsAdapter implements PlatformAdapter {
     if (!this.connected) {
       return
     }
-    await McpClientManager.disconnect(META_SERVER_ID)
+    await McpClientManager.disconnect(this.serverId())
     this.connected = false
     console.log('[MCP:meta] disconnected')
   }
 
   isConnected(): boolean {
-    return this.connected && McpClientManager.has(META_SERVER_ID)
+    return this.connected && McpClientManager.has(this.serverId())
   }
 
   async getCampaigns(): Promise<NormalizedCampaign[]> {
     await this.ensureConnected()
     try {
       const result = await McpClientManager.callTool(
-        META_SERVER_ID,
+        this.serverId(),
         this.resolveUrl(),
         'list_campaigns',
         {
@@ -178,7 +180,7 @@ export class MetaAdsAdapter implements PlatformAdapter {
   private async getPerformanceChunk(dateRange: DateRange): Promise<NormalizedMetric[]> {
     try {
       const result = await McpClientManager.callTool(
-        META_SERVER_ID,
+        this.serverId(),
         this.resolveUrl(),
         'get_insights',
         {
@@ -294,8 +296,21 @@ export class MetaAdsAdapter implements PlatformAdapter {
     await this.connect(this.credentials)
   }
 
+  /**
+   * Per-instance connection identity in the shared pool. Metric-sync workers
+   * run with concurrency and create one adapter per job, so a stable global
+   * id would make concurrent jobs (e.g. daily + hourly colliding at 04:00)
+   * share one connection — one job's `disconnect()` then closing the other's
+   * connection, and two different accounts silently reusing each other's
+   * credentials. A unique key per adapter instance keeps every job's
+   * connection (and its auth headers) isolated; missed disconnects are
+   * reaped by the manager's idle timeout.
+   */
   private serverId(): string {
-    return META_SERVER_ID
+    if (!this.connectionKey) {
+      this.connectionKey = `meta-ads:${this.credentials?.accountId ?? 'no-account'}:${++instanceCounter}`
+    }
+    return this.connectionKey
   }
 
   private resolveUrl(): string {
