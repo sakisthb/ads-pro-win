@@ -16,13 +16,19 @@ interface FakeCapture {
   selectColumns?: string;
   eqCalls: [string, unknown][];
   inserted?: Record<string, unknown>;
+  updated?: Record<string, unknown>;
+  fromTables: string[];
   listResult: { data: unknown; error: unknown };
   probeResult: { data: unknown; error: unknown };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+
 function makeFakeSupabase(options: { probeError?: string } = {}) {
   const capture: FakeCapture = {
     eqCalls: [],
+    fromTables: [],
     listResult: { data: [], error: null },
     probeResult: options.probeError
       ? { data: null, error: { message: options.probeError } }
@@ -32,6 +38,7 @@ function makeFakeSupabase(options: { probeError?: string } = {}) {
   const builder: Record<string, unknown> = {};
   builder.from = jest.fn((table: string) => {
     capture.table = table;
+    capture.fromTables.push(table);
     return builder;
   });
   builder.select = jest.fn((columns?: string) => {
@@ -40,6 +47,10 @@ function makeFakeSupabase(options: { probeError?: string } = {}) {
   });
   builder.insert = jest.fn((value: Record<string, unknown>) => {
     capture.inserted = value;
+    return builder;
+  });
+  builder.update = jest.fn((value: Record<string, unknown>) => {
+    capture.updated = value;
     return builder;
   });
   builder.eq = jest.fn((column: string, value: unknown) => {
@@ -83,11 +94,17 @@ describe("org-scoped session queries", () => {
     const id = await createSession(sb, "user-1", "org-1", "Hello there");
 
     expect(capture.inserted).toEqual({
+      id: expect.stringMatching(UUID_RE),
       user_id: "user-1",
       organization_id: "org-1",
       title: "Hello there",
       message_count: 0,
+      created_at: expect.stringMatching(ISO_RE),
+      updated_at: expect.stringMatching(ISO_RE),
     });
+    expect((capture.inserted as Record<string, string>).created_at).toBe(
+      (capture.inserted as Record<string, string>).updated_at,
+    );
     expect(id).toBe("session-new");
   });
 
@@ -109,12 +126,14 @@ describe("message persistence", () => {
 
     await insertMessage(sb, "session-1", msg);
 
-    expect(capture.table).toBe("chat_messages");
+    expect(capture.fromTables).toEqual(["chat_messages", "chat_sessions"]);
     expect(capture.inserted).toEqual({
+      id: expect.stringMatching(UUID_RE),
       session_id: "session-1",
       type: "user",
       content: "hi",
       metadata: null,
+      created_at: expect.stringMatching(ISO_RE),
     });
   });
 
@@ -132,9 +151,22 @@ describe("message persistence", () => {
     await insertMessage(sb, "session-1", msg);
 
     expect(capture.inserted).toMatchObject({
+      id: expect.stringMatching(UUID_RE),
       session_id: "session-1",
+      created_at: expect.stringMatching(ISO_RE),
       metadata: { confidence: 92, dataCard: { title: "ROAS" } },
     });
+  });
+
+  it("bumps the session's updated_at so recent sessions surface first", async () => {
+    const { sb, capture } = makeFakeSupabase();
+    const msg: ChatMessage = { id: "m-3", type: "user", content: "hello", createdAt: new Date("2026-09-18T10:00:00Z") };
+
+    await insertMessage(sb, "session-1", msg);
+
+    expect(capture.fromTables).toContain("chat_sessions");
+    expect(capture.updated).toEqual({ updated_at: expect.stringMatching(ISO_RE) });
+    expect(capture.eqCalls).toContainEqual(["id", "session-1"]);
   });
 });
 
