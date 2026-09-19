@@ -11,6 +11,7 @@ import {
   McpClientManager,
   parseToolJson,
 } from '@/lib/mcp/client-manager'
+import type { GetClientOptions } from '@/lib/mcp/client-manager'
 import type {
   AdAccountCredentials,
   CampaignStatus,
@@ -112,12 +113,11 @@ export class MetaAdsAdapter implements PlatformAdapter {
     this.credentials = credentials
     const url = this.resolveUrl()
     console.log(`[MCP:meta] connecting to ${url}`)
-    await McpClientManager.getClient(this.serverId(), url, {
-      headers: {
-        Authorization: `Bearer ${credentials.accessToken ?? ''}`,
-        'X-Ad-Account': credentials.accountId,
-      },
-    })
+    await McpClientManager.getClient(
+      this.serverId(),
+      url,
+      this.connectionOptions(),
+    )
     this.connected = true
     console.log('[MCP:meta] connection established')
   }
@@ -146,7 +146,7 @@ export class MetaAdsAdapter implements PlatformAdapter {
           account_id: this.credentials?.accountId,
           access_token: this.credentials?.accessToken,
         },
-        this.authHeaders(),
+        this.connectionOptions(),
       )
 
       const payload = parseToolJson<{ data?: MetaMcpCampaign[]; campaigns?: MetaMcpCampaign[] }>(result)
@@ -203,7 +203,7 @@ export class MetaAdsAdapter implements PlatformAdapter {
             'results',
           ],
         },
-        this.authHeaders(),
+        this.connectionOptions(),
       )
 
       const payload = parseToolJson<{ data?: MetaMcpInsight[]; insights?: MetaMcpInsight[] }>(result)
@@ -302,10 +302,19 @@ export class MetaAdsAdapter implements PlatformAdapter {
     return config.mcp.metaUrl ?? DEFAULT_META_MCP_URL
   }
 
-  private authHeaders(): Record<string, string> {
+  /**
+   * Shared connection options for every manager call site. Meta's hosted MCP
+   * endpoint rejects the legacy SSE handshake (405), so all connections —
+   * including lazy reconnects from `callTool` after an idle reap — must use
+   * Streamable HTTP.
+   */
+  private connectionOptions(): GetClientOptions {
     return {
-      Authorization: `Bearer ${this.credentials?.accessToken ?? ''}`,
-      'X-Ad-Account': this.credentials?.accountId ?? '',
+      headers: {
+        Authorization: `Bearer ${this.credentials?.accessToken ?? ''}`,
+        'X-Ad-Account': this.credentials?.accountId ?? '',
+      },
+      transport: 'streamable-http',
     }
   }
 
